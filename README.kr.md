@@ -34,6 +34,7 @@ Cursor용 atomic explore → plan → task → execute → review 워크플로 (
 | 커맨드 스킬 | `.cursor/skills/cursor-atomic-<이름>/SKILL.md` | 하나하나가 슬래시 커맨드(`/cursor-atomic-plan` 등)이며 커맨드 로직을 담는다 |
 | 워크플로 스킬 | `.cursor/skills/cursor-atomic-workflow/` | 오케스트레이션 문서(`CONTEXT.md`, `reference.md`, `workers.md`, `testing.md`, `models.md`), Cursor 하네스 어댑터(`references/harness.md`), `work-status.mjs` / `run-done.mjs` 번들 복사본 |
 | 서브에이전트 | `.cursor/agents/*.md` | 에이전트 8종: `explorer`, `planner`, `plan-reviewer`, `tasker`, `worker`, `cursor-atomic-reviewer`, `tester`, `cli-delegate` |
+| 라우터 규칙 | `.cursor/rules/atomic-router.mdc` | 메인 채팅 alwaysApply: 슬래시 없을 때 **lite** vs **full** 자동 판정 |
 | 러너 스크립트 | `scripts/` | `install.mjs`, `run-pipeline.mjs`, `doctor.mjs`, `check-agents.mjs`, `work-status.mjs`, `run-done.mjs`, `lib/` |
 
 Node `>=22.13` 필요. `@cursor/sdk`는 패키지 루트의 optional dependency로 파이프라인 러너의 SDK 어댑터를 구동한다.
@@ -56,7 +57,7 @@ node scripts/install.mjs --target /path/to/project
 | `--skills-dir <path>` | 스킬 복사 위치 (기본: `.cursor/skills`) |
 | `--force` | 기존 파일 덮어쓰기 (없으면 유지) |
 | `--set-model <agent>=<model>` | 에이전트 frontmatter에 단계 모델 고정 (여러 번 가능) |
-| `--no-skills` / `--no-agents` | 구성 요소 건너뛰기 |
+| `--no-skills` / `--no-agents` / `--no-rules` | 구성 요소 건너뛰기 |
 | `-h, --help` | 도움말 |
 
 ```bash
@@ -77,10 +78,25 @@ node scripts/check-agents.mjs  # .cursor/agents 모델이 scripts/lib/roles.mjs�
 
 ## 3. 사용법
 
-기본: **PLAN만 확정하면** 러너가 **plan-review**(PLAN 비판 검토) → task → execute → review를 자동 실행한다. 커밋은 `/cursor-atomic-wrapup`일 때만.
+### Lite vs 전체 워크플로
+
+| | `/cursor-atomic-lite` | 전체 `/cursor-atomic-*` 파이프라인 |
+|---|---|---|
+| 세션 | 부모 한 세션, **서브에이전트 없음** | explore → plan-review → task → worker → reviewer → tester (Task 또는 SDK 러너) |
+| 적합 | 작고 범위가 분명한 변경(보통 **파일 5개 미만**), 스키마·인증·보안 작업 없음 | 다파일 리팩터, DB 마이그레이션, 보안, 큰 계획, 병렬 워커 |
+| 산출물 | 짧은 `PLAN-<slug>.md`만 (동일 전역 docs 홈) | EXPLORE, PLAN, PLAN-REVIEW, TASKS, REVIEW, evidence |
+| 메모리 | 시작 시 `memory.mjs context`, 끝에 `propose --auto` | 같은 볼트; `memory-curator`·파이프라인 캡처 선택 |
+| 마무리 | PLAN 완료 기준 대비 테스트·짧은 요약 | `/cursor-atomic-wrapup`으로 커밋 + STATUS |
+
+lite에서 **파일 5개 이상**, **DB/스키마**, **인증·보안**, 계획이 짧은 목록을 넘어가면 멈추고 `/cursor-atomic-plan` 또는 `/cursor-atomic-run`으로 전환한다.
+
+**메인 채팅(슬래시 없음):** `install.mjs`가 `.cursor/rules/atomic-router.mdc`를 복사한다(`alwaysApply`). 에이전트가 동일 신호(모듈 간 설계·요구 불명확 → full, 작고 국소·명확 → lite)로 판정하고 `라우팅: lite|full (이유: …)` 한 줄을 남긴다. `/cursor-atomic-*` 명시 시 그 모드가 우선. 상세: 워크플로 스킬 「메인 채팅 라우팅」, `references/routing.md`.
+
+기본(전체): **PLAN만 확정하면** 러너가 **plan-review**(PLAN 비판 검토) → task → execute → review를 자동 실행한다. 커밋은 `/cursor-atomic-wrapup`일 때만.
 
 | 커맨드 | 역할 | 산출물 |
 |---|---|---|
+| `/cursor-atomic-lite` | 단일 세션: 짧은 PLAN → 구현 → 메모리 → 테스트 마무리 (서브에이전트 없음) | `~/.cursor-atomic-workflow/docs/{shortRepo}/{slug}/PLAN-<slug>.md` |
 | `/cursor-atomic-explore` | Phase 0: 코드베이스 및 기술 사전 탐색 (선택) | `~/.cursor-atomic-workflow/docs/{shortRepo}/{slug}/EXPLORE-<slug>.md` (레거시: `.docs/<slug>/`) |
 | `/cursor-atomic-plan` | Phase 1 후 기본 파이프라인 | `~/.cursor-atomic-workflow/docs/{shortRepo}/{slug}/PLAN-<slug>.md` + 자동으로 TASKS/코드/REVIEW |
 | `/cursor-atomic-task` | Phase 2만 강제하거나 이어서 자동 | `~/.cursor-atomic-workflow/docs/{shortRepo}/{slug}/TASKS-<slug>.md` |
@@ -195,7 +211,7 @@ node scripts/sync-bundled.mjs --check # 스킬 복사본이 어긋나면 실패
 node scripts/doctor.mjs               # 충돌, YAML frontmatter, 동기화·설치 상태 점검
 ```
 
-커맨드를 추가하려면 `disable-model-invocation: true`와 "사용자가 직접 호출할 때만 쓴다."로 끝나는 description을 넣어 `.cursor/skills/cursor-atomic-<이름>/SKILL.md`를 만들고 `npm test`를 실행한다.
+커맨드를 추가하려면 `disable-model-invocation: true`와 "사용자가 직접 호출할 때만 쓴다."로 끝나는 description을 넣어 `.cursor/skills/cursor-atomic-<이름>/SKILL.md`를 만들고 `npm test`를 실행한다. 예외: `cursor-atomic-lite`·`cursor-atomic-plan`은 메인 채팅 라우터용으로 **모델 호출 가능**(`disable-model-invocation` 없음, description에 슬래시+라우터 명시).
 
 ---
 

@@ -84,7 +84,7 @@ cost-gate 통과 후 tasker 전에 러너가 `plan-reviewer`를 띄운다. Task 
 
 ## 스크립트 경로
 
-문서의 `scripts/<파일>`(`work-status.mjs`, `run-done.mjs`)은 아래 순서로 찾는다.
+문서의 `scripts/<파일>`(`work-status.mjs`, `run-done.mjs`, `memory.mjs`)은 아래 순서로 찾는다.
 
 1. 이 패키지 저장소 안이면 루트 `scripts/<파일>`.
 2. 그 외(설치 프로젝트)에는 `~/.cursor/skills/cursor-atomic-workflow/scripts/<파일>` 또는 이 저장소를 클론한 경우 루트 `scripts/<파일>`.

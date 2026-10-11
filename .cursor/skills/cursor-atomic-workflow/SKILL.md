@@ -2,7 +2,7 @@
 name: cursor-atomic-workflow
 description: >-
   Runs cursor-atomic-workflow phases (explore, plan, task, execute, review, commit, status, config).
-  Use when the user invokes /cursor-atomic-explore, /cursor-atomic-plan, /cursor-atomic-task, /cursor-atomic-execute, /cursor-atomic-delegate, /cursor-atomic-agy,
+  Use when the user invokes /cursor-atomic-lite, /cursor-atomic-explore, /cursor-atomic-plan, /cursor-atomic-task, /cursor-atomic-execute, /cursor-atomic-delegate, /cursor-atomic-agy,
   /cursor-atomic-review, /cursor-atomic-wrapup, /cursor-atomic-status, /cursor-atomic-config, /cursor-atomic-settings, or mentions cursor-atomic-workflow or cursor-atomic-workflow.
 ---
 
@@ -18,6 +18,15 @@ Cursor 프로젝트용 워크플로 패키지다. 커맨드 로직은 `.cursor/s
 2. [references/harness.md](references/harness.md)의 Cursor 호출 카드·커맨드 입력·스크립트 경로를 따른다.
 3. 채팅 제목을 3~5단어로 `rename_chat` 한다.
 4. 의도가 **워크플로 자체 수정**인지 **제품 기능**인지 가른다.
+
+## 메인 채팅 라우팅 (lite vs full)
+
+설치된 `.cursor/rules/atomic-router.mdc`(alwaysApply)가 메인 채팅에서 모드 미지정 코딩 요청을 잡는다. 판정 표는 [references/routing.md](references/routing.md) 「lite vs full」.
+
+1. 슬래시로 모드를 지정했으면 그 커맨드·스킬만 따른다.
+2. 코딩 작업이고 모드가 없으면 lite vs full을 고르고, 시작 전 한 줄 `라우팅: lite|full (이유: …)`를 남긴다.
+3. **lite** → `cursor-atomic-lite` 스킬(모델이 읽어 실행). **full** → `cursor-atomic-plan` 스킬 또는 `/cursor-atomic-plan`(이후 기본 파이프라인). 질문·사소한 1~2파일 수정은 [references/routing.md](references/routing.md) 「직접 처리」.
+4. lite 중 범위가 커지면 full로 에스컬레이션한다.
 
 **PLAN 위치 규칙** (템플릿 필드는 양쪽 동일. `PREFIX-<slug>.md` 파일명은 유지. 쓰기 전 슬러그 디렉토리를 만든다):
 
@@ -40,7 +49,7 @@ Cursor Cloud Agent는 `CURSOR_CONVERSATION_ID`(`bc-…`)를 `STATUS.json`의 `se
 워크플로 자체일 때 같이 맞추는 파일 목록:
 
 - 패키지 저장소: `.cursor/skills/cursor-atomic-workflow/`, 커맨드 스킬 `.cursor/skills/cursor-atomic-<이름>/`, `.cursor/agents/`, `scripts/`, `README.md`
-- 다른 프로젝트에 설치할 때는 `node scripts/install.mjs --target <프로젝트>`로 `.cursor/skills/`와 `.cursor/agents/`를 복사한다
+- 다른 프로젝트에 설치할 때는 `node scripts/install.mjs --target <프로젝트>`로 `.cursor/skills/`, `.cursor/agents/`, `.cursor/rules/atomic-router.mdc`를 복사한다
 
 ## 단계
 

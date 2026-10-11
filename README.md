@@ -34,6 +34,7 @@ Everything installs into the target Cursor project:
 | Command skills | `.cursor/skills/cursor-atomic-<name>/SKILL.md` | Each one is a slash command (`/cursor-atomic-plan`, …) and holds the command logic |
 | Workflow skill | `.cursor/skills/cursor-atomic-workflow/` | Orchestration docs (`CONTEXT.md`, `reference.md`, `workers.md`, `testing.md`, `models.md`), the Cursor harness adapter (`references/harness.md`), and bundled copies of `work-status.mjs` / `run-done.mjs` |
 | Subagents | `.cursor/agents/*.md` | 8 agents: `explorer`, `planner`, `plan-reviewer`, `tasker`, `worker`, `cursor-atomic-reviewer`, `tester`, `cli-delegate` |
+| Router rule | `.cursor/rules/atomic-router.mdc` | Always-on main-chat routing: pick **lite** vs **full** when the user does not name a slash command |
 | Runner scripts | `scripts/` | `install.mjs`, `run-pipeline.mjs`, `doctor.mjs`, `check-agents.mjs`, `work-status.mjs`, `run-done.mjs`, `lib/` |
 
 Requires Node `>=22.13`. `@cursor/sdk` is an optional dependency at the package root and powers the SDK adapter of the pipeline runner.
@@ -56,7 +57,7 @@ node scripts/install.mjs --target /path/to/project
 | `--skills-dir <path>` | Skills destination (default: `.cursor/skills`) |
 | `--force` | Overwrite existing files (otherwise they are kept) |
 | `--set-model <agent>=<model>` | Pin a phase model in the agent frontmatter (repeatable) |
-| `--no-skills` / `--no-agents` | Skip a component |
+| `--no-skills` / `--no-agents` / `--no-rules` | Skip a component |
 | `-h, --help` | Help |
 
 ```bash
@@ -77,10 +78,25 @@ node scripts/check-agents.mjs  # .cursor/agents models match scripts/lib/roles.m
 
 ## 3. Usage
 
-Default: once **PLAN is confirmed**, the pipeline runner runs **plan-review** (critical PLAN critique) → task → execute → review automatically. Commit only happens with `/cursor-atomic-wrapup`.
+### Lite vs full workflow
+
+| | `/cursor-atomic-lite` | Full `/cursor-atomic-*` pipeline |
+|---|---|---|
+| Session | One parent session, **no subagents** | Explore → plan-review → task → worker → reviewer → tester (Task subagents or SDK runner) |
+| Best for | Small, bounded changes (typically **&lt;5 files**), no schema/auth/security work | Multi-file refactors, DB migrations, security, large plans, parallel workers |
+| Artifacts | Short `PLAN-<slug>.md` only (same global docs home) | `EXPLORE`, `PLAN`, `PLAN-REVIEW`, `TASKS`, `REVIEW`, evidence |
+| Memory | Read `memory.mjs context` at start; `propose --auto` at end | Same vault; optional `memory-curator` / pipeline capture |
+| Finish | Run tests vs plan done criteria; short summary | `/cursor-atomic-wrapup` for commit + STATUS |
+
+If lite hits **5+ files**, **DB/schema**, **auth/security**, or the plan outgrows a short list, stop and switch to `/cursor-atomic-plan` or `/cursor-atomic-run`.
+
+**Main chat (no slash command):** `install.mjs` copies `.cursor/rules/atomic-router.mdc` (`alwaysApply`). The agent judges lite vs full using the same signals (plus cross-module design and unclear requirements → full; small, local, well-specified → lite), posts one line `라우팅: lite|full (이유: …)`, and honors an explicit `/cursor-atomic-*` override. Details: workflow skill 「메인 채팅 라우팅」 and `references/routing.md`.
+
+Default full path: once **PLAN is confirmed**, the pipeline runner runs **plan-review** (critical PLAN critique) → task → execute → review automatically. Commit only happens with `/cursor-atomic-wrapup`.
 
 | Command | Role | Output |
 |---|---|---|
+| `/cursor-atomic-lite` | Single-session plan → implement → memory → test wrapup (no subagents) | `~/.cursor-atomic-workflow/docs/{shortRepo}/{slug}/PLAN-<slug>.md` |
 | `/cursor-atomic-explore` | Phase 0: explore the codebase and tech in advance (optional) | `~/.cursor-atomic-workflow/docs/{shortRepo}/{slug}/EXPLORE-<slug>.md` (legacy: `.docs/<slug>/`) |
 | `/cursor-atomic-plan` | Default pipeline after Phase 1 | `~/.cursor-atomic-workflow/docs/{shortRepo}/{slug}/PLAN-<slug>.md` + TASKS/code/REVIEW automatically |
 | `/cursor-atomic-task` | Force Phase 2 only, or continue automatically | `~/.cursor-atomic-workflow/docs/{shortRepo}/{slug}/TASKS-<slug>.md` |
@@ -191,7 +207,7 @@ node scripts/sync-bundled.mjs --check # fail if the skill copies drifted
 node scripts/doctor.mjs               # collisions, YAML frontmatter, sync + install state
 ```
 
-To add a command, create `.cursor/skills/cursor-atomic-<name>/SKILL.md` with `disable-model-invocation: true` and a description ending in "사용자가 직접 호출할 때만 쓴다." (so it only runs when the user calls it), then run `npm test`.
+To add a command, create `.cursor/skills/cursor-atomic-<name>/SKILL.md` with `disable-model-invocation: true` and a description ending in "사용자가 직접 호출할 때만 쓴다." (so it only runs when the user calls it), then run `npm test`. Exception: `cursor-atomic-lite` and `cursor-atomic-plan` stay **model-invocable** for the main-chat router (no `disable-model-invocation`; description mentions slash + router).
 
 ---
 

@@ -1,12 +1,13 @@
 ---
 name: cursor-atomic-plan
-description: "cursor-atomic-workflow Phase 1. grilling preflight 후 PLAN을 작성하고 승인되면 나머지 파이프라인을 자동 실행. 사용자가 직접 호출할 때만 쓴다."
-disable-model-invocation: true
+description: "cursor-atomic-workflow Phase 1. grilling preflight 후 PLAN 작성·승인 후 기본 파이프라인 자동 실행. /cursor-atomic-plan 또는 메인 채팅 라우터가 full로 판정했을 때 따른다."
 metadata:
   argument-hint: "[intent | 계획만]"
 ---
 
 # /cursor-atomic-plan
+
+`/cursor-atomic-plan` 슬래시, 또는 `.cursor/rules/atomic-router.mdc`가 **full**로 라우팅한 메인 채팅 작업에서 이 스킬을 읽고 따른다.
 
 입력: 커맨드 뒤 텍스트. 비어 있으면 현재 대화의 요청을 의도로 본다.
 

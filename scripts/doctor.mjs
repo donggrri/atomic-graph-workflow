@@ -22,6 +22,8 @@ export const WORKFLOW_SKILL = "cursor-atomic-workflow";
 const PACKAGE_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const SKILLS_DIR = ".cursor/skills";
 const AGENTS_DIR = ".cursor/agents";
+const RULES_DIR = ".cursor/rules";
+const ATOMIC_ROUTER_RULE = "atomic-router.mdc";
 
 /** @param {string} root */
 export async function listCommandSkills(root) {
@@ -75,11 +77,16 @@ export async function checkHarnessInstall(options = {}) {
   const expectedAgentStems = roleNames().map((role) => agentFileName(role).replace(/\.md$/, ""));
   const agents = await countMarkdown(join(cwd, AGENTS_DIR), expectedAgentStems);
 
+  const routerRulePath = join(cwd, RULES_DIR, ATOMIC_ROUTER_RULE);
+  const routerRuleInstalled = existsSync(routerRulePath);
+
   return {
     skillsInstalled,
     skillDirs: skillsInstalled ? [skillsRoot] : [],
     commandSkills: commandSkills.sort(),
     commandSkillsExpected: commandNames.length,
+    routerRuleInstalled,
+    routerRuleExpected: ATOMIC_ROUTER_RULE,
     agentsExpected: expectedAgentStems.length,
     harnesses: {
       cursor: {
@@ -349,6 +356,13 @@ if (process.argv[1] && process.argv[1].endsWith("doctor.mjs")) {
         console.log(`  ✓ 스킬 설치: ${hi.skillDirs.join(", ")} (커맨드 스킬 ${hi.commandSkills.length}/${hi.commandSkillsExpected})`);
       } else {
         console.log("  - 현재 프로젝트에 `.cursor/skills/cursor-atomic-workflow` 없음.");
+      }
+      if (hi.skillsInstalled) {
+        if (hi.routerRuleInstalled) {
+          console.log(`  ✓ 라우터 규칙: ${RULES_DIR}/${hi.routerRuleExpected}`);
+        } else {
+          console.log(`  ⚠ 라우터 규칙 없음: ${RULES_DIR}/${hi.routerRuleExpected} (메인 채팅 자동 lite/full 판정 비활성)`);
+        }
       }
       const cursorAgents = hi.harnesses?.cursor?.agents;
       if (cursorAgents && (cursorAgents.found.length || cursorAgents.missing.length)) {

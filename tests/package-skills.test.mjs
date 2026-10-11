@@ -16,6 +16,7 @@ const COMMAND_SKILLS = [
   "cursor-atomic-doctor",
   "cursor-atomic-execute",
   "cursor-atomic-explore",
+  "cursor-atomic-lite",
   "cursor-atomic-models",
   "cursor-atomic-plan",
   "cursor-atomic-review",
@@ -244,6 +245,24 @@ test("command skill directories use package-prefixed slash names", async () => {
     .filter((name) => name.startsWith("cursor-atomic-") && name !== "cursor-atomic-workflow")
     .sort();
   assert.deepEqual(dirs, COMMAND_SKILLS);
+});
+
+test("lite command skill is single-session without subagents", async () => {
+  const file = skillFile("cursor-atomic-lite");
+  const body = await readFile(file, "utf8");
+  const meta = parseFrontmatter(body, file);
+  assert.equal(meta.name, "cursor-atomic-lite");
+  assert.notEqual(meta["disable-model-invocation"], "true", `${file} must be model-invocable for router`);
+  assert.match(meta.description ?? "", /메인 채팅|라우터/, `${file} description must mention router`);
+  assert.match(body, /서브에이전트/, `${file} must forbid subagents`);
+  assert.match(body, /CURSOR_ATOMIC_WORKFLOW_HOME/, `${file} must respect workflow home`);
+  assert.match(body, /memory\.mjs/, `${file} must use memory.mjs`);
+  assert.match(body, /propose --auto/, `${file} must auto-save memory`);
+  assert.match(body, /5개 이상|5\+/, `${file} must escalate on many files`);
+  assert.match(body, /cursor-atomic-plan/, `${file} must recommend full workflow`);
+  assert.doesNotMatch(body, /\bplanner\b.*백그라운드/, `${file} must not spawn planner`);
+  const { validateSkillFrontmatter } = await import("../scripts/doctor.mjs");
+  assert.equal(validateSkillFrontmatter(body, file).valid, true);
 });
 
 test("agy command skill keeps headless delegate contract", async () => {

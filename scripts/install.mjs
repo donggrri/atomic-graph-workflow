@@ -21,6 +21,8 @@ const CURSOR_AGENT_FILE = {
 
 export const DEFAULT_SKILLS_DIR = ".cursor/skills";
 export const AGENTS_DIR = ".cursor/agents";
+export const RULES_DIR = ".cursor/rules";
+export const ATOMIC_ROUTER_RULE = "atomic-router.mdc";
 export const LEGACY_CURSOR_COMMANDS_DIR = ".cursor/commands";
 
 export function parseInstallArgs(args) {
@@ -29,7 +31,7 @@ export function parseInstallArgs(args) {
     skillsDir: DEFAULT_SKILLS_DIR,
     force: false,
     setModel: {},
-    components: { skills: true, agents: true }
+    components: { skills: true, agents: true, rules: true }
   };
   for (let i = 0; i < args.length; i++) {
     const a = args[i];
@@ -40,6 +42,7 @@ export function parseInstallArgs(args) {
     else if (a === "--force") opts.force = true;
     else if (a === "--no-skills") opts.components.skills = false;
     else if (a === "--no-agents") opts.components.agents = false;
+    else if (a === "--no-rules") opts.components.rules = false;
     else if (a === "--set-model" && args[i + 1]) {
       const pair = args[++i];
       const eq = pair.indexOf("=");
@@ -62,6 +65,7 @@ Options:
   --set-model <a>=<m>  에이전트 frontmatter model 덮어쓰기 (여러 번 가능)
   --no-skills          스킬 복사 생략
   --no-agents          에이전트 복사 생략
+  --no-rules           Cursor 규칙(.cursor/rules) 복사 생략
   -h, --help           이 도움말
 `);
 }
@@ -106,6 +110,23 @@ async function installSkills(root, target, skillsDir, force, record) {
   }
 }
 
+async function installRules(root, target, force, record) {
+  const srcDir = join(root, RULES_DIR);
+  if (!existsSync(srcDir)) return;
+  const files = (await readdir(srcDir)).filter((f) => f.endsWith(".mdc")).sort();
+  for (const file of files) {
+    const dest = join(target, RULES_DIR, file);
+    const existed = existsSync(dest);
+    if (existed && !force) {
+      record.skipped.push(dest);
+      continue;
+    }
+    await mkdir(dirname(dest), { recursive: true });
+    await cp(join(srcDir, file), dest, { force });
+    record[existed ? "overwritten" : "copied"].push(dest);
+  }
+}
+
 async function installAgents(root, target, force, setModel, record) {
   const srcDir = join(root, AGENTS_DIR);
   const files = await listMarkdown(srcDir);
@@ -136,7 +157,7 @@ export async function install(options = {}) {
   const skillsDir = options.skillsDir || DEFAULT_SKILLS_DIR;
   const force = !!options.force;
   const setModel = options.setModel || {};
-  const components = options.components || { skills: true, agents: true };
+  const components = options.components || { skills: true, agents: true, rules: true };
   const record = { copied: [], overwritten: [], skipped: [] };
 
   if (components.skills) {
@@ -144,6 +165,9 @@ export async function install(options = {}) {
   }
   if (components.agents) {
     await installAgents(root, target, force, setModel, record);
+  }
+  if (components.rules) {
+    await installRules(root, target, force, record);
   }
 
   const legacy = await findLegacyCursorCommands(target);
