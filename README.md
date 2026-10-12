@@ -152,12 +152,12 @@ The model for a phase is the `model` frontmatter of `.cursor/agents/<agent>.md`,
 |---|---|---|
 | explorer | `explorer` | `claude-haiku-5-5-high` |
 | planner | `planner` | `claude-sonnet-5-5-high` |
-| plan-reviewer | `plan-reviewer` | `grok-4.7-high` |
+| plan-reviewer | `plan-reviewer` | `composer-2.5` |
 | tasker | `tasker` | `composer-2.5` |
 | worker | `worker` | `composer-2.5` |
 | reviewer | `cursor-atomic-reviewer` | `claude-sonnet-5-5-high` |
 | tester | `tester` | `claude-haiku-5-5-high` |
-| cli-delegate | `cli-delegate` | `grok-4.7-high` |
+| cli-delegate | `cli-delegate` | `composer-2.5` |
 
 To change a model, edit the agent frontmatter and keep `scripts/lib/roles.mjs` in agreement (`check-agents` fails otherwise), or pin it at install time with `--set-model <agent>=<model>` (repeatable).
 

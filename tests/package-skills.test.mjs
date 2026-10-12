@@ -712,7 +712,7 @@ test("plan-review parent contract docs", async () => {
   assert.match(routing, /plan-reviewer/, "routing.md must name plan-reviewer for task-card roles");
 
   assert.match(harness, /plan-reviewer/, "harness.md must document plan-reviewer");
-  assert.match(harness, /grok-4\.7-high/, "harness.md must document plan-reviewer model");
+  assert.match(harness, /composer-2\.5/, "harness.md must document plan-reviewer model");
 
   assert.match(context, /## PLAN 비판 검토/, "CONTEXT.md must define PLAN 비판 검토");
   assert.match(context, /## PLAN 자동 수정/, "CONTEXT.md must define PLAN 자동 수정");
@@ -724,7 +724,7 @@ test("plan-review parent contract docs", async () => {
   assert.match(skill, /Phase 1\.5/, "SKILL.md must document Phase 1.5");
   assert.match(skill, /plan-reviewer/, "SKILL.md must mention plan-reviewer in pipeline");
 
-  assert.match(models, /plan-reviewer.*grok-4\.7-high/s, "models.md must list plan-reviewer Task model");
+  assert.match(models, /plan-reviewer.*composer-2\.5/s, "models.md must list plan-reviewer Task model");
 
   assert.match(doctor, /plan-reviewer/, "doctor skill must check plan-reviewer session type");
   assert.match(config, /plan-reviewer/, "config skill must list plan-reviewer agent");

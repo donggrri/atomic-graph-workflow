@@ -90,7 +90,7 @@ invoke-worker는 agy를 항상 `--mode accept-edits --dangerously-skip-permissio
 
 ## Task `cli-delegate`
 
-백그라운드로 띄운다. model은 `grok-4.7-high` (`references/harness.md` 표). 세션 `available_subagent_models`에 그 슬러그가 없으면 멈추고 목록을 보고한다. `inherit`로 바꾸지 않는다. (Task `model`은 **cli-delegate 래퍼**용이며, agy 작업 모델은 `invoke-worker --model`이다.)
+백그라운드로 띄운다. model은 `composer-2.5` (`references/harness.md` 표). 세션 `available_subagent_models`에 그 슬러그가 없으면 멈추고 목록을 보고한다. `inherit`로 바꾸지 않는다. (Task `model`은 **cli-delegate 래퍼**용이며, agy 작업 모델은 `invoke-worker --model`이다.)
 
 프롬프트 첫 줄은 `cursor-atomic-workflow` 스킬 절대 경로. 이어서:
 

@@ -152,16 +152,16 @@ node scripts/run-pipeline.mjs <slug> [--auto] [--resume] [--adapter sdk|task-car
 |---|---|---|
 | explorer | `explorer` | `claude-haiku-5-5-high` |
 | planner | `planner` | `claude-sonnet-5-5-high` |
-| plan-reviewer | `plan-reviewer` | `grok-4.7-high` |
+| plan-reviewer | `plan-reviewer` | `composer-2.5` |
 | tasker | `tasker` | `composer-2.5` |
 | worker | `worker` | `composer-2.5` |
 | reviewer | `cursor-atomic-reviewer` | `claude-sonnet-5-5-high` |
 | tester | `tester` | `claude-haiku-5-5-high` |
-| cli-delegate | `cli-delegate` | `grok-4.7-high` |
+| cli-delegate | `cli-delegate` | `composer-2.5` |
 
 모델을 바꾸려면 에이전트 frontmatter를 고치고 `scripts/lib/roles.mjs`와 맞춰 둔다(`check-agents`가 일치하지 않으면 실패한다). 또는 설치 때 `--set-model <agent>=<model>`(여러 번 가능)로 고정한다.
 
-**부모 Composer + 파이프라인 혼합(기본 패키지 구성)** — 채팅(부모)은 Composer 2.5, 파이프라인 역할은 Haiku(탐색·테스트)·Sonnet(계획·리뷰)·Composer(task/worker)·Grok(plan-review·CLI 위임)로 나뉜다. 프로젝트 `.cursor-atomic-workflow.json`에서 `"profile": "composer-parent"`를 쓸 수 있다.
+**부모 Composer + 파이프라인 혼합(기본 패키지 구성)** — 채팅(부모)은 Composer 2.5, 파이프라인 역할은 Haiku(탐색·테스트)·Sonnet(계획·리뷰)·Composer(task·worker·plan-review·CLI 위임)로 나뉜다. Grok은 기본 경로에 쓰지 않는다. 프로젝트 `.cursor-atomic-workflow.json`에서 `"profile": "composer-parent"`를 쓸 수 있다.
 
 **AGY** — 계획·구현·리뷰 단계마다 러너가 AGY 위임을 물을 수 있다. `agy` 키를 프로젝트 `.cursor-atomic-workflow.json` 또는 `~/.cursor-atomic-workflow/settings.json`에 넣는다. 단계(`plan`, `implement`, `review`) 값은 `ask`(기본, exit 20으로 질문), `sdk`(Cursor 역할), `agy`(부모가 `/cursor-atomic-agy` 또는 `cli-delegate`로 `invoke-worker --worker agy` 실행). TASKS 항목에 `worker: agy`를 쓰면 구현 단계에서 AGY 항목 위임(exit 10)이 가능하다. `--auto`는 모든 AGY 질문을 `sdk`로 처리한다.
 

@@ -10,12 +10,12 @@ Cursor는 에이전트 frontmatter를 호출에 자동으로 넣지 않으므로
 |---|---|---|
 | explorer | `explorer` | `claude-haiku-5-5-high` |
 | planner | `planner` | `claude-sonnet-5-5-high` |
-| plan-reviewer | `plan-reviewer` | `grok-4.7-high` |
+| plan-reviewer | `plan-reviewer` | `composer-2.5` |
 | tasker | `tasker` | `composer-2.5` |
 | worker | `worker` | `composer-2.5` |
 | reviewer | `cursor-atomic-reviewer` | `claude-sonnet-5-5-high` |
 | tester | `tester` | `claude-haiku-5-5-high` |
-| cli-delegate | `cli-delegate` | `grok-4.7-high` |
+| cli-delegate | `cli-delegate` | `composer-2.5` |
 
 세션 `available_subagent_models`에 슬러그가 없으면 그 호출은 멈추고 목록을 보고한다. `inherit`로 부모 모델을 쓰지 않는다.
 

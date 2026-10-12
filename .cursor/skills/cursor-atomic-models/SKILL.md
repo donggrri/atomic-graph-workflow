@@ -14,12 +14,12 @@ disable-model-invocation: true
 |---|---|---|---|
 | explore / recon | `explorer` | `cursor-atomic-workflow` | `claude-haiku-5-5-high` |
 | plan | `planner` | `codebase-design` | `claude-sonnet-5-5-high` |
-| plan-review | `plan-reviewer` | `codebase-design`, `tdd` | `grok-4.7-high` |
+| plan-review | `plan-reviewer` | `codebase-design`, `tdd` | `composer-2.5` |
 | task | `tasker` | `to-tickets` | `composer-2.5` |
 | execute | `worker` | `tdd` | `composer-2.5` |
 | test | `tester` | `tdd`, `codebase-design` | `claude-haiku-5-5-high` |
 | review | `cursor-atomic-reviewer` | `code-review` | `claude-sonnet-5-5-high` |
-| CLI 위임 | `cli-delegate` | `cursor-atomic-workflow` | `grok-4.7-high` |
+| CLI 위임 | `cli-delegate` | `cursor-atomic-workflow` | `composer-2.5` |
 | commit/status/config | (현재 세션) | — | — |
 
 스킬에 모델을 붙이지 않는다. 모델은 에이전트 frontmatter와 Task 호출의 `model`에 붙는다. 표의 정본은 `scripts/lib/roles.mjs`다. 서브에이전트를 띄우는 법은 `cursor-atomic-workflow` 스킬의 `references/harness.md`를 따른다.

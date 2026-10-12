@@ -20,12 +20,12 @@ TASKS `worker:`가 `agy|opencode|codex|claude`이면 `cli-delegate`를 띄운다
 |---|---|---|
 | explorer | `explorer` | `claude-haiku-5-5-high` |
 | planner | `planner` | `claude-sonnet-5-5-high` |
-| plan-reviewer | `plan-reviewer` | `grok-4.7-high` |
+| plan-reviewer | `plan-reviewer` | `composer-2.5` |
 | tasker | `tasker` | `composer-2.5` |
 | worker | `worker` | `composer-2.5` |
 | reviewer | `cursor-atomic-reviewer` | `claude-sonnet-5-5-high` |
 | tester | `tester` | `claude-haiku-5-5-high` |
-| cli-delegate | `cli-delegate` | `grok-4.7-high` |
+| cli-delegate | `cli-delegate` | `composer-2.5` |
 
 reviewer의 `model`은 `claude-sonnet-5-5-high`다(worker와 다른 모델 계열이어야 독립 검증이 된다). 이 슬러그가 세션 `available_subagent_models`에 없으면 멈추고 목록을 보고한다. 모든 역할은 표의 슬러그만 쓴다.
 
@@ -76,7 +76,7 @@ arguments:
 
 ### plan-reviewer (PLAN 비판 검토)
 
-cost-gate 통과 후 tasker 전에 러너가 `plan-reviewer`를 띄운다. Task `model`은 **`grok-4.7-high`**(위 역할 표). SDK 경로는 헤드리스로 끝까지 진행하고, task-card는 `subagent_type: "plan-reviewer"` 카드로 종료코드 10 후 부모 Task → `--resume`한다. planner 자동 수정 카드는 `subagent_type: "planner"`(revise 프롬프트). 상세 전이·종료코드는 [routing.md](routing.md) 「PLAN 비판 검토」를 따른다.
+cost-gate 통과 후 tasker 전에 러너가 `plan-reviewer`를 띄운다. Task `model`은 **`composer-2.5`**(위 역할 표). SDK 경로는 헤드리스로 끝까지 진행하고, task-card는 `subagent_type: "plan-reviewer"` 카드로 종료코드 10 후 부모 Task → `--resume`한다. planner 자동 수정 카드는 `subagent_type: "planner"`(revise 프롬프트). 상세 전이·종료코드는 [routing.md](routing.md) 「PLAN 비판 검토」를 따른다.
 
 ## 커맨드 입력
 

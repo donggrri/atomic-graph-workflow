@@ -22,10 +22,9 @@ export const ROLES = {
   },
   "plan-reviewer": {
     subagentType: "plan-reviewer",
-    taskModel: "grok-4.7-high",
+    taskModel: "composer-2.5",
     sdk: {
-      id: "grok-4.7",
-      params: [{ id: "reasoning_effort", value: "high" }],
+      id: "composer-2.5",
     },
   },
   tasker: {
@@ -60,10 +59,9 @@ export const ROLES = {
   },
   "cli-delegate": {
     subagentType: "cli-delegate",
-    taskModel: "grok-4.7-high",
+    taskModel: "composer-2.5",
     sdk: {
-      id: "grok-4.7",
-      params: [{ id: "reasoning_effort", value: "high" }],
+      id: "composer-2.5",
     },
   },
 };
@@ -76,10 +74,9 @@ export const ROLES = {
 export const AUXILIARY_ROLES = {
   "memory-curator": {
     subagentType: "memory-curator",
-    taskModel: "grok-4.7-high",
+    taskModel: "composer-2.5",
     sdk: {
-      id: "grok-4.7",
-      params: [{ id: "reasoning_effort", value: "high" }],
+      id: "composer-2.5",
     },
   },
 };

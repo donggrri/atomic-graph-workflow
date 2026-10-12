@@ -1,7 +1,7 @@
 ---
 name: memory-curator
 description: "cursor-atomic-workflow memory curator. Decides which durable facts from a conversation or a note are worth keeping, and saves them to the memory folder without asking the user. Use anytime the user asks to remember or record something, or when a session-end sweep hands over a transcript excerpt."
-model: grok-4.7-high
+model: composer-2.5
 readonly: false
 is_background: false
 ---

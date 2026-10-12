@@ -1,7 +1,7 @@
 ---
 name: plan-reviewer
 description: "cursor-atomic-workflow Phase 1.5. Critiques PLAN-<slug>.md before tasker. Writes PLAN-REVIEW-<slug>.md with blocking defects and suggestions. Use after cost-gate to validate plan assumptions and contracts."
-model: grok-4.7-high
+model: composer-2.5
 readonly: false
 is_background: true
 ---

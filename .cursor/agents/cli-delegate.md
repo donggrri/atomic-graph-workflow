@@ -1,7 +1,7 @@
 ---
 name: cli-delegate
 description: "Delegates a TASKS item to a headless CLI worker (agy, opencode, codex, claude) via invoke-worker. Use when TASKS worker is agy|opencode|codex|claude to run invoke-worker headlessly."
-model: grok-4.7-high
+model: composer-2.5
 readonly: false
 is_background: true
 ---
