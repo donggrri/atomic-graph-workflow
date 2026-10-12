@@ -9,14 +9,16 @@ LOG_FILE=""
 TIMEOUT_MIN=45
 SKILLS=""
 SKILLS_FILE=""
+AGY_MODEL=""
 DRY_RUN=0
 
 CURSOR_ATOMIC_SKILL_ROOT="${CURSOR_ATOMIC_SKILL_ROOT:-$HOME/.agents/skills/cursor-atomic-workflow}"
 
 usage() {
   cat <<'EOF'
-Usage: invoke-worker.sh --worker <name> --workspace <path> --prompt-file <path> --log-file <path> [--timeout-min N] [--skills a,b] [--skills-file path] [--dry-run]
+Usage: invoke-worker.sh --worker <name> --workspace <path> --prompt-file <path> --log-file <path> [--timeout-min N] [--model <agy-slug>] [--skills a,b] [--skills-file path] [--dry-run]
 Workers: agy, opencode, codex, claude
+Env: CURSOR_ATOMIC_AGY_MODEL — agy --model when --model is omitted (agy worker only)
 EOF
 }
 
@@ -119,6 +121,21 @@ run_with_timeout() {
   fi
 }
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+resolve_agy_model() {
+  local raw="$1"
+  [[ -n "${raw//[[:space:]]/}" ]] || return 0
+  if command -v node >/dev/null 2>&1 && [[ -f "$SCRIPT_DIR/resolve-agy-model.mjs" ]]; then
+    node "$SCRIPT_DIR/resolve-agy-model.mjs" "$raw"
+  else
+    case "$raw" in
+      gemini-3.8-flash|gemini-3.8-flash-medium) echo "gemini-3.8-flash-high" ;;
+      *) echo "$raw" ;;
+    esac
+  fi
+}
+
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --worker) WORKER="$2"; shift 2 ;;
@@ -126,6 +143,7 @@ while [[ $# -gt 0 ]]; do
     --prompt-file) PROMPT_FILE="$2"; shift 2 ;;
     --log-file) LOG_FILE="$2"; shift 2 ;;
     --timeout-min) TIMEOUT_MIN="$2"; shift 2 ;;
+    --model) AGY_MODEL="$2"; shift 2 ;;
     --skills) SKILLS="$(merge_skills_csv "$SKILLS" "$2")"; shift 2 ;;
     --skills-file)
       [[ -f "$2" ]] || die "skills file not found: $2"
@@ -170,15 +188,24 @@ printf '%s' "$PROMPT" >"$EFFECTIVE_PROMPT_FILE"
 
 LAST_MESSAGE_FILE="${LOG_FILE%.log}.last.md"
 AGY_TIMEOUT="${TIMEOUT_MIN}m0s"
+if [[ -z "$AGY_MODEL" && -n "${CURSOR_ATOMIC_AGY_MODEL:-}" ]]; then
+  AGY_MODEL="$CURSOR_ATOMIC_AGY_MODEL"
+fi
+if [[ -n "$AGY_MODEL" ]]; then
+  AGY_MODEL="$(resolve_agy_model "$AGY_MODEL")"
+fi
 EXIT_CODE=1
 
 {
-  echo "worker=$WORKER workspace=$WS started=$(date -Iseconds) dry_run=$DRY_RUN"
+  echo "worker=$WORKER workspace=$WS started=$(date -Iseconds) dry_run=$DRY_RUN agy_model=${AGY_MODEL:-default}"
 } >"$LOG_FILE"
 
 dry_run_agy() {
   # Print the command only. Real runs still require agy via run_agy.
   local line="agy --output-format text --mode accept-edits --dangerously-skip-permissions --print-timeout $AGY_TIMEOUT"
+  if [[ -n "$AGY_MODEL" ]]; then
+    line+=" --model $(printf '%q' "$AGY_MODEL")"
+  fi
   local add_dir
   while IFS= read -r add_dir; do
     [[ -n "$add_dir" ]] || continue
@@ -193,6 +220,9 @@ run_agy() {
   local -a cmd
   bin="$(resolve_bin agy agy.exe)" || die "agy not on PATH. Run ensure-workers.sh"
   cmd=( "$bin" --output-format text --mode accept-edits --dangerously-skip-permissions --print-timeout "$AGY_TIMEOUT" )
+  if [[ -n "$AGY_MODEL" ]]; then
+    cmd+=( --model "$AGY_MODEL" )
+  fi
   local add_dir
   while IFS= read -r add_dir; do
     [[ -n "$add_dir" ]] || continue

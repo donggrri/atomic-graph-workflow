@@ -3,7 +3,7 @@ import {
   existsSync,
   mkdirSync,
   readFileSync,
-  renameSync,
+  unlinkSync,
 } from "node:fs";
 import { createHash } from "node:crypto";
 import { homedir } from "node:os";
@@ -231,10 +231,9 @@ export async function planReviewGate(params) {
 
       mkdirSync(planReviewDir, { recursive: true });
       if (existsSync(params.planReviewPath)) {
-        renameSync(
-          params.planReviewPath,
-          join(planReviewDir, `PLAN-REVIEW.round${pr.round}.md`)
-        );
+        const archivePath = join(planReviewDir, `PLAN-REVIEW.round${pr.round}.md`);
+        copyFileSync(params.planReviewPath, archivePath);
+        unlinkSync(params.planReviewPath);
       }
       pr.round += 1;
       pr.awaiting = true;

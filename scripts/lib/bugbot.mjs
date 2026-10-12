@@ -1,9 +1,10 @@
 import {
   appendFileSync,
+  copyFileSync,
   existsSync,
   mkdirSync,
   readFileSync,
-  renameSync,
+  unlinkSync,
   writeFileSync,
 } from "node:fs";
 import { join } from "node:path";
@@ -137,7 +138,8 @@ export function bugbotGate({
   mkdirSync(runsDir, { recursive: true });
   if (existsSync(findingsPath)) {
     const archivePath = join(runsDir, `bugbot-findings.pass${priorPass}.md`);
-    renameSync(findingsPath, archivePath);
+    copyFileSync(findingsPath, archivePath);
+    unlinkSync(findingsPath);
   }
 
   const card = buildBugbotCard({

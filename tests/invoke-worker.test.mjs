@@ -58,6 +58,38 @@ test("invoke-worker.ps1 documents claude workers and skills", async () => {
   assert.doesNotMatch(text, /Resolve-PiPkg/);
 });
 
+test("invoke-worker.sh dry-run includes agy --model when requested", async () => {
+  const { execFile } = await import("node:child_process");
+  const { promisify } = await import("node:util");
+  const execFileAsync = promisify(execFile);
+  const script = join(scriptsDir, "invoke-worker.sh");
+  const tmp = await mkdtemp(join(tmpdir(), "invoke-worker-model-"));
+  const brief = join(tmp, "brief.md");
+  const log = join(tmp, "run.log");
+  await writeFile(brief, "model brief", "utf8");
+  try {
+    await execFileAsync("bash", [
+      script,
+      "--worker",
+      "agy",
+      "--workspace",
+      process.cwd(),
+      "--prompt-file",
+      brief,
+      "--log-file",
+      log,
+      "--model",
+      "gemini-3.8-flash",
+      "--dry-run",
+    ]);
+    const logText = await readFile(log, "utf8");
+    assert.match(logText, /--model gemini-3\.8-flash-high/);
+    assert.match(logText, /--print-timeout 45m0s/);
+  } finally {
+    await rm(tmp, { recursive: true, force: true });
+  }
+});
+
 test("invoke-worker.sh supports --dry-run", async () => {
   const { execFile } = await import("node:child_process");
   const { promisify } = await import("node:util");

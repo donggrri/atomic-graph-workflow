@@ -288,9 +288,13 @@ test("agy command skill keeps headless delegate contract", async () => {
     "git status --porcelain",
     "git diff",
     "run-done",
+    "run-done.mjs",
     "다음 진행해",
     "work-status.mjs",
     "위임할까요",
+    "소스 수정만",
+    "FORBID",
+    "부모 검증용",
   ];
   for (const phrase of requiredPhrases) {
     assert.ok(body.includes(phrase), `${file} must mention ${phrase}`);
@@ -540,6 +544,19 @@ test("pipeline recovery SKILL orchestration", async () => {
   assert.match(skill, /멈추는 경우:[\s\S]*?막힘 재개[\s\S]*?리뷰 재작업/, "SKILL.md 멈추는 경우 must reference recovery policies");
 });
 
+test("CLI worker brief template forbids done in invoke session", async () => {
+  const workers = await readFile(join(SKILLS, "cursor-atomic-workflow", "workers.md"), "utf8");
+  const delegate = await readFile(skillFile("cursor-atomic-delegate"), "utf8");
+  const cliDelegate = await readFile(join(".cursor", "agents", "cli-delegate.md"), "utf8");
+
+  assert.match(workers, /부모 검증용/, "workers.md must label done as parent-only");
+  assert.match(workers, /FORBID/, "workers.md must include FORBID block in CLI brief template");
+  assert.match(workers, /run-done\.mjs/, "workers.md must parent run done via run-done.mjs");
+  assert.match(delegate, /run-done\.mjs/, "delegate skill must parent-verify via run-done.mjs");
+  assert.match(cliDelegate, /invoke-worker/, "cli-delegate agent must forbid done in invoke session");
+  assert.match(cliDelegate, /run-done\.mjs/, "cli-delegate agent must mention parent run-done.mjs");
+});
+
 test("pipeline recovery workers and testing", async () => {
   const workers = await readFile(join(SKILLS, "cursor-atomic-workflow", "workers.md"), "utf8");
   const testing = await readFile(join(SKILLS, "cursor-atomic-workflow", "testing.md"), "utf8");
@@ -572,6 +589,8 @@ test("pipeline recovery command skills", async () => {
   assert.match(execute, /\/cursor-atomic-execute/, "execute.md must mention entrypoint /cursor-atomic-execute");
   assert.match(execute, /사람 게이트.*PLAN.*Phase 1.*만|사람 게이트는.*PLAN.*만/, "execute.md must state human gate is PLAN(Phase 1) only");
   assert.match(execute, /막힘 재개는 정책으로 자동/, "execute.md must state block resume is automated by policy");
+  assert.match(execute, /run-done/, "execute.md must parent-verify via run-done");
+  assert.match(execute, /부모 검증용|코드만/, "execute.md must split CLI code from parent verification");
 
   // review prompt recovery policy
   assert.match(review, /리뷰 재작업/, "review.md must mention 리뷰 재작업");

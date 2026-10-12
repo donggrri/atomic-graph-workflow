@@ -15,12 +15,14 @@ Rules:
 - If the prompt starts with `요청 위임: /cursor-atomic-agy`, there is no TASKS item and no PLAN. Use the prompt's request, brief path, log path, `--skills` value, and `CURSOR_ATOMIC_SKILL_ROOT` as given. Worker is `agy`. Scope is only that request.
 - Do only the assigned item. Do not expand scope.
 - Write the brief to `~/.cursor/cursor-atomic-workflow/runs/<slug>/<task-id>.brief.md` using the workers.md template (include MUST read skills block).
-- Invoke **only** `invoke-worker.sh` (bash) or `invoke-worker.ps1` (Windows) — never launch bare `agy` (TUI hang).
-- Pass `--skills cursor-atomic-workflow,tdd` for execute-phase items unless the brief says otherwise.
+- Invoke **only** `invoke-worker.sh` (bash) or `invoke-worker.ps1` (Windows) — never launch bare `agy` (TUI hang). Do not pass a bare number to `agy --print-timeout`; use `invoke-worker --timeout-min` only.
+- When the parent prompt includes `--model <slug>` or `CURSOR_ATOMIC_AGY_MODEL`, pass `--model` to `invoke-worker` (agy worker only). Aliases are normalized by `scripts/resolve-agy-model.mjs`.
+- Pass `--skills cursor-atomic-workflow,tdd` for execute-phase items unless the brief says otherwise (`tdd` is read-only for design; the CLI worker must not run tests in the invoke session).
 - Supported workers: `agy`, `opencode`, `codex`, `claude`.
 - Do not git commit or push. Do not delete PLAN/TASKS/REVIEW files.
 - Do not put secrets, tokens, or `.env` contents in briefs or logs.
-- The parent re-runs `done` tests and `git diff`. Your completion log is not proof of success.
+- **Do not run `done` verification inside `invoke-worker`.** No cmake, ctest, npm test, make, or the TASKS `done` shell in the worker session — implementation (source edits) only. Briefs must include FORBID and label `done` as parent-only (`부모 검증용`).
+- The parent re-runs `done` via `run-done.mjs` and `git diff` after invoke exits. Your completion log is not proof of success.
 
 When finished, report in Korean:
 

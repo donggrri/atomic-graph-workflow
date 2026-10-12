@@ -51,18 +51,22 @@ SKILL.md의 오케스트레이션 절을 먼저 읽는다. 위임할 때만 이 
 
 ### 브리프 (CLI worker 공통)
 
+CLI 워커(agy|opencode|codex|claude)는 **구현(소스·테스트 파일 편집)만** 한다. 빌드·ctest·npm test·항목 `done` 셸은 **부모 오케스트레이터**가 `invoke-worker` 종료 후 `scripts/run-done.mjs`로 실행한다.
+
 ```markdown
-역할: cursor-atomic-workflow 구현 워커 (CLI: <worker>).
+역할: cursor-atomic-workflow 구현 워커 (CLI: <worker>) — **코드만, 검증은 부모**.
 MUST read skills (first tool calls):
 - <abs>/.agents/skills/cursor-atomic-workflow/SKILL.md
-- <abs>/.agents/skills/tdd/SKILL.md
+- (선택) <abs>/.agents/skills/tdd/SKILL.md — 설계·실패 테스트 작성 참고만; invoke 세션에서 테스트 실행 금지
 작업공간: <절대 경로>
 항목: T1 <제목>
 할 일: <구체적>
 파일: <건드릴 경로>
-완료 조건: <테스트/확인>
+부모 검증용 (워커는 실행하지 않음 — 부모가 run-done.mjs):
+<TASKS done 셸 또는 확인 명령, 참고용만>
+FORBID (invoke 세션): cmake, ctest, npm test, make, ninja, 항목 done 셸 실행, 빌드/테스트로 green 확인
 하지 말 것: git commit, git push, 범위 확대, 비밀 파일, PLAN/TASKS 삭제
-끝나면: 변경 파일, 실행한 테스트, 실패(errorTail 요약), 남은 위험을 짧게 보고 (장문 로그 직접 덤프 금지, 로그 경로 안내).
+끝나면: 변경 파일, (편집 외) 실행한 명령, 실패(errorTail 요약), 남은 위험을 짧게 보고 (장문 로그 직접 덤프 금지, 로그 경로 안내).
 ```
 
 `--skills cursor-atomic-workflow,tdd` 또는 `--skills-file`을 쓰면 `invoke-worker`가 위 블록을 brief 앞에 자동 prepend한다. `--dry-run`은 실제 CLI 대신 최종 명령줄만 로그에 남긴다.
@@ -92,8 +96,11 @@ bash "$SKILL/invoke-worker.sh" \
   --prompt-file "$RUNS/T1.brief.md" \
   --log-file "$RUNS/T1.log" \
   --timeout-min 45 \
+  --model gemini-3.8-flash-high \
   --skills cursor-atomic-workflow,tdd
 ```
+
+`agy`의 `--print-timeout`은 `45m0s`처럼 단위가 있는 duration이다. `invoke-worker`가 `--timeout-min`(기본 45)을 `Nm0s`로 넣는다. 모델은 `--model` 또는 env `CURSOR_ATOMIC_AGY_MODEL`(별칭은 `scripts/resolve-agy-model.mjs`).
 
 ### PowerShell (Windows)
 

@@ -22,6 +22,8 @@ param(
 
   [string]$Skills,
 
+  [string]$Model,
+
   [int]$TimeoutMin = 45
 )
 
@@ -118,17 +120,31 @@ if (-not $LastMessageFile) {
 }
 
 $agyTimeout = '{0}m0s' -f $TimeoutMin
+$agyModel = $Model
+if ([string]::IsNullOrWhiteSpace($agyModel) -and $env:CURSOR_ATOMIC_AGY_MODEL) {
+  $agyModel = $env:CURSOR_ATOMIC_AGY_MODEL
+}
+if (-not [string]::IsNullOrWhiteSpace($agyModel)) {
+  $resolveScript = Join-Path $PSScriptRoot 'resolve-agy-model.mjs'
+  if (Test-Path -LiteralPath $resolveScript) {
+    $agyModel = (& node $resolveScript $agyModel).Trim()
+  } elseif ($agyModel -eq 'gemini-3.8-flash' -or $agyModel -eq 'gemini-3.8-flash-medium') {
+    $agyModel = 'gemini-3.8-flash-high'
+  }
+}
 
 Push-Location -LiteralPath $ws
 $exitCode = 1
 try {
-  "worker=$Worker workspace=$ws started=$(Get-Date -Format o)" | Set-Content -LiteralPath $LogFile -Encoding UTF8
+  $modelNote = if ($agyModel) { $agyModel } else { 'default' }
+  "worker=$Worker workspace=$ws started=$(Get-Date -Format o) agy_model=$modelNote" | Set-Content -LiteralPath $LogFile -Encoding UTF8
 
   switch ($Worker) {
     'agy' {
       $bin = Resolve-Bin @('agy.exe', 'agy')
       if (-not $bin) { throw 'agy not on PATH. Run scripts/ensure-workers.ps1 -Workers agy' }
       $agyArgs = @('--output-format', 'text', '--mode', 'accept-edits', '--dangerously-skip-permissions', '--print-timeout', $agyTimeout)
+      if ($agyModel) { $agyArgs += @('--model', $agyModel) }
       foreach ($dir in (Get-SkillAddDirs $ws)) { $agyArgs += @('--add-dir', $dir) }
       $agyArgs += @('-p', $prompt)
       & $bin @agyArgs 2>&1 | Tee-Object -FilePath $LogFile -Append
