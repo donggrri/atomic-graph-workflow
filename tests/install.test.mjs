@@ -215,3 +215,16 @@ test("doctor checkNodeVersion enforces >=22.13", async () => {
   assert.equal(checkNodeVersion("v24.1.0").ok, true);
   assert.match(checkNodeVersion("v20.0.0").message, />=22\.13/);
 });
+
+test("runDoctor --harness fails on old Node", async () => {
+  const { runDoctor } = await import("../scripts/doctor.mjs");
+  const dir = await mkdtemp(join(tmpdir(), "atomic-oldnode-"));
+  try {
+    await install({ target: dir, harness: "cursor", force: true, quiet: true });
+    const res = await runDoctor({ cwd: dir, harness: "cursor", nodeVersion: "v20.19.2" });
+    assert.equal(res.ok, false);
+    assert.ok(res.problems.some((p) => /22\.13/.test(p)));
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});

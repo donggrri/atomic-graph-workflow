@@ -383,7 +383,7 @@ export async function runDoctor(options = {}) {
   results.harnessSync = await checkHarnessSync({ cwd });
 
   if (options.harness) {
-    results.ok = true;
+    results.ok = nodeCheck.ok;
     const harnessParts = parseHarnessSpec(options.harness);
     const harnesses = resolveHarnesses(harnessParts, cwd, {
       withClaude: options.withClaude || harnessParts.includes("claude"),
