@@ -33,7 +33,7 @@ Source in this repo (harness-neutral):
 |---|---|---|
 | Skills | `skills/cursor-atomic-*/SKILL.md` | Slash/command logic (`name` + `description` frontmatter only) |
 | Workflow skill | `skills/cursor-atomic-workflow/` | Orchestration docs + `references/harness.md` |
-| Subagents | `agents/*.md` | Role definitions (generated per harness on install) |
+| Subagents | `agents/*.md` | 8 agents: `explorer`, `planner`, `plan-reviewer`, `tasker`, `worker`, `cursor-atomic-reviewer`, `tester`, `cli-delegate` (+ `memory-curator`); generated per harness on install |
 | Commands (shims) | `commands/*.md` | opencode / Pi / Claude thin wrappers |
 | Engine | `scripts/*.mjs` | Copied once to `<target>/.atomic/scripts/` on install |
 

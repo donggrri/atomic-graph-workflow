@@ -33,7 +33,7 @@ Cursor용 atomic explore → plan → task → execute → review 워크플로 (
 |---|---|---|
 | 스킬 | `skills/cursor-atomic-*/SKILL.md` | 슬래시/커맨드 로직 (`name`, `description` frontmatter만) |
 | 워크플로 | `skills/cursor-atomic-workflow/` | 오케스트레이션 + `references/harness.md` |
-| 서브에이전트 | `agents/*.md` | 역할 정의 (설치 시 하네스별로 생성) |
+| 서브에이전트 | `agents/*.md` | 8종: `explorer`, `planner`, `plan-reviewer`, `tasker`, `worker`, `cursor-atomic-reviewer`, `tester`, `cli-delegate` (+ `memory-curator`), 설치 시 하네스별로 생성 |
 | 커맨드 shim | `commands/*.md` | opencode / Pi / Claude용 얇은 래퍼 |
 | 엔진 | `scripts/*.mjs` | 설치 시 `<대상>/.atomic/scripts/`에 한 번 복사 |
 
