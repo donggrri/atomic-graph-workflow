@@ -1601,16 +1601,16 @@ test("19 task-card 스킬 경로 — 저장소 파일이 있을 때만 그 경�
     const skillHome = join(home, "cursor-home");
     const repoWorkflow = join(
       repoRoot,
-      ".cursor",
+      ".agents",
       "skills",
       "cursor-atomic-workflow",
       "SKILL.md",
     );
-    const repoTickets = join(repoRoot, ".cursor", "skills", "to-tickets", "SKILL.md");
-    const homeTickets = join(skillHome, ".cursor", "skills", "to-tickets", "SKILL.md");
+    const repoTickets = join(repoRoot, ".agents", "skills", "to-tickets", "SKILL.md");
+    const homeTickets = join(skillHome, ".agents", "skills", "to-tickets", "SKILL.md");
     const homeWorkflow = join(
       skillHome,
-      ".cursor",
+      ".agents",
       "skills",
       "cursor-atomic-workflow",
       "SKILL.md",
@@ -1647,7 +1647,7 @@ test("19 task-card 스킬 경로 — 저장소 파일이 있을 때만 그 경�
     const cardEmpty = JSON.parse(readFileSync(join(paths.runsDir, "next-card.json"), "utf8"));
     const missingRepoWorkflow = join(
       emptyRepo,
-      ".cursor",
+      ".agents",
       "skills",
       "cursor-atomic-workflow",
       "SKILL.md",

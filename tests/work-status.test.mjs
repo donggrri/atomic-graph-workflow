@@ -392,7 +392,7 @@ test("syncSlug refreshes sessionId when Cursor conversation changes", async () =
 test("bundled skill work-status.mjs matches scripts/work-status.mjs", () => {
   const root = readFileSync("scripts/work-status.mjs", "utf8");
   const bundled = readFileSync(
-    ".cursor/skills/cursor-atomic-workflow/scripts/work-status.mjs",
+    ".atomic/scripts/work-status.mjs",
     "utf8"
   );
   assert.equal(bundled, root);

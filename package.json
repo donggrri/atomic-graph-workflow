@@ -20,8 +20,14 @@
     "agents"
   ],
   "files": [
-    ".cursor/",
+    "skills/",
+    "agents/",
+    "commands/",
+    "rules/",
     "scripts/",
+    "graph.yaml",
+    "AGENTS.md",
+    "INSTALL_PROMPT.md",
     "profiles/",
     "README.md",
     "README.kr.md",

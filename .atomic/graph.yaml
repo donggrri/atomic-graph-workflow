@@ -1,0 +1,35 @@
+# Default atomic workflow graph (installed to .atomic/graph.yaml)
+version: 1
+nodes:
+  router:
+    next: [lite, explore]
+  lite:
+    skill: cursor-atomic-lite
+  explore:
+    skill: cursor-atomic-explore
+    executor: cursor-subagent
+    agent: explorer
+  plan:
+    skill: cursor-atomic-plan
+    executor: cursor-subagent
+    agent: planner
+  plan-review:
+    skill: cursor-atomic-plan
+    executor: cursor-subagent
+    agent: plan-reviewer
+  task:
+    skill: cursor-atomic-task
+    executor: cursor-subagent
+    agent: tasker
+  execute:
+    skill: cursor-atomic-execute
+    executor: cursor-subagent
+    agent: worker
+  review:
+    skill: cursor-atomic-review
+    executor: cursor-subagent
+    agent: cursor-atomic-reviewer
+  wrapup:
+    skill: cursor-atomic-wrapup
+    executor: cursor-subagent
+    agent: tester

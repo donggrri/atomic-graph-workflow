@@ -2,9 +2,9 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import test from "node:test";
-import { ROUTER_DISPATCH_COMMANDS } from "./install.test.mjs";
+import { ROUTER_DISPATCH_COMMANDS } from "./workflow-constants.mjs";
 
-const SKILLS = ".cursor/skills";
+const SKILLS = "skills";
 
 test("router dispatch command skills are model-invocable", async () => {
   for (const name of ROUTER_DISPATCH_COMMANDS) {

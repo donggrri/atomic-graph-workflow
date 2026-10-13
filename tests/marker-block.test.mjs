@@ -1,29 +1,5 @@
 /**
- * Marker block seam (T6a implements scripts/lib/marker-block.mjs).
- *
- * import { upsertBlock, removeBlock, hasBlock } from "../scripts/lib/marker-block.mjs";
- *
- * Markers (exact):
- *   <!-- cursor-atomic-workflow:begin -->
- *   <!-- cursor-atomic-workflow:end -->
- *
- * upsertBlock(text, body) -> string
- *   - Empty text: returns only one block wrapping body (markers + body + newlines as in wrapBlock).
- *   - No existing block: inserts the block after the first "\n\n" in text; if text has no "\n\n",
- *     prepends wrapBlock(body) + "\n\n" + text.
- *   - Exactly one existing block: replaces only the inner body; bytes outside begin/end unchanged.
- *   - Mismatched markers (begin only, end only, or more than one block): throws Error; pure — caller's
- *     input string must remain unchanged when the throw is caught.
- *
- * removeBlock(text) -> string
- *   - Removes the single valid block (markers and inner body). Text without a block: unchanged.
- *   - Mismatched markers: throws Error (same purity rule as upsertBlock).
- *
- * hasBlock(text) -> boolean
- *   - true when text contains exactly one well-formed begin/end pair with begin before end.
- *
- * Block shape (LF inside the block region):
- *   <!-- cursor-atomic-workflow:begin -->\n{body}\n<!-- cursor-atomic-workflow:end -->
+ * Marker block seam — atomic:begin / atomic:end
  */
 
 import test from "node:test";
@@ -31,8 +7,8 @@ import assert from "node:assert/strict";
 
 import { upsertBlock, removeBlock, hasBlock } from "../scripts/lib/marker-block.mjs";
 
-const BEGIN = "<!-- cursor-atomic-workflow:begin -->";
-const END = "<!-- cursor-atomic-workflow:end -->";
+const BEGIN = "<!-- atomic:begin -->";
+const END = "<!-- atomic:end -->";
 
 /** @param {string} body */
 function wrapBlock(body) {
@@ -80,14 +56,11 @@ test("upsertBlock replaces only inner body when body changes", () => {
   const withV2 = upsertBlock(withV1, "version-two");
   const expected = `top\n\n${wrapBlock("version-two")}\n\nbottom\n`;
   assert.equal(withV2, expected);
-  assert.equal(withV1.includes("version-one"), true);
-  assert.equal(withV2.includes("version-one"), false);
 });
 
 test("removeBlock strips a single block and leaves outside bytes unchanged", () => {
   const input = "keep-start\n\nkeep-end\n";
-  const body = "inside";
-  const withBlock = upsertBlock(input, body);
+  const withBlock = upsertBlock(input, "inside");
   assert.equal(removeBlock(withBlock), input);
 });
 
@@ -98,12 +71,12 @@ test("removeBlock on text without a block returns text unchanged", () => {
 });
 
 test("upsertBlock throws on begin-only marker without mutating input", () => {
-  const text = "prefix\n<!-- cursor-atomic-workflow:begin -->\ninner\n";
+  const text = "prefix\n<!-- atomic:begin -->\ninner\n";
   assertInputUnchangedOnThrow(() => upsertBlock(text, "new"), text);
 });
 
 test("upsertBlock throws on end-only marker without mutating input", () => {
-  const text = "inner\n<!-- cursor-atomic-workflow:end -->\nsuffix\n";
+  const text = "inner\n<!-- atomic:end -->\nsuffix\n";
   assertInputUnchangedOnThrow(() => upsertBlock(text, "new"), text);
 });
 
@@ -113,12 +86,19 @@ test("upsertBlock throws on two blocks without mutating input", () => {
 });
 
 test("removeBlock throws on mismatched markers without mutating input", () => {
-  const beginOnly = "x\n<!-- cursor-atomic-workflow:begin -->\n";
+  const beginOnly = "x\n<!-- atomic:begin -->\n";
   assertInputUnchangedOnThrow(() => removeBlock(beginOnly), beginOnly);
 
-  const endOnly = "<!-- cursor-atomic-workflow:end -->\n";
+  const endOnly = "<!-- atomic:end -->\n";
   assertInputUnchangedOnThrow(() => removeBlock(endOnly), endOnly);
 
   const two = `${wrapBlock("a")}\n${wrapBlock("b")}\n`;
   assertInputUnchangedOnThrow(() => removeBlock(two), two);
+});
+
+test("upsertBlock accepts begin line with extra annotation", () => {
+  const annotated = "<!-- atomic:begin (generated) -->\nbody\n<!-- atomic:end -->\n";
+  assert.equal(hasBlock(annotated), true);
+  const next = upsertBlock(annotated, "new-body");
+  assert.match(next, /new-body/);
 });

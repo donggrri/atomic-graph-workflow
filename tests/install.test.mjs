@@ -6,8 +6,9 @@ import { tmpdir } from "node:os";
 import test from "node:test";
 import {
   checkHarnessSync,
-  checkHarnessInstall,
+  checkSingleHarness,
   validateSkillFrontmatter,
+  runDoctor,
 } from "../scripts/doctor.mjs";
 import {
   install,
@@ -15,14 +16,14 @@ import {
   findLegacyCursorCommands,
   RULES_DIR,
   ATOMIC_ROUTER_RULE,
+  AGENTS_SKILLS_DIR,
 } from "../scripts/install.mjs";
 import { checkAgents } from "../scripts/check-agents.mjs";
+import { resolveHarnesses } from "../scripts/lib/harnesses.mjs";
+import { ROUTER_DISPATCH_COMMANDS } from "./workflow-constants.mjs";
 
-const SKILLS = ".cursor/skills";
+const SKILLS = "skills";
 const WORKFLOW = "cursor-atomic-workflow";
-
-/** 메인 채팅 라우터가 모델 스킬 호출로 불러올 수 있는 커맨드 스킬 */
-export const ROUTER_DISPATCH_COMMANDS = ["cursor-atomic-lite", "cursor-atomic-plan"];
 
 const COMMANDS = [
   "cursor-atomic-agy",
@@ -42,6 +43,8 @@ const COMMANDS = [
   "cursor-atomic-wrapup",
 ];
 
+const HARNESS_TARGETS = ["cursor", "opencode", "codex", "pi", "agy"];
+
 async function read(rel) {
   return readFile(rel, "utf8");
 }
@@ -56,89 +59,86 @@ test("legacy .cursor/commands is gone from the package", async () => {
   assert.equal(existsSync(".cursor/commands"), false);
 });
 
-test("command skills gate model invocation and reference harness.md", async () => {
+test("command skills use minimal frontmatter and reference harness.md", async () => {
   for (const name of COMMANDS) {
     const rel = join(SKILLS, name, "SKILL.md");
     const text = await read(rel);
-    if (ROUTER_DISPATCH_COMMANDS.includes(name)) {
-      assert.doesNotMatch(
-        text,
-        /disable-model-invocation:\s*true/,
-        `${rel} must be model-invocable for main-chat router`,
-      );
-      assert.match(text, /메인 채팅|라우터/, `${rel} description must mention main-chat router`);
-    } else {
-      assert.match(text, /disable-model-invocation:\s*true/, `${rel} must set disable-model-invocation`);
-    }
-    assert.equal(validateSkillFrontmatter(text, rel).valid, true, `${rel} frontmatter must be YAML safe`);
+    assert.doesNotMatch(text, /disable-model-invocation\s*:/, `${rel} must not use disable-model-invocation`);
+    assert.equal(validateSkillFrontmatter(text, rel).valid, true, `${rel} frontmatter`);
     assert.match(text, /# \//, `${rel} must title the slash command`);
     if (!["cursor-atomic-settings", "cursor-atomic-doctor"].includes(name)) {
       assert.match(text, /harness\.md|references\/harness\.md/, `${name} must defer harness details`);
+    }
+    if (ROUTER_DISPATCH_COMMANDS.includes(name)) {
+      assert.match(text, /메인 채팅|라우터/, `${rel} description must mention router`);
     }
   }
   const harness = await read(join(SKILLS, WORKFLOW, "references", "harness.md"));
   for (const section of ["## 서브에이전트 띄우기", "## 커맨드 입력", "## 스크립트 경로"]) {
     assert.ok(harness.includes(section), `harness.md must define ${section}`);
   }
-  assert.match(harness, /Cursor 전용|Cursor\)/);
+  assert.match(harness, /\.atomic\/scripts/);
   const workflow = await read(join(SKILLS, WORKFLOW, "SKILL.md"));
   assert.match(workflow, /references\/harness\.md/);
 });
 
-test("repository .cursor/agents passes checkAgents", () => {
-  const { ok, problems } = checkAgents({ dir: join(".cursor", "agents") });
+test("repository agents/ passes checkAgents", () => {
+  const { ok, problems } = checkAgents({ dir: join("agents") });
   assert.equal(ok, true, problems.join("; "));
 });
 
-test("installer copies skills and agents into a target project", async () => {
-  const target = await mkdtemp(join(tmpdir(), "cursor-install-"));
+test("installer copies skills, atomic runtime, and cursor adapters", async () => {
+  const target = await mkdtemp(join(tmpdir(), "atomic-install-"));
   try {
+    const res = await install({ root: ".", target, harness: "cursor", force: false });
+    assert.ok(res.copied.length > 0 || res.skipped.length > 0);
+    assert.ok(existsSync(join(target, AGENTS_SKILLS_DIR, WORKFLOW, "SKILL.md")));
+    assert.ok(existsSync(join(target, ".atomic", "scripts", "work-status.mjs")));
+    assert.ok(existsSync(join(target, ".cursor", "agents", "worker.md")));
+    assert.ok(existsSync(join(target, ".cursor", "agents", "cursor-atomic-reviewer.md")));
+    assert.ok(existsSync(join(target, RULES_DIR, ATOMIC_ROUTER_RULE)));
+
+    const doctor = await checkSingleHarness("cursor", target, ".");
+    assert.equal(doctor.ok, true, doctor.problems.join("; "));
+
     await mkdir(join(target, ".cursor", "commands"), { recursive: true });
     await writeFile(join(target, ".cursor", "commands", "cursor-atomic-plan.md"), "# /old\n");
-
-    const res = await install({ root: ".", target, force: false });
-    assert.ok(res.copied.length > 0 || res.skipped.length > 0);
-    assert.ok(
-      existsSync(join(target, ".cursor", "skills", WORKFLOW, "SKILL.md")),
-      "workflow skill must be installed",
-    );
-    assert.ok(
-      existsSync(join(target, ".cursor", "agents", "worker.md")),
-      "agents must be installed",
-    );
-    assert.equal(existsSync(join(target, ".cursor", "agents", "reviewer.md")), false);
-    assert.ok(existsSync(join(target, ".cursor", "agents", "cursor-atomic-reviewer.md")));
-    assert.ok(
-      existsSync(join(target, RULES_DIR, ATOMIC_ROUTER_RULE)),
-      "atomic-router rule must be installed",
-    );
-
     const legacy = await findLegacyCursorCommands(target);
     assert.equal(legacy.length, 1);
 
-    const doctor = await checkHarnessInstall({ cwd: target, root: "." });
-    assert.equal(doctor.skillsInstalled, true);
-    assert.equal(doctor.commandSkills.length, COMMANDS.length);
-    assert.equal(doctor.routerRuleInstalled, true);
-    assert.deepEqual(doctor.harnesses.cursor.agents.missing, []);
+    await mkdir(join(target, ".cursor", "skills", "cursor-atomic-plan"), { recursive: true });
+    await writeFile(join(target, ".cursor", "skills", "cursor-atomic-plan", "SKILL.md"), "---\nname: x\n---\n");
 
-    const second = await install({ root: ".", target });
-    assert.equal(second.copied.length, 0);
-    assert.ok(second.skipped.length > 0);
+    const migrated = await install({ root: ".", target, harness: "cursor", migrate: true, force: true });
+    assert.ok(migrated.removed.some((p) => p.includes(".cursor/skills/cursor-atomic-")));
+    assert.equal(existsSync(join(target, ".cursor", "skills", WORKFLOW)), false);
 
-    await install({ root: ".", target, force: true, setModel: { worker: "composer-2.5-fast" } });
-    assert.match(await read(join(target, ".cursor", "agents", "worker.md")), /^model: composer-2\.5-fast$/m);
+    await install({ root: ".", target, harness: "cursor", force: true, setModel: { worker: "composer-2.5-fast" } });
+    assert.match(
+      await read(join(target, ".cursor", "agents", "worker.md")),
+      /^model: composer-2\.5-fast$/m,
+    );
   } finally {
     await rm(target, { recursive: true, force: true });
   }
 });
 
-test("parseInstallArgs rejects unknown flags", () => {
-  assert.throws(() => parseInstallArgs(["--harness", "cursor"]), /--harness|알 수 없는 옵션/);
+test("parseInstallArgs accepts --harness and rejects unknown flags", () => {
+  const opts = parseInstallArgs(["--harness", "cursor", "--target", "/tmp/x"]);
+  assert.equal(opts.harness, "cursor");
+  assert.throws(() => parseInstallArgs(["--bogus"]), /알 수 없는 옵션/);
+});
+
+test("resolveHarnesses excludes claude from all unless --with-claude", () => {
+  const without = resolveHarnesses(["all"], "/tmp", { withClaude: false });
+  assert.equal(without.has("claude"), false);
+  assert.equal(without.has("cursor"), true);
+  const withClaude = resolveHarnesses(["all"], "/tmp", { withClaude: true });
+  assert.equal(withClaude.has("claude"), true);
 });
 
 test("doctor skips bundle sync check outside the package repo", async () => {
-  const outside = await mkdtemp(join(tmpdir(), "cursor-outside-"));
+  const outside = await mkdtemp(join(tmpdir(), "atomic-outside-"));
   try {
     const res = await checkHarnessSync({ cwd: outside });
     assert.equal(res.skipped, true);
@@ -152,4 +152,44 @@ test("all cursor-atomic command skill directories exist", async () => {
     .filter((n) => n.startsWith("cursor-atomic-") && n !== WORKFLOW)
     .sort();
   assert.deepEqual(names, COMMANDS);
+});
+
+for (const harness of HARNESS_TARGETS) {
+  test(`install + doctor for harness ${harness}`, async () => {
+    const target = await mkdtemp(join(tmpdir(), `harness-${harness}-`));
+    try {
+      if (harness === "cursor") {
+        await mkdir(join(target, ".cursor"), { recursive: true });
+      }
+      if (harness === "opencode") {
+        await mkdir(join(target, ".opencode"), { recursive: true });
+      }
+      if (harness === "pi") {
+        await mkdir(join(target, ".pi"), { recursive: true });
+      }
+      await install({ root: ".", target, harness, force: true });
+      const report = await runDoctor({ cwd: target, harness, root: "." });
+      assert.equal(report.ok, true, report.problems.join("\n"));
+    } finally {
+      await rm(target, { recursive: true, force: true });
+    }
+  });
+}
+
+test("claude harness is optional and requires explicit harness", async () => {
+  const target = await mkdtemp(join(tmpdir(), "harness-claude-"));
+  try {
+    await install({ root: ".", target, harness: "all", force: true });
+    assert.equal(existsSync(join(target, ".claude", "skills", WORKFLOW, "SKILL.md")), false);
+
+    await install({ root: ".", target, harness: "claude", withClaude: true, force: true });
+    assert.ok(existsSync(join(target, ".claude", "skills", WORKFLOW, "SKILL.md")));
+    const claudeMd = await read(join(target, "CLAUDE.md"));
+    assert.match(claudeMd, /@AGENTS\.md/);
+
+    const report = await runDoctor({ cwd: target, harness: "claude", root: "." });
+    assert.equal(report.ok, true, report.problems.join("\n"));
+  } finally {
+    await rm(target, { recursive: true, force: true });
+  }
 });

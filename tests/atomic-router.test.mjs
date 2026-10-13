@@ -17,14 +17,14 @@ test("atomic-router rule is always-applied and references lite vs full", async (
 });
 
 test("package repo has router rule for doctor install check", async () => {
-  const hi = await checkHarnessInstall({ cwd: ".", root: "." });
+  const hi = await checkHarnessInstall({ cwd: ".", harness: "cursor", root: "." });
   assert.equal(hi.routerRuleInstalled, true);
   assert.equal(hi.routerRuleExpected, ATOMIC_ROUTER_RULE);
 });
 
 test("routing.md documents main-chat lite vs full signals", async () => {
   const text = await readFile(
-    join(".cursor", "skills", "cursor-atomic-workflow", "references", "routing.md"),
+    join("skills", "cursor-atomic-workflow", "references", "routing.md"),
     "utf8",
   );
   assert.match(text, /lite vs full/);

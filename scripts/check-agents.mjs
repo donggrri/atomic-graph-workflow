@@ -11,7 +11,7 @@ import {
 } from "./lib/roles.mjs";
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
-const defaultAgentsDir = join(scriptDir, "..", ".cursor", "agents");
+const defaultAgentsDir = join(scriptDir, "..", "agents");
 
 /**
  * @param {string} content

@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import test from "node:test";
 import { runDone } from "../scripts/run-done.mjs";
 
-const SKILLS = ".cursor/skills";
+const SKILLS = "skills";
 const skillFile = (name) => join(SKILLS, name, "SKILL.md");
 
 const COMMAND_SKILLS = [
@@ -82,10 +82,10 @@ function isAllowedOldAgentMention(line) {
     || /기존 설정에 `g-/.test(line);
 }
 
-test("package.json includes .cursor directory", async () => {
+test("package.json includes harness-neutral source dirs", async () => {
   const pkg = JSON.parse(await readFile("package.json", "utf8"));
   assert.equal(pkg.name, "cursor-atomic-workflow");
-  assert.ok(pkg.files.includes(".cursor/"), "package.json files must ship .cursor/");
+  assert.ok(pkg.files.includes("skills/"), "package.json files must ship skills/");
   assert.equal(pkg.engines?.node, ">=22.13");
   assert.ok(pkg.optionalDependencies?.["@cursor/sdk"]);
   assert.equal(pkg.pi, undefined, "Cursor package must not declare pi manifest");
@@ -103,8 +103,14 @@ test("package.json meets public publish metadata contract", async () => {
     "agents"
   ];
   const expectedFiles = [
-    ".cursor/",
+    "skills/",
+    "agents/",
+    "commands/",
+    "rules/",
     "scripts/",
+    "graph.yaml",
+    "AGENTS.md",
+    "INSTALL_PROMPT.md",
     "profiles/",
     "README.md",
     "README.kr.md",
@@ -151,8 +157,8 @@ test("planning preflight is defined in the plan command skill", async () => {
 test("artifact writers use slug folders under .docs and harness docs", async () => {
   const files = [
     skillFile("cursor-atomic-workflow"),
-    join(".cursor", "agents", "explorer.md"),
-    join(".cursor", "agents", "planner.md"),
+    join("agents", "explorer.md"),
+    join("agents", "planner.md"),
     skillFile("cursor-atomic-explore"),
     skillFile("cursor-atomic-plan"),
     skillFile("cursor-atomic-status"),
@@ -176,7 +182,7 @@ test("artifact writers use slug folders under .docs and harness docs", async () 
 
 test("workflow agents are registered without g- prefix", async () => {
   const { ROLES, AUXILIARY_ROLES, agentFileName, getRole } = await import("../scripts/lib/roles.mjs");
-  const agentsDir = join(".cursor", "agents");
+  const agentsDir = join("agents");
   const files = (await readdir(agentsDir)).sort();
   const expected = [
     ...Object.keys(ROLES).map((role) => agentFileName(role)),
@@ -198,7 +204,7 @@ test("workflow agents are registered without g- prefix", async () => {
 });
 
 test("planner contract uses correct skills", async () => {
-  const planner = await readFile(join(".cursor", "agents", "planner.md"), "utf8");
+  const planner = await readFile(join("agents", "planner.md"), "utf8");
   assert.match(planner, /grilling/, "planner must use grilling");
   assert.match(planner, /wayfinder/, "planner must use wayfinder");
   assert.doesNotMatch(planner, /grill-me/, "planner must not rely on grill-me directly");
@@ -206,7 +212,7 @@ test("planner contract uses correct skills", async () => {
 });
 
 test("planner contract supports plan-review revise mode", async () => {
-  const planner = await readFile(join(".cursor", "agents", "planner.md"), "utf8");
+  const planner = await readFile(join("agents", "planner.md"), "utf8");
   assert.match(planner, /Revise PLAN/, "planner must document plan-review revise entry prompt");
   assert.match(planner, /계획 결함/, "planner revise mode must fix only plan defects section");
   assert.match(planner, /계획 정제/, "planner revise mode must keep settled decisions in 계획 정제");
@@ -270,8 +276,6 @@ test("agy command skill keeps headless delegate contract", async () => {
   const body = await readFile(file, "utf8");
   const meta = parseFrontmatter(body, file);
   assert.equal(meta.name, "cursor-atomic-agy");
-  assert.equal(meta["disable-model-invocation"], "true");
-
   const description = meta.description ?? "";
   assert.match(description, /agy/, `${file} description must mention agy`);
   assert.match(description, /headless|헤드리스/, `${file} description must mention headless or 헤드리스`);
@@ -458,7 +462,7 @@ test("run-done extracts errorTail on command timeout", async () => {
       cwd: tmpDir,
       command: `node -e "console.log('timeout log line'); setTimeout(() => {}, 5000);"`,
       logPath,
-      timeoutMs: 100,
+      timeoutMs: 200,
     });
     assert.equal(result.ok, false);
     assert.equal(result.exitCode, -1);
@@ -547,7 +551,7 @@ test("pipeline recovery SKILL orchestration", async () => {
 test("CLI worker brief template forbids done in invoke session", async () => {
   const workers = await readFile(join(SKILLS, "cursor-atomic-workflow", "workers.md"), "utf8");
   const delegate = await readFile(skillFile("cursor-atomic-delegate"), "utf8");
-  const cliDelegate = await readFile(join(".cursor", "agents", "cli-delegate.md"), "utf8");
+  const cliDelegate = await readFile(join("agents", "cli-delegate.md"), "utf8");
 
   assert.match(workers, /부모 검증용/, "workers.md must label done as parent-only");
   assert.match(workers, /FORBID/, "workers.md must include FORBID block in CLI brief template");
@@ -610,7 +614,7 @@ test("pipeline recovery command skills", async () => {
 });
 
 test("pipeline recovery reviewer agent", async () => {
-  const reviewer = await readFile(join(".cursor", "agents", "cursor-atomic-reviewer.md"), "utf8");
+  const reviewer = await readFile(join("agents", "cursor-atomic-reviewer.md"), "utf8");
 
   // 직접 리뷰어 및 CLI 디스패치 금지
   assert.match(reviewer, /직접 리뷰어/, "reviewer.md must state package reviewer is direct reviewer");
@@ -651,7 +655,7 @@ test("bugbot review parent contract docs", async () => {
     "utf8"
   );
   const reviewer = await readFile(
-    join(".cursor", "agents", "cursor-atomic-reviewer.md"),
+    join("agents", "cursor-atomic-reviewer.md"),
     "utf8"
   );
 

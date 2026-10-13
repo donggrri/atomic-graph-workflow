@@ -7,7 +7,7 @@ Cursor SDK workflow (`cursor-sdk`). Technical identifiers stay `cursor-atomic-*`
 Atomic explore → plan → task → execute → review workflow for Cursor (SDK runner + Task subagents).
 `/cursor-atomic-explore` (optional) → `/cursor-atomic-plan` → `/cursor-atomic-task` → `/cursor-atomic-execute` → `/cursor-atomic-review` → `/cursor-atomic-wrapup`
 
-Slash commands keep the `cursor-atomic-` prefix from the upstream workflow, but the package itself is **Cursor-only**.
+Slash commands keep the `cursor-atomic-` prefix. The repository is **harness-neutral** (Cursor, opencode, Codex, Pi, AGY; Claude Code optional).
 
 ---
 
@@ -27,15 +27,25 @@ Slash commands keep the `cursor-atomic-` prefix from the upstream workflow, but 
 
 ## 1. What this package installs
 
-Everything installs into the target Cursor project:
+Source in this repo (harness-neutral):
+
+| Component | Source | Role |
+|---|---|---|
+| Skills | `skills/cursor-atomic-*/SKILL.md` | Slash/command logic (`name` + `description` frontmatter only) |
+| Workflow skill | `skills/cursor-atomic-workflow/` | Orchestration docs + `references/harness.md` |
+| Subagents | `agents/*.md` | Role definitions (generated per harness on install) |
+| Commands (shims) | `commands/*.md` | opencode / Pi / Claude thin wrappers |
+| Engine | `scripts/*.mjs` | Copied once to `<target>/.atomic/scripts/` on install |
+
+Into a target project (example: Cursor):
 
 | Component | Location | Role |
 |---|---|---|
-| Command skills | `.cursor/skills/cursor-atomic-<name>/SKILL.md` | Each one is a slash command (`/cursor-atomic-plan`, …) and holds the command logic |
-| Workflow skill | `.cursor/skills/cursor-atomic-workflow/` | Orchestration docs (`CONTEXT.md`, `reference.md`, `workers.md`, `testing.md`, `models.md`), the Cursor harness adapter (`references/harness.md`), and bundled copies of `work-status.mjs` / `run-done.mjs` |
-| Subagents | `.cursor/agents/*.md` | 8 agents: `explorer`, `planner`, `plan-reviewer`, `tasker`, `worker`, `cursor-atomic-reviewer`, `tester`, `cli-delegate` |
-| Router rule | `.cursor/rules/atomic-router.mdc` | Always-on main-chat routing: pick **lite** vs **full** when the user does not name a slash command |
-| Runner scripts | `scripts/` | `install.mjs`, `run-pipeline.mjs`, `doctor.mjs`, `check-agents.mjs`, `work-status.mjs`, `run-done.mjs`, `lib/` |
+| Skills | `.agents/skills/` | Shared across Cursor, opencode, Codex, Pi, AGY |
+| Runtime | `.atomic/scripts/`, `.atomic/graph.yaml` | `work-status`, `run-done`, `memory`, pipeline helpers |
+| Cursor subagents | `.cursor/agents/*.md` | Task subagents |
+| Router rule | `.cursor/rules/atomic-router.mdc` | Main-chat lite vs full routing |
+| Instructions | `AGENTS.md` (marker block) | Harness-agnostic entry |
 
 Requires Node `>=22.13`. `@cursor/sdk` is an optional dependency at the package root and powers the SDK adapter of the pipeline runner.
 
@@ -48,30 +58,31 @@ The bundled upstream skills snapshot records its source, revision, and MIT licen
 From this repository (or an installed npm package directory), run:
 
 ```bash
-node scripts/install.mjs --target /path/to/project
+node scripts/install.mjs --target /path/to/project --harness auto
 ```
 
 | Option | Meaning |
 |---|---|
 | `--target <dir>` | Target project (default: current directory) |
-| `--skills-dir <path>` | Skills destination (default: `.cursor/skills`) |
-| `--force` | Overwrite existing files (otherwise they are kept) |
-| `--set-model <agent>=<model>` | Pin a phase model in the agent frontmatter (repeatable) |
-| `--no-skills` / `--no-agents` / `--no-rules` | Skip a component |
+| `--harness <list>` | `auto`, `cursor`, `opencode`, `codex`, `pi`, `agy`, `claude`, `all` (comma-separated). `auto`/`all` omit Claude unless `--with-claude` |
+| `--migrate` | Remove legacy `.cursor/skills/cursor-atomic-*` (duplicate with `.agents/skills`) |
+| `--force` | Overwrite generated files |
+| `--set-model <agent>=<model>` | Pin a phase model in agent frontmatter (repeatable) |
+| `--with-claude` | Include Claude Code (`.claude/*`, `CLAUDE.md` with `@AGENTS.md`) |
 | `-h, --help` | Help |
 
+Paste prompt for an installing agent: [INSTALL_PROMPT.md](INSTALL_PROMPT.md).
+
 ```bash
-# reinstall over an existing install and pin a model
-node scripts/install.mjs --target /path/to/project --force --set-model worker=composer-2.5
+node scripts/install.mjs --target /path/to/project --harness cursor,opencode --migrate --force
 ```
 
-If the project still has an older install's `.cursor/commands/cursor-atomic-*.md`, delete those files: the command skills now provide the same slash commands, and keeping both shows each command twice. The installer and `doctor` list them.
-
-Check the install state any time:
+Verify:
 
 ```bash
-node scripts/doctor.mjs        # skill collisions, YAML frontmatter, bundled script sync, install state (--fix applies auto-fixes)
-node scripts/check-agents.mjs  # .cursor/agents models match scripts/lib/roles.mjs
+node .atomic/scripts/doctor.mjs --harness auto --target .
+node scripts/check-agents.mjs   # source agents/ vs scripts/lib/roles.mjs
+node scripts/sync-bundled.mjs --check   # maintainer: scripts/ vs .atomic/scripts/
 ```
 
 ---
@@ -192,14 +203,14 @@ The bundled snapshot's source repository, revision, and MIT license are recorded
 
 ## 8. Maintaining this package
 
-Edit skill and agent files in place. The workflow scripts `scripts/work-status.mjs`, `scripts/run-done.mjs`, and `scripts/memory.mjs` are copied into `.cursor/skills/cursor-atomic-workflow/scripts/` by `node scripts/sync-bundled.mjs`.
+Edit `skills/` and `agents/` in place. Runtime scripts under `scripts/` are mirrored to `.atomic/scripts/` (and the maintainer copy in this repo) via `node scripts/sync-bundled.mjs`.
 
 | Change | Edit |
 |---|---|
-| Command behavior | `.cursor/skills/cursor-atomic-<name>/SKILL.md` |
+| Command behavior | `skills/cursor-atomic-<name>/SKILL.md` |
 | Agent role / per-phase model | `.cursor/agents/<agent>.md` (+ `scripts/lib/roles.mjs`) |
-| Harness differences | `.cursor/skills/cursor-atomic-workflow/references/harness.md` |
-| Workflow scripts | `scripts/work-status.mjs`, `scripts/run-done.mjs`, `scripts/memory.mjs`, then `node scripts/sync-bundled.mjs` |
+| Harness differences | `skills/cursor-atomic-workflow/references/harness.md` |
+| Workflow scripts | `scripts/*.mjs` → `node scripts/sync-bundled.mjs` → `.atomic/scripts/` |
 
 ```bash
 npm test                              # structure, agent, artifact-path and bundled-script sync tests
@@ -207,7 +218,7 @@ node scripts/sync-bundled.mjs --check # fail if the skill copies drifted
 node scripts/doctor.mjs               # collisions, YAML frontmatter, sync + install state
 ```
 
-To add a command, create `.cursor/skills/cursor-atomic-<name>/SKILL.md` with `disable-model-invocation: true` and a description ending in "사용자가 직접 호출할 때만 쓴다." (so it only runs when the user calls it), then run `npm test`. Exception: `cursor-atomic-lite` and `cursor-atomic-plan` stay **model-invocable** for the main-chat router (no `disable-model-invocation`; description mentions slash + router).
+To add a command, create `skills/cursor-atomic-<name>/SKILL.md` with `name` and `description` frontmatter only, add `commands/cursor-atomic-<name>.md` if opencode/Pi/Claude need a shim, then run `npm test`.
 
 ---
 

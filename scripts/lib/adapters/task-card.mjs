@@ -16,8 +16,8 @@ const ROLE_SKILL_DIRS = {
 };
 
 /**
- * Target repo `.cursor/skills/<name>/SKILL.md` when that file exists.
- * Otherwise `~/.cursor/skills/<name>/SKILL.md`.
+ * Target repo `.agents/skills/<name>/SKILL.md` when that file exists.
+ * Otherwise `~/.agents/skills/<name>/SKILL.md`.
  *
  * @param {string} repoRoot
  * @param {string} skillName
@@ -27,9 +27,9 @@ const ROLE_SKILL_DIRS = {
 export function resolveSkillPath(repoRoot, skillName, options = {}) {
   const exists = options.exists ?? existsSync;
   const home = options.homeDir ?? homedir();
-  const repoFile = join(resolve(repoRoot), ".cursor", "skills", skillName, "SKILL.md");
+  const repoFile = join(resolve(repoRoot), ".agents", "skills", skillName, "SKILL.md");
   if (exists(repoFile)) return repoFile;
-  return join(home, ".cursor", "skills", skillName, "SKILL.md");
+  return join(home, ".agents", "skills", skillName, "SKILL.md");
 }
 
 /**

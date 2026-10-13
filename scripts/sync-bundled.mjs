@@ -1,81 +1,60 @@
 #!/usr/bin/env node
-import { copyFile, mkdir, readFile } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import { installAtomicRuntime, listRuntimeScriptRelPaths } from "./lib/atomic-runtime.mjs";
 
-/** Root scripts copied into the workflow skill. Edit the root file, then sync. */
+export const ATOMIC_SCRIPT_DIR = join(".atomic", "scripts");
+
+/** @deprecated */
+export const BUNDLED_SCRIPT_DIR = ATOMIC_SCRIPT_DIR;
+
+/** @deprecated use listRuntimeScriptRelPaths */
 export const BUNDLED_SCRIPTS = ["work-status.mjs", "run-done.mjs", "memory.mjs"];
-
-export const BUNDLED_SCRIPT_DIR = join(
-  ".cursor",
-  "skills",
-  "cursor-atomic-workflow",
-  "scripts",
-);
 
 /**
  * @param {string} cwd
- * @param {string} script
- */
-function scriptPair(cwd, script) {
-  return {
-    script,
-    rootScript: join(cwd, "scripts", script),
-    bundledScript: join(cwd, BUNDLED_SCRIPT_DIR, script),
-  };
-}
-
-/**
- * Names that differ between scripts/ and the skill copy.
- * A missing skill file is reported as a path. Content drift is the file name.
- * @param {{ cwd?: string }} [options]
  * @returns {Promise<string[]>}
  */
 export async function bundledScriptDiffs(options = {}) {
   const cwd = options.cwd ?? process.cwd();
+  const scriptsRoot = join(cwd, "scripts");
   const mismatches = [];
-  for (const name of BUNDLED_SCRIPTS) {
-    const { rootScript, bundledScript } = scriptPair(cwd, name);
+  const rels = await listRuntimeScriptRelPaths(scriptsRoot);
+  for (const rel of rels) {
+    const rootScript = join(scriptsRoot, rel);
+    const bundledScript = join(cwd, ATOMIC_SCRIPT_DIR, rel);
     if (!existsSync(rootScript)) {
-      mismatches.push(`missing scripts/${name}`);
+      mismatches.push(`missing scripts/${rel}`);
       continue;
     }
     if (!existsSync(bundledScript)) {
-      mismatches.push(`missing ${BUNDLED_SCRIPT_DIR}/${name}`);
+      mismatches.push(`missing ${ATOMIC_SCRIPT_DIR}/${rel}`);
       continue;
     }
     const [rootText, bundledText] = await Promise.all([
       readFile(rootScript, "utf8"),
       readFile(bundledScript, "utf8"),
     ]);
-    if (rootText !== bundledText) mismatches.push(name);
+    if (rootText !== bundledText) mismatches.push(rel);
   }
   return mismatches;
 }
 
 /**
- * Copy scripts/{work-status,run-done,memory}.mjs onto the skill copies.
- * @param {{ cwd?: string }} [options]
- * @returns {Promise<string[]>}
+ * @param {{ cwd?: string, force?: boolean }} [options]
  */
 export async function syncBundledScripts(options = {}) {
   const cwd = options.cwd ?? process.cwd();
-  const destDir = join(cwd, BUNDLED_SCRIPT_DIR);
-  await mkdir(destDir, { recursive: true });
-  const copied = [];
-  for (const name of BUNDLED_SCRIPTS) {
-    const { rootScript, bundledScript } = scriptPair(cwd, name);
-    await copyFile(rootScript, bundledScript);
-    copied.push(name);
-  }
-  return copied;
+  const { copied } = await installAtomicRuntime(cwd, cwd, { force: true });
+  return copied.map((p) => p.replace(join(cwd, ATOMIC_SCRIPT_DIR) + "/", ""));
 }
 
 function usage() {
   return `Usage: node scripts/sync-bundled.mjs [--check]
-Copies scripts/{${BUNDLED_SCRIPTS.join(",")}} to ${BUNDLED_SCRIPT_DIR}/.
---check exits 1 when the copies differ and does not write.`;
+Copies runtime scripts/ tree to ${ATOMIC_SCRIPT_DIR}/.
+--check exits 1 when copies differ.`;
 }
 
 async function main() {
@@ -92,7 +71,7 @@ async function main() {
   const cwd = process.cwd();
   if (!check) {
     const copied = await syncBundledScripts({ cwd });
-    console.log(`synced ${copied.join(", ")}`);
+    console.log(`synced ${copied.length} file(s) to ${ATOMIC_SCRIPT_DIR}`);
   }
   const mismatches = await bundledScriptDiffs({ cwd });
   if (mismatches.length > 0) {

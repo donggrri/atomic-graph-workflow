@@ -7,7 +7,7 @@
 Cursor용 atomic explore → plan → task → execute → review 워크플로 (SDK 러너 + Task 서브에이전트).
 `/cursor-atomic-explore`(선택) → `/cursor-atomic-plan` → `/cursor-atomic-task` → `/cursor-atomic-execute` → `/cursor-atomic-review` → `/cursor-atomic-wrapup`
 
-슬래시 커맨드는 upstream 워크플로의 `cursor-atomic-` 접두사를 유지하지만, 패키지 자체는 **Cursor 전용**이다.
+슬래시 커맨드는 `cursor-atomic-` 접두사를 유지한다. 저장소는 **하네스 중립**(Cursor·opencode·Codex·Pi·AGY, Claude Code는 선택)이다.
 
 ---
 
@@ -27,15 +27,25 @@ Cursor용 atomic explore → plan → task → execute → review 워크플로 (
 
 ## 1. 패키지가 설치하는 것
 
-모두 대상 Cursor 프로젝트에 설치된다:
+저장소 원본(하네스 중립):
+
+| 구성 요소 | 원본 | 역할 |
+|---|---|---|
+| 스킬 | `skills/cursor-atomic-*/SKILL.md` | 슬래시/커맨드 로직 (`name`, `description` frontmatter만) |
+| 워크플로 | `skills/cursor-atomic-workflow/` | 오케스트레이션 + `references/harness.md` |
+| 서브에이전트 | `agents/*.md` | 역할 정의 (설치 시 하네스별로 생성) |
+| 커맨드 shim | `commands/*.md` | opencode / Pi / Claude용 얇은 래퍼 |
+| 엔진 | `scripts/*.mjs` | 설치 시 `<대상>/.atomic/scripts/`에 한 번 복사 |
+
+대상 프로젝트 예시(Cursor):
 
 | 구성 요소 | 위치 | 역할 |
 |---|---|---|
-| 커맨드 스킬 | `.cursor/skills/cursor-atomic-<이름>/SKILL.md` | 하나하나가 슬래시 커맨드(`/cursor-atomic-plan` 등)이며 커맨드 로직을 담는다 |
-| 워크플로 스킬 | `.cursor/skills/cursor-atomic-workflow/` | 오케스트레이션 문서(`CONTEXT.md`, `reference.md`, `workers.md`, `testing.md`, `models.md`), Cursor 하네스 어댑터(`references/harness.md`), `work-status.mjs` / `run-done.mjs` 번들 복사본 |
-| 서브에이전트 | `.cursor/agents/*.md` | 에이전트 8종: `explorer`, `planner`, `plan-reviewer`, `tasker`, `worker`, `cursor-atomic-reviewer`, `tester`, `cli-delegate` |
-| 라우터 규칙 | `.cursor/rules/atomic-router.mdc` | 메인 채팅 alwaysApply: 슬래시 없을 때 **lite** vs **full** 자동 판정 |
-| 러너 스크립트 | `scripts/` | `install.mjs`, `run-pipeline.mjs`, `doctor.mjs`, `check-agents.mjs`, `work-status.mjs`, `run-done.mjs`, `lib/` |
+| 스킬 | `.agents/skills/` | Cursor·opencode·Codex·Pi·AGY 공통 |
+| 런타임 | `.atomic/scripts/`, `.atomic/graph.yaml` | 상태·메모리·러너 |
+| Cursor 서브에이전트 | `.cursor/agents/*.md` | Task 서브에이전트 |
+| 라우터 | `.cursor/rules/atomic-router.mdc` | 메인 채팅 lite/full |
+| 지침 | `AGENTS.md` (마커 블록) | 공통 진입 |
 
 Node `>=22.13` 필요. `@cursor/sdk`는 패키지 루트의 optional dependency로 파이프라인 러너의 SDK 어댑터를 구동한다.
 
@@ -48,30 +58,31 @@ Node `>=22.13` 필요. `@cursor/sdk`는 패키지 루트의 optional dependency�
 이 저장소(또는 설치된 npm 패키지 디렉터리)에서 실행한다:
 
 ```bash
-node scripts/install.mjs --target /path/to/project
+node scripts/install.mjs --target /path/to/project --harness auto
 ```
 
 | 옵션 | 의미 |
 |---|---|
-| `--target <dir>` | 설치 대상 프로젝트 (기본: 현재 디렉터리) |
-| `--skills-dir <path>` | 스킬 복사 위치 (기본: `.cursor/skills`) |
-| `--force` | 기존 파일 덮어쓰기 (없으면 유지) |
-| `--set-model <agent>=<model>` | 에이전트 frontmatter에 단계 모델 고정 (여러 번 가능) |
-| `--no-skills` / `--no-agents` / `--no-rules` | 구성 요소 건너뛰기 |
+| `--target <dir>` | 설치 대상 (기본: cwd) |
+| `--harness <목록>` | `auto`, `cursor`, `opencode`, `codex`, `pi`, `agy`, `claude`, `all` (쉼표 구분). `auto`/`all`은 `--with-claude` 없으면 Claude 제외 |
+| `--migrate` | 레거시 `.cursor/skills/cursor-atomic-*` 제거 |
+| `--force` | 생성 파일 덮어쓰기 |
+| `--set-model <agent>=<model>` | 에이전트 모델 고정 |
+| `--with-claude` | Claude Code (`.claude/*`, `CLAUDE.md`의 `@AGENTS.md`) |
 | `-h, --help` | 도움말 |
 
+에이전트에 붙여 넣을 프롬프트: [INSTALL_PROMPT.md](INSTALL_PROMPT.md).
+
 ```bash
-# 기존 설치 위에 재설치하면서 모델 고정
-node scripts/install.mjs --target /path/to/project --force --set-model worker=composer-2.5
+node scripts/install.mjs --target /path/to/project --harness cursor --migrate --force
 ```
 
-예전 설치가 남긴 `.cursor/commands/cursor-atomic-*.md`가 있으면 지운다. 이제 커맨드 스킬이 같은 슬래시 커맨드를 제공하므로, 둘 다 두면 커맨드가 두 번씩 보인다. 설치 스크립트와 `doctor`가 해당 파일을 알려 준다.
-
-설치 상태는 언제든 확인할 수 있다:
+검증:
 
 ```bash
-node scripts/doctor.mjs        # 스킬 충돌, YAML frontmatter, 번들 스크립트 동기화, 설치 상태 (--fix로 자동 교정)
-node scripts/check-agents.mjs  # .cursor/agents 모델이 scripts/lib/roles.mjs와 일치하는지 검사
+node .atomic/scripts/doctor.mjs --harness auto --target .
+node scripts/check-agents.mjs
+node scripts/sync-bundled.mjs --check
 ```
 
 ---

@@ -1,12 +1,30 @@
-const BEGIN = "<!-- cursor-atomic-workflow:begin -->";
-const END = "<!-- cursor-atomic-workflow:end -->";
+const BEGIN_PREFIX = "<!-- atomic:begin";
+const END = "<!-- atomic:end -->";
 
 /** @param {string} body */
 function wrapBlock(body) {
-  return `${BEGIN}\n${body}\n${END}`;
+  return `${BEGIN_PREFIX} -->\n${body}\n${END}`;
+}
+
+function findBegin(text) {
+  const idx = text.indexOf(BEGIN_PREFIX);
+  if (idx === -1) return null;
+  const endTag = text.indexOf("-->", idx);
+  if (endTag === -1) return null;
+  return { start: idx, end: endTag + 3 };
 }
 
 /** @param {string} text @param {string} needle */
+function countBeginMarkers(text) {
+  let count = 0;
+  let pos = 0;
+  while ((pos = text.indexOf(BEGIN_PREFIX, pos)) !== -1) {
+    count++;
+    pos += BEGIN_PREFIX.length;
+  }
+  return count;
+}
+
 function countOccurrences(text, needle) {
   let count = 0;
   let pos = 0;
@@ -19,15 +37,13 @@ function countOccurrences(text, needle) {
 
 /**
  * @param {string} text
- * @returns {{ start: number, end: number, body: string } | null}
+ * @returns {{ start: number, end: number, body: string, beginEnd: number } | null}
  */
 function findWellFormedBlock(text) {
-  const beginIdx = text.indexOf(BEGIN);
-  if (beginIdx === -1) {
-    return null;
-  }
+  const begin = findBegin(text);
+  if (!begin) return null;
 
-  const afterBegin = beginIdx + BEGIN.length;
+  const afterBegin = begin.end;
   if (text.charAt(afterBegin) !== "\n") {
     return null;
   }
@@ -42,26 +58,25 @@ function findWellFormedBlock(text) {
   }
 
   const body = text.slice(afterBegin + 1, endIdx - 1);
-  const blockStart = beginIdx;
+  const blockStart = begin.start;
   const blockEnd = endIdx + END.length;
 
   const before = text.slice(0, blockStart);
   const after = text.slice(blockEnd);
   if (
-    countOccurrences(before, BEGIN) > 0 ||
+    countBeginMarkers(before) > 0 ||
     countOccurrences(before, END) > 0 ||
-    countOccurrences(after, BEGIN) > 0 ||
+    countBeginMarkers(after) > 0 ||
     countOccurrences(after, END) > 0
   ) {
     return null;
   }
 
-  return { start: blockStart, end: blockEnd, body };
+  return { start: blockStart, end: blockEnd, body, beginEnd: begin.end };
 }
 
-/** @param {string} text */
 function assertMarkerConsistency(text) {
-  const beginCount = countOccurrences(text, BEGIN);
+  const beginCount = countBeginMarkers(text);
   const endCount = countOccurrences(text, END);
 
   if (beginCount === 0 && endCount === 0) {
@@ -69,21 +84,17 @@ function assertMarkerConsistency(text) {
   }
 
   if (beginCount !== 1 || endCount !== 1) {
-    throw new Error("mismatched cursor-atomic-workflow markers");
+    throw new Error("mismatched atomic workflow markers");
   }
 
   const block = findWellFormedBlock(text);
   if (!block) {
-    throw new Error("mismatched cursor-atomic-workflow markers");
+    throw new Error("mismatched atomic workflow markers");
   }
 
   return { kind: "one", block };
 }
 
-/**
- * @param {string} text
- * @returns {{ insertAt: number, trailingSep: string } | null}
- */
 function firstBlankLineInsertion(text) {
   const lf = text.indexOf("\n\n");
   const crlf = text.indexOf("\r\n\r\n");
@@ -150,7 +161,7 @@ export function removeBlock(text) {
 
 /** @param {string} text */
 export function hasBlock(text) {
-  const beginCount = countOccurrences(text, BEGIN);
+  const beginCount = countBeginMarkers(text);
   const endCount = countOccurrences(text, END);
   if (beginCount !== 1 || endCount !== 1) {
     return false;

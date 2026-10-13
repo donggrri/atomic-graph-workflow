@@ -22,8 +22,8 @@ import {
 import { checkAgents } from "../scripts/check-agents.mjs";
 
 const repoRoot = join(fileURLToPath(new URL("..", import.meta.url)));
-const agentsDir = join(repoRoot, ".cursor", "agents");
-const skillDir = join(repoRoot, ".cursor", "skills", "cursor-atomic-workflow");
+const agentsDir = join(repoRoot, "agents");
+const skillDir = join(repoRoot, "skills", "cursor-atomic-workflow");
 const harnessPath = join(skillDir, "references", "harness.md");
 const skillPath = join(skillDir, "SKILL.md");
 
