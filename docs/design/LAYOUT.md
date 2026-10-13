@@ -19,7 +19,7 @@ cursor-atomic-workflow/
 │   └── cursor-atomic-*.md
 ├── agents/                   # 역할 정의 (explorer, planner, executor, reviewer, tester …)
 │   └── *.md                  # frontmatter: name, description, role, model_hint
-├── scripts/                  # 엔진 (Node 20+, 하네스 무관)
+├── scripts/                  # 엔진 (Node >=22.13, 하네스 무관)
 │   ├── work-status.mjs  run-done.mjs  memory.mjs
 │   ├── run-pipeline.mjs invoke-worker.sh invoke-worker.ps1
 │   ├── install.mjs           # --harness auto|cursor|opencode|codex|pi|agy|claude|all

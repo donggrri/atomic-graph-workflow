@@ -206,3 +206,12 @@ test("installed .atomic/scripts/doctor.mjs runs standalone in target", async () 
     }
   }
 });
+
+test("doctor checkNodeVersion enforces >=22.13", async () => {
+  const { checkNodeVersion } = await import("../scripts/doctor.mjs");
+  assert.equal(checkNodeVersion("v20.19.2").ok, false);
+  assert.equal(checkNodeVersion("v22.12.0").ok, false);
+  assert.equal(checkNodeVersion("v22.13.0").ok, true);
+  assert.equal(checkNodeVersion("v24.1.0").ok, true);
+  assert.match(checkNodeVersion("v20.0.0").message, />=22\.13/);
+});

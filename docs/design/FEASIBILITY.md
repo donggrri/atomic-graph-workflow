@@ -18,7 +18,7 @@
 - **스킬**: `.agents/skills/` 하나로 Claude 외 전부 커버됨. 단계별 스킬 = 그래프 노드 지침.
 - **커맨드**: 하네스마다 형식이 제일 다른 부분. Cursor·AGY·Codex는 스킬 자체가 커맨드라 별도 파일이 필요 없음. opencode·Pi·Claude만 얇은 래퍼(`/cursor-atomic-plan` → "스킬 X를 로드해 실행")를 생성하면 됨.
 - **서브에이전트**: 모양이 제일 제각각이라 **선택 기능**으로 두는 게 맞음. 역할 정의는 중립 `agents/*.md`에 두고 Cursor/opencode/Claude에만 변환. 서브에이전트가 없는 하네스(Pi, Codex 미검증)는 같은 역할 지침을 메인 세션이 순차로 읽거나, 기존 `invoke-worker.mjs`/cli-delegate로 외부 CLI를 호출하게 함.
-- **.mjs**: Node 20+만 있으면 전부 동일하게 동작. 상태(`state.json`)·메모리·다음 노드 판단을 여기서 하므로 하네스를 바꿔도 이어서 작업 가능.
+- **.mjs**: Node >=22.13만 있으면 전부 동일하게 동작. 상태(`state.json`)·메모리·다음 노드 판단을 여기서 하므로 하네스를 바꿔도 이어서 작업 가능.
 - **스킬 frontmatter**: 공통 최소값 `name`(소문자-하이픈, 폴더명과 일치), `description`만 사용. `disable-model-invocation` 같은 하네스 전용 필드는 쓰지 않음 (이전 lite 버그 재발 방지). 하네스 전용 메타데이터는 `metadata:` 아래 문자열로만.
 
 ## 미검증 / 불확실

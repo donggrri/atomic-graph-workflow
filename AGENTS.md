@@ -17,7 +17,7 @@
 - full: `cursor-atomic-explore → cursor-atomic-plan → … → cursor-atomic-wrapup`
 진행 상태는 `node .atomic/scripts/work-status.mjs list`로 보고, 슬러그 하나는 `show <slug>`, 문서·STATUS 갱신은 `sync <slug> [phase]`로 한다.
 
-## 3. 엔진 (모든 노드의 시작과 끝, Node 20+)
+## 3. 엔진 (모든 노드의 시작과 끝, Node >=22.13)
 ```
 node .atomic/scripts/work-status.mjs list
 node .atomic/scripts/work-status.mjs show <slug>

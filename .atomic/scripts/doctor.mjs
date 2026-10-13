@@ -318,6 +318,19 @@ export async function fixSkillFrontmatter(filePath) {
   return { fixed: false, issues: check.issues };
 }
 
+export const MIN_NODE = [22, 13];
+
+/** @param {string} [version] e.g. "v22.13.0" (default: process.version) */
+export function checkNodeVersion(version = process.version) {
+  const [maj, min] = String(version).replace(/^v/, "").split(".").map(Number);
+  const ok = maj > MIN_NODE[0] || (maj === MIN_NODE[0] && min >= MIN_NODE[1]);
+  return {
+    ok,
+    version,
+    message: ok ? `node ${version} OK` : `Node >=${MIN_NODE.join(".")} required (found ${version}). Install Node 22 LTS or newer.`,
+  };
+}
+
 export async function runDoctor(options = {}) {
   const cwd = options.cwd || process.cwd();
   const doFix = !!options.fix;
@@ -331,6 +344,12 @@ export async function runDoctor(options = {}) {
     ok: true,
     problems: [],
   };
+  const nodeCheck = checkNodeVersion(options.nodeVersion);
+  results.node = nodeCheck;
+  if (!nodeCheck.ok) {
+    results.ok = false;
+    results.problems.push(nodeCheck.message);
+  }
   results.collisions = await checkCollisions();
 
   const skillDirs = options.skillsDirs || [
@@ -430,7 +449,7 @@ if (process.argv[1] && process.argv[1].endsWith("doctor.mjs")) {
       if (res.fixesApplied.length) {
         for (const f of res.fixesApplied) console.log(`fixed: ${f}`);
       }
-      if (opts.harness && !res.ok) process.exit(1);
+      if (!res.ok && (opts.harness || !res.node?.ok)) process.exit(1);
     })
     .catch((err) => {
       console.error("Doctor error:", err);

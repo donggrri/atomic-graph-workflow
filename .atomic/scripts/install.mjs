@@ -196,6 +196,12 @@ async function installCursorRules(root, target, force, record) {
  * @param {object} options
  */
 export async function install(options = {}) {
+  {
+    const [maj, min] = process.version.slice(1).split(".").map(Number);
+    if (maj < 22 || (maj === 22 && min < 13)) {
+      console.warn(`warning: Node >=22.13 required (found ${process.version}); doctor.mjs will fail until Node is upgraded.`);
+    }
+  }
   const root = options.root || resolve(here, "..");
   const target = resolve(options.target || process.cwd());
   const force = !!options.force;

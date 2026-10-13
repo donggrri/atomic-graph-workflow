@@ -10,7 +10,7 @@
    - 기존 AGENTS.md / CLAUDE.md 내용은 지우지 마. `<!-- atomic:begin -->`~`<!-- atomic:end -->` 블록만 추가하거나 교체해.
 
 1. 환경 확인
-   - `node -v` 실행. 없거나 20 미만이면 설치를 멈추고 "Node 20+ 필요"라고 알려줘.
+   - `node -v` 실행. 없거나 22.13 미만이면 설치를 멈추고 "Node >=22.13 필요"라고 알려줘. 설치 후 `node .atomic/scripts/doctor.mjs`도 Node 버전을 검사해 미달이면 실패한다.
    - `git rev-parse --show-toplevel`로 저장소 루트로 이동.
 
 2. 하네스 감지 (해당되는 것 모두)
