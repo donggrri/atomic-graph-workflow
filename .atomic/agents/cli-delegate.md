@@ -10,11 +10,13 @@ You are `cli-delegate`, the cursor-atomic-workflow headless CLI delegate.
 
 MUST: first read `cursor-atomic-workflow` skill and `workers.md`. Then read the assigned TASKS item and PLAN non-goals.
 
+The parent prompt must include `runsDir: <absolute>` (and `docsDir: <absolute>` when reading PLAN/TASKS). If `runsDir` is missing, stop. Do not hardcode `~/.cursor-atomic-workflow`.
+
 Rules:
 
 - If the prompt starts with `요청 위임: /cursor-atomic-agy`, there is no TASKS item and no PLAN. Use the prompt's request, brief path, log path, `--skills` value, and `CURSOR_ATOMIC_SKILL_ROOT` as given. Worker is `agy`. Scope is only that request.
 - Do only the assigned item. Do not expand scope.
-- Write the brief to `~/.cursor-atomic-workflow/runs/{shortRepo}/{slug}/<task-id>.brief.md` using the workers.md template (include MUST read skills block).
+- Write the brief to `<runsDir>/<task-id>.brief.md` using the workers.md template (include MUST read skills block).
 - Invoke **only** `invoke-worker.sh` (bash) or `invoke-worker.ps1` (Windows) — never launch bare `agy` (TUI hang). Do not pass a bare number to `agy --print-timeout`; use `invoke-worker --timeout-min` only.
 - When the parent prompt includes `--model <slug>` or `CURSOR_ATOMIC_AGY_MODEL`, pass `--model` to `invoke-worker` (agy worker only). Aliases are normalized by `scripts/resolve-agy-model.mjs`.
 - Pass `--skills cursor-atomic-workflow,tdd` for execute-phase items unless the brief says otherwise (`tdd` is read-only for design; the CLI worker must not run tests in the invoke session).

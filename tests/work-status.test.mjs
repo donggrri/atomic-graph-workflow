@@ -1,8 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync, writeFileSync, mkdirSync, readFileSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync, mkdirSync, readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
+import { execFileSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 
 import {
   getWorkflowRoot,
@@ -10,6 +12,8 @@ import {
   workflowConfigPath,
   getShortRepo,
   getWorkflowPaths,
+  ensureDocsDir,
+  parseRepoArg,
   readStatus,
   writeStatus,
   updateStatus,
@@ -21,6 +25,8 @@ import {
   detectCursorSessionId,
   resolveSessionId,
 } from "../scripts/work-status.mjs";
+
+const workStatusCli = fileURLToPath(new URL("../scripts/work-status.mjs", import.meta.url));
 
 test("getWorkflowRoot respects CURSOR_ATOMIC_WORKFLOW_HOME and defaults to ~/.cursor-atomic-workflow", () => {
   const orig = process.env.CURSOR_ATOMIC_WORKFLOW_HOME;
@@ -90,6 +96,53 @@ test("getShortRepo normalizes repo basename to kebab-case and caps at 24 chars",
     "cursor-atomic-workflow-e"
   );
   assert.ok(getShortRepo("/path/to/very-very-very-very-long-project-name").length <= 24);
+});
+
+test("ensureDocsDir creates slug folder under workflow home", () => {
+  const tmpRoot = mkdtempSync(join(tmpdir(), "wf-test-"));
+  const repo = mkdtempSync(join(tmpdir(), "wf-repo-"));
+  const orig = process.env.CURSOR_ATOMIC_WORKFLOW_HOME;
+  try {
+    process.env.CURSOR_ATOMIC_WORKFLOW_HOME = tmpRoot;
+    const slug = "path-slug";
+    const docsDir = ensureDocsDir(repo, slug);
+    const expected = join(tmpRoot, "docs", getShortRepo(repo), slug);
+    assert.equal(docsDir, expected);
+    assert.equal(existsSync(docsDir), true);
+  } finally {
+    rmSync(tmpRoot, { recursive: true, force: true });
+    rmSync(repo, { recursive: true, force: true });
+    if (orig !== undefined) process.env.CURSOR_ATOMIC_WORKFLOW_HOME = orig;
+    else delete process.env.CURSOR_ATOMIC_WORKFLOW_HOME;
+  }
+});
+
+test("path CLI prints absolute docsDir and honors --repo", () => {
+  const tmpRoot = mkdtempSync(join(tmpdir(), "wf-test-"));
+  const repo = mkdtempSync(join(tmpdir(), "wf-repo-"));
+  const orig = process.env.CURSOR_ATOMIC_WORKFLOW_HOME;
+  try {
+    process.env.CURSOR_ATOMIC_WORKFLOW_HOME = tmpRoot;
+    const slug = "cli-path";
+    const out = execFileSync(
+      process.execPath,
+      [workStatusCli, "path", slug, "--repo", repo],
+      { encoding: "utf8", env: { ...process.env, CURSOR_ATOMIC_WORKFLOW_HOME: tmpRoot } }
+    ).trim();
+    assert.equal(out, join(tmpRoot, "docs", getShortRepo(repo), slug));
+    assert.equal(existsSync(out), true);
+  } finally {
+    rmSync(tmpRoot, { recursive: true, force: true });
+    rmSync(repo, { recursive: true, force: true });
+    if (orig !== undefined) process.env.CURSOR_ATOMIC_WORKFLOW_HOME = orig;
+    else delete process.env.CURSOR_ATOMIC_WORKFLOW_HOME;
+  }
+});
+
+test("parseRepoArg strips --repo and resolves path", () => {
+  const parsed = parseRepoArg(["path", "x", "--repo", "/tmp/my-repo", "--session-id", "bc-1"]);
+  assert.equal(parsed.repo, join("/tmp/my-repo"));
+  assert.deepEqual(parsed.rest, ["path", "x", "--session-id", "bc-1"]);
 });
 
 test("getWorkflowPaths returns docs, runs, evidence, and statusJson paths", () => {

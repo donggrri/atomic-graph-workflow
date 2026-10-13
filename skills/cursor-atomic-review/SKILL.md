@@ -9,7 +9,7 @@ description: "cursor-atomic-workflow Phase 4. REVIEW-<slug>.md 작성과 테스�
 
 `cursor-atomic-workflow` 스킬과 스킬 디렉터리의 `testing.md`를 읽고 Phase 4를 수행한다. 서브에이전트 호출법과 스크립트 경로는 `references/harness.md`를 따른다.
 
-남은 구현이 있으면 기본 파이프라인으로 그 항목부터 돌린 다음 리뷰한다. `tester`가 완료된 후 저장소 테스트도 `run-done`으로 실행한다. 그 외에는 `reviewer` 서브에이전트를 백그라운드로 띄운다. `reviewer`는 작업자(`worker`)의 대화 맥락을 상속받지 않는 독립 fresh 컨텍스트로 실행되어, PLAN/TASKS 명세와 실제 `git diff`만을 대조하여 Standards/Spec을 객관적으로 독립 검증한다. 브리프 첫 줄에 `cursor-atomic-workflow`·`code-review` 경로를 적는다. 손자 에이전트를 시키라고 하지 마라. 산출물은 슬러그 폴더(`~/.cursor-atomic-workflow/docs/{shortRepo}/{slug}/`, 레거시 `.docs/<slug>/`, `docs/<slug>/`)의 `REVIEW-<slug>.md`다.
+`docsDir` = `node .atomic/scripts/work-status.mjs path <slug> [--repo <dir>]`. 남은 구현이 있으면 기본 파이프라인부터. 그 외 `cursor-atomic-reviewer`를 띄운다(작업자 맥락 미상속). 브리프: 1줄 스킬 경로, 2줄 `docsDir: <absolute>`. 산출물 `<docsDir>/REVIEW-<slug>.md`. 손자 에이전트 금지.
 
 Structured Validation 원칙: 빌드/테스트 raw 로그 전체를 채팅창에 덤프하지 말고, 결과 요약, 결함, 실패 시 `errorTail`(마지막 20줄) 및 로그 파일 경로만 간결히 보고한다. 실패한 테스트나 의미 있는 survived mutation을 통과로 쓰지 마라. 커밋하지 마라. 다음이 커밋이면 `/cursor-atomic-wrapup`을 안내한다.
 

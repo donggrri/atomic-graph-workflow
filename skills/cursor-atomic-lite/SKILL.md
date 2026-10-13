@@ -13,11 +13,9 @@ description: "단일 세션 경량 워크플로: 짧은 PLAN·구현·메모리�
 
 스크립트 경로는 `cursor-atomic-workflow`의 `references/harness.md` 「스크립트 경로」를 따른다 (`work-status.mjs`, `memory.mjs` 포함).
 
-문서 위치 (`CURSOR_ATOMIC_WORKFLOW_HOME` 있으면 그 홈, 없으면 `~/.cursor-atomic-workflow`):
+`docsDir` = `node .atomic/scripts/work-status.mjs path <slug> [--repo <dir>]` 출력 (기본 홈 `CURSOR_ATOMIC_WORKFLOW_HOME`, 없으면 `~/.cursor-atomic-workflow`). 쓰기: `<docsDir>/PLAN-<slug>.md` 등.
 
-`{workflowHome}/docs/{shortRepo}/{slug}/PLAN-<slug>.md`
-
-`shortRepo`는 `node .atomic/scripts/memory.mjs repo <repoRoot>` 출력. 슬러그는 의도에서 ASCII kebab-case (`fix-typo`). 쓰기 전 슬러그 디렉터리를 만든다.
+`shortRepo`는 `node .atomic/scripts/memory.mjs repo <repoRoot>` 출력. 슬러그는 의도에서 ASCII kebab-case (`fix-typo`).
 
 채팅 제목을 3~5단어로 `rename_chat` 한다.
 

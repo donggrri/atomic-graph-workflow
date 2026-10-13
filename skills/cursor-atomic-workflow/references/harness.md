@@ -69,7 +69,8 @@ arguments:
   run_in_background: true
   prompt: |
     첫 줄: 강제 스킬 절대 경로
-    이어서 역할, 슬러그, 산출물 경로, 하지 않을 것
+    둘째 줄: docsDir: <path 명령으로 얻은 절대 경로>
+    이어서 역할, 슬러그, 산출물 파일명, 하지 않을 것
 ```
 
 `subagent_type`이 `available_subagent_types`에 없으면 그 타입으로 Task를 호출하지 않는다. 없는 역할을 다른 `subagent_type`으로 바꾸지 않는다. 러너가 task-card(종료코드 10)로 멈췄고 세션에 `tasker`, `planner`, `plan-reviewer`, `worker`, `cursor-atomic-reviewer` 중 하나라도 없으면 카드를 실행하지 말고, 같은 슬러그를 `--adapter sdk --resume`로 다시 실행한다. 그 밖의 누락은 설치가 옛 것이므로 보고하고, `node scripts/install.mjs --target <프로젝트> --force` 뒤 새 세션이 필요하다.
@@ -89,6 +90,12 @@ cost-gate 통과 후 tasker 전에 러너가 `plan-reviewer`를 띄운다. Task 
 `node .atomic/scripts/<파일>`
 
 (개발 중 이 워크플로 패키지 자체에서는 루트 `scripts/<파일>`도 동일 내용이다. `node scripts/sync-bundled.mjs`로 `.atomic/scripts/`와 맞춘다.)
+
+### work-status.mjs path (`docsDir`)
+
+슬러그 문서 폴더: `node .atomic/scripts/work-status.mjs path <slug> [--repo <dir>]`. 절대 경로를 출력하고 없으면 만든다. 홈은 `CURSOR_ATOMIC_WORKFLOW_HOME`, 없으면 `~/.cursor-atomic-workflow`.
+
+부모는 서브에이전트 브리프에 스킬 경로 다음 줄 `docsDir: <absolute>`를 **필수**로 넣는다. 자식은 `~/.cursor-atomic-workflow/...`를 쓰지 않고 `<docsDir>/PLAN-<slug>.md` 등만 쓴다. `cli-delegate`·런 로그는 `runsDir: <absolute>`(보통 `docsDir`의 `/docs/`→`/runs/`)도 넣는다.
 
 ### memory.mjs (승인형 볼트)
 

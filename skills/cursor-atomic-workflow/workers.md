@@ -86,7 +86,8 @@ FORBID (invoke 세션): cmake, ctest, npm test, make, ninja, 항목 done 셸 실
 | `self` | (없음) | 현재 에이전트가 구현 |
 
 ```bash
-RUNS="$HOME/.cursor-atomic-workflow/runs/<shortRepo>/<slug>"
+DOCS=$(node .atomic/scripts/work-status.mjs path <slug> --repo "<worktree>")
+RUNS="${DOCS/\/docs\//\/runs\/}"
 mkdir -p "$RUNS"
 
 bash "<worktree>/.atomic/scripts/invoke-worker.sh" \
@@ -135,10 +136,11 @@ bash "<worktree>/.atomic/scripts/invoke-worker.sh" \
 - `codex login` (이미 ChatGPT면 `codex login status`)
 - agy는 최초 한 번 대화형 로그인이 필요할 수 있다.
 
-브리프는 `~/.cursor-atomic-workflow/runs/{shortRepo}/<slug>/<task-id>.brief.md`.
+브리프는 `<runsDir>/<task-id>.brief.md`.
 
 ```powershell
-$runs = Join-Path $env:USERPROFILE ".cursor-atomic-workflow\runs\<shortRepo>\<slug>"
+$docs = node .atomic/scripts/work-status.mjs path <slug> --repo "<worktree>"
+$runs = $docs -replace [regex]::Escape('\docs\'), '\runs\'
 New-Item -ItemType Directory -Force -Path $runs | Out-Null
 
 & "<worktree>\.atomic\scripts\invoke-worker.ps1" `

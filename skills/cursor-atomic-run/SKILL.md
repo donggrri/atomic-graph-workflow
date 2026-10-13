@@ -17,7 +17,7 @@ description: "명시적 파이프라인 진입. Input 의도로 트리아지를 
 
 ## 슬러그
 
-의도에서 영어 키워드를 고르고 `scripts/lib/slug.mjs`의 `normalizeSlug` / `uniqueSlug`로 검증·중복 회피한다. 산출물은 `~/.cursor-atomic-workflow/docs/{shortRepo}/{slug}/` (레거시 `.docs/<slug>/`, `docs/<slug>/`).
+의도에서 영어 키워드를 고르고 `scripts/lib/slug.mjs`의 `normalizeSlug` / `uniqueSlug`로 검증·중복 회피한다. 산출물은 `<docsDir>/` (레거시 `.docs/<slug>/`, `docs/<slug>/`).
 
 ## 이후 흐름
 

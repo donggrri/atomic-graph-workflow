@@ -274,7 +274,7 @@ TASKS: TASKS-<slug>.md
 
 ## 증거 아카이브
 
-단일 전역 홈: `~/.cursor-atomic-workflow/docs/{shortRepo}/{slug}/` (레거시: `<workspace>/.docs/<slug>/`, `docs/<slug>/`)
+단일 전역 홈: `<docsDir>/` (레거시: `<workspace>/.docs/<slug>/`, `docs/<slug>/`)
 
 ### bash
 
@@ -282,8 +282,9 @@ TASKS: TASKS-<slug>.md
 stamp=$(date +%Y-%m-%d)
 repoRoot=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
 shortRepo=$(basename "$repoRoot" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9]+/-/g' | cut -c 1-24 | sed -E 's/-+$//')
-dest="$HOME/.cursor-atomic-workflow/evidence/$shortRepo/$stamp-<slug>"
-src="$HOME/.cursor-atomic-workflow/docs/$shortRepo/<slug>"
+src=$(node .atomic/scripts/work-status.mjs path <slug> --repo "$repoRoot")
+wfHome=$(dirname "$(dirname "$(dirname "$src")")")
+dest="$wfHome/evidence/$shortRepo/$stamp-<slug>"
 
 mkdir -p "$dest"
 cp "$src"/STATUS.json "$src"/EXPLORE-<slug>.md "$src"/PLAN-<slug>.md "$src"/TASKS-<slug>.md "$src"/REVIEW-<slug>.md "$dest"/ 2>/dev/null || true
@@ -296,8 +297,9 @@ $stamp = Get-Date -Format "yyyy-MM-dd"
 $repoRoot = git rev-parse --show-toplevel 2>$null; if (!$repoRoot) { $repoRoot = Get-Location }
 $shortRepo = (Split-Path $repoRoot -Leaf).ToLower() -replace '[^a-z0-9]+', '-'
 if ($shortRepo.Length -gt 24) { $shortRepo = $shortRepo.Substring(0, 24).TrimEnd('-') }
-$dest = Join-Path $HOME ".cursor-atomic-workflow\evidence\$shortRepo\$stamp-<slug>"
-$src = Join-Path $HOME ".cursor-atomic-workflow\docs\$shortRepo\<slug>"
+$src = node .atomic/scripts/work-status.mjs path <slug> --repo $repoRoot
+$wfHome = Split-Path (Split-Path (Split-Path $src -Parent) -Parent) -Parent
+$dest = Join-Path $wfHome "evidence\$shortRepo\$stamp-<slug>"
 New-Item -ItemType Directory -Force -Path $dest | Out-Null
 Copy-Item (Join-Path $src "STATUS.json"), (Join-Path $src "EXPLORE-<slug>.md"), (Join-Path $src "PLAN-<slug>.md"), (Join-Path $src "TASKS-<slug>.md"), (Join-Path $src "REVIEW-<slug>.md") $dest -ErrorAction SilentlyContinue
 ```

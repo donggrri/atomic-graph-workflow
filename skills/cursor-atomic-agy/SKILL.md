@@ -30,8 +30,8 @@ description: "agy(Antigravity CLI)를 헤드리스로 호출해 사용자 요청
 
 `execute`는 활성 워크플로 슬러그의 **다음 열린 TASKS 항목 하나**를 implement로 agy에 넘긴다. 판별은 「이어하기」와 같다(`work-status.mjs list` → 단일 진행 중 슬러그).
 
-- 브리프: `~/.cursor-atomic-workflow/runs/{shortRepo}/<workflow-slug>/<task-id>.brief.md`
-- 로그: `~/.cursor-atomic-workflow/runs/{shortRepo}/<workflow-slug>/<task-id>.log`
+- 브리프: `<runsDir>/<task-id>.brief.md`
+- 로그: `<runsDir>/<task-id>.log`
 - 브리프 내용은 해당 항목의 제목·`files`·`done`·PLAN 비목표 요약(`workers.md` 템플릿).
 - `cli-delegate` 프롬프트 첫 줄은 `cursor-atomic-workflow` 스킬 절대 경로. 이어서 `요청 위임: /cursor-atomic-agy execute (TASKS 항목: <id>)`, `worker: agy`, 브리프·로그·작업공간, `--skills cursor-atomic-workflow,tdd`, `CURSOR_ATOMIC_SKILL_ROOT`, `--timeout-min 45`, 지정 시 `--model <정규화된 슬러그>`.
 - 돌아온 뒤 부모가 `run-done.mjs`로 `done`을 재실행하고 통과할 때만 `[x]`.
@@ -58,12 +58,12 @@ description: "agy(Antigravity CLI)를 헤드리스로 호출해 사용자 요청
 - 예: 정한 모드의 기존 위임 절차를 그 한 단계에만 쓴다. 뒤 단계는 자동으로 넘기지 않는다. `work-status.mjs sync`는 호출하지 않는다.
 
 - `out=<경로>`는 plan 전용이다. 없으면 `<작업공간>/.cursor/plans/agy-<짧은슬러그>.md`. 짧은슬러그는 요청에서 만든 ASCII kebab-case다.
-- plan·단발 implement(요청 문자열) 브리프·로그: `~/.cursor-atomic-workflow/runs/{shortRepo}/agy-<짧은슬러그>/plan.brief.md` 또는 `implement.brief.md` / 같은 디렉터리의 `plan.log`·`implement.log`.
+- plan·단발 implement(요청 문자열) 브리프·로그: `<runsDir>/agy-<짧은슬러그>/plan.brief.md` 또는 `implement.brief.md` / 같은 디렉터리의 `plan.log`·`implement.log`.
 - `out=`이 작업공간 밖이면 agy는 작업공간 안의 기본 경로에 쓰고, 검증 통과 후 부모가 지정 경로로 복사한다.
 - `격리`는 implement 전용이다. 있으면 `reference.md` 「워크트리」대로 `../<repo>-agy-<짧은슬러그>`, 브랜치 `feat/agy-<짧은슬러그>`를 만들고 그 경로를 작업공간으로 쓴다. 없으면 현재 작업공간이다.
 - 요청 본문이 비면 멈춘다.
 
-plan 산출물은 워크플로 PLAN 홈(`~/.cursor-atomic-workflow/docs/...`)에 쓰지 않는다.
+plan 산출물은 워크플로 PLAN 홈(`<docsDir>/...`)에 쓰지 않는다.
 
 ## 사전 확인
 

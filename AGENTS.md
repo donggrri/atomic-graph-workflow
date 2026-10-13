@@ -21,6 +21,7 @@
 ```
 node .atomic/scripts/work-status.mjs list
 node .atomic/scripts/work-status.mjs show <slug>
+node .atomic/scripts/work-status.mjs path <slug> [--repo <dir>]
 node .atomic/scripts/work-status.mjs sync <slug> [phase]
 node .atomic/scripts/memory.mjs repo .
 node .atomic/scripts/memory.mjs context <shortRepo>   # 위 repo 출력값

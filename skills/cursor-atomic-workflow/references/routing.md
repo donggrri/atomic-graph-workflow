@@ -59,7 +59,7 @@ lite로 시작했는데 구현·탐색 중 full 신호가 나타나면 **즉시 
 
 1. 부모 LLM이 의도에서 **영어 키워드**를 고른다 (한국어 의도를 이 모듈이 번역하지 않음).
 2. `scripts/lib/slug.mjs`의 `normalizeSlug(text)` — 소문자 ASCII kebab, 최대 40자, 빈 결과는 `work`.
-3. `uniqueSlug(existing, base)` — `existing`은 이미 `~/.cursor-atomic-workflow/docs/{shortRepo}/` 아래에 있는 슬러그 디렉터리 이름 배열 등. 충돌 시 `-2`, `-3` …
+3. `uniqueSlug(existing, base)` — `existing`은 이미 `<workflowHome>/docs/{shortRepo}/` 아래에 있는 슬러그 디렉터리 이름 배열 등. 충돌 시 `-2`, `-3` …
 
 ## 진입 후 흐름 (요약)
 
@@ -72,8 +72,8 @@ lite로 시작했는데 구현·탐색 중 full 신호가 나타나면 **즉시 
 ## 러너 실행 위치·감시
 
 - **cwd**: 현재 열린 제품 저장소 루트(워크플로 패키지가 아닌 작업 대상 repo). 스크립트는 워크플로 설치 경로의 `scripts/run-pipeline.mjs`를 사용한다.
-- **시작**: PLAN 게이트 통과 후 Shell에서 `node <path>/scripts/run-pipeline.mjs <slug> [--auto] [--profile <id>]`를 **백그라운드**(`block_until_ms: 0`)로 실행. `--adapter`는 붙이지 않는다. 기본 어댑터는 SDK다. `--profile`을 생략하면 프로젝트 `.cursor-atomic-workflow.json`의 `profile`, 그다음 `~/.cursor-atomic-workflow/settings.json`의 `profile`, 둘 다 없으면 `atomic`이다. PLAN·TASKS·REVIEW 위치는 프로필과 무관하게 `~/.cursor-atomic-workflow/docs/{shortRepo}/{slug}/`다.
-- **감시**: `~/.cursor-atomic-workflow/runs/{shortRepo}/{slug}/pipeline.log` 꼬리를 주기적으로 확인해 단계 전환마다 한 줄 보고. task-card가 선택된 이유는 그 로그와 stderr에 같은 한 줄로 남는다.
+- **시작**: PLAN 게이트 통과 후 Shell에서 `node <path>/scripts/run-pipeline.mjs <slug> [--auto] [--profile <id>]`를 **백그라운드**(`block_until_ms: 0`)로 실행. `--adapter`는 붙이지 않는다. 기본 어댑터는 SDK다. `--profile`을 생략하면 프로젝트 `.cursor-atomic-workflow.json`의 `profile`, 그다음 `~/.cursor-atomic-workflow/settings.json`의 `profile`, 둘 다 없으면 `atomic`이다. PLAN·TASKS·REVIEW 위치는 프로필과 무관하게 `<docsDir>/`다.
+- **감시**: `<runsDir>/pipeline.log` 꼬리를 주기적으로 확인해 단계 전환마다 한 줄 보고. task-card가 선택된 이유는 그 로그와 stderr에 같은 한 줄로 남는다.
 - **상세**: CLI 인자, 상태 파일, 어댑터는 PLAN 「러너」절 및 `scripts/run-pipeline.mjs`를 참조한다.
 
 ### 어댑터
@@ -121,7 +121,7 @@ Review 단계 진입마다(초기·재작업 후 재리뷰) 러너가 bugbot 호
 
 1. `next-card.json`에서 `kind === "bugbot"`(또는 카드 JSON의 `kind: "bugbot"`)인지 확인한다.
 2. 세션 `available_subagent_types`에 `bugbot`이 있으면 Cursor `Task`로 카드 그대로 실행한다. `description`은 `"Bugbot"`, `run_in_background`는 `false`, `prompt`는 카드 원문(3줄: `Full Repository Path:` / `Diff: branch changes` / `Custom Instructions:`)을 바꾸지 않는다. 카드에 `model` 필드는 없다.
-3. 성공 시 bugbot 출력을 카드의 `findingsPath`(보통 `~/.cursor-atomic-workflow/runs/{shortRepo}/{slug}/bugbot-findings.md`)에 저장한다. 파일 맨 위에 `# Bugbot findings — <slug> pass <n>` 헤더를 두고 그 아래에 원문을 붙인다.
+3. 성공 시 bugbot 출력을 카드의 `findingsPath`(보통 `<runsDir>/bugbot-findings.md`)에 저장한다. 파일 맨 위에 `# Bugbot findings — <slug> pass <n>` 헤더를 두고 그 아래에 원문을 붙인다.
 4. `node scripts/run-pipeline.mjs <slug> --resume`(또는 동일 슬러그 `--resume`)으로 이어간다. 러너는 findings가 있으면 `cursor-atomic-reviewer`를 띄우며 프롬프트에 `Bugbot findings: <path>`를 포함한다.
 5. bugbot Task가 실패하면 **1회** 재시도한다. 그래도 실패하거나 세션에 `bugbot` 타입이 없으면 `findingsPath`에 실패 마커 파일을 쓴다: 첫 줄 `# BUGBOT_FAILED`, 다음 줄 `reason:`, `attempts:`(예: `reason: bugbot unavailable`, `attempts: 2`). 그다음 `--resume`한다. **재시도 후에도 bugbot이 실패했다는 이유만으로 파이프라인을 멈추지 않는다.** reviewer는 `BUGBOT_FAILED`를 트리아지 입력으로만 처리하고 Standards/Spec 검증은 계속한다.
 

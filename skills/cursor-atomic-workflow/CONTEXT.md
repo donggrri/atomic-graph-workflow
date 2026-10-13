@@ -23,7 +23,7 @@
 
 ## 증거
 
-`~/.cursor-atomic-workflow/runs/{shortRepo}/<slug>/<id>.done.json` 파일이다.
+`<runsDir>/<id>.done.json` 파일이다.
 
 - 각 항목의 테스트 게이트 통과 여부를 기록하는 JSON 파일이다.
 - `<slug>`는 해당 PLAN/TASKS의 슬러그 이름이다.
@@ -92,7 +92,7 @@ Review 단계(Phase 4)에 **진입할 때마다** 부모 오케스트레이터�
 |------|------|
 | 테스트 게이트 | 항목 완료를 결정하는 부모의 검증. 워커 로그가 아니다. |
 | 완료 조건 | TASKS 항목의 done에 적힌, 부모가 실행할 셸 명령 |
-| 증거 | ~/.cursor-atomic-workflow/runs/{shortRepo}/\<slug\>/\<id\>.done.json |
+| 증거 | `<runsDir>/<id>.done.json` (`runsDir`는 부모가 `docsDir`의 `/docs/`→`/runs/`로 바꾼 절대 경로) |
 | 막힘 | 게이트가 실패한 뒤 파이프라인을 멈추는 상태 |
 | 리뷰 재작업 | REVIEW 결함을 열린 TASKS로 되돌리거나 새 항목을 붙인 뒤 worker→reviewer를 최대 1회 자동 재실행. 한 바퀴 후에도 결함이면 멈추고 보고. |
 | 막힘 재개 | 실패한 항목만 재시도. 이미 [x]는 유지. 재시도 시작 때 그 항목의 `막힘:`만 지운다. 입구는 `/cursor-atomic-execute`. |

@@ -14,7 +14,7 @@ description: "cursor-atomic-workflow Phase 3. TASKS 항목을 worker로 구현�
 규칙:
 - TASKS가 없으면 Phase 2를 먼저 한다.
 - 입력이 `self`이면 이 세션이 구현한다.
-- 입력이 `agy`이거나 `model=<agy-slug>`가 있으면 `/cursor-atomic-agy execute`와 동일: 다음 열린 TASKS 항목 하나를 `cli-delegate` + `invoke-worker --worker agy`로 위임한다. 브리프·로그는 `~/.cursor-atomic-workflow/runs/{shortRepo}/<slug>/<task-id>.*`. `model=`은 `invoke-worker --model`로 전달(`cursor-atomic-agy` 스킬).
+- 입력이 `agy`이거나 `model=<agy-slug>`가 있으면 `/cursor-atomic-agy execute`와 동일: 다음 열린 TASKS 항목 하나를 `cli-delegate` + `invoke-worker --worker agy`로 위임한다. 브리프·로그는 `<runsDir>/<task-id>.*`. `model=`은 `invoke-worker --model`로 전달(`cursor-atomic-agy` 스킬).
 - **CLI 위임(agy|opencode|codex|claude) = 코드만.** 브리프에 `done`은 `부모 검증용`으로만 적고, 워커는 cmake/ctest/npm test·항목 `done` 셸을 **실행하지 않는다**. 검증은 invoke 종료 후 **부모가** `run-done.mjs` (이후 review/tester 단계).
 - TASKS 항목 `worker:`가 `agy|opencode|codex|claude`이면 `cli-delegate` 서브에이전트를 백그라운드로 띄운다 (`workers.md`·`invoke-worker.sh`).
 - 그 외 구현 항목은 `worker` 서브에이전트를 백그라운드로 띄운다. 브리프 첫 줄에 `cursor-atomic-workflow`·`tdd` 경로를 적는다. 로직은 `tdd`를 강제한다.

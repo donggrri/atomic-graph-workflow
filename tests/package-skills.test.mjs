@@ -518,8 +518,9 @@ test("pipeline recovery reference bash", async () => {
   assert.match(reference, /이미 있으면.*재사용/, "reference.md bash must state reusing worktree if already exists");
 
   assert.match(reference, /date \+%Y-%m-%d/, "reference.md bash must use date +%Y-%m-%d");
-  assert.match(reference, /\$HOME\/\.cursor-atomic-workflow\/evidence\//, "reference.md bash must archive to evidence directory");
-  assert.match(reference, /\.docs\/<slug>/, "reference.md bash must mention .docs/<slug>");
+  assert.match(reference, /work-status\.mjs path/, "reference.md bash must resolve docsDir via path command");
+  assert.match(reference, /wfHome\/evidence\//, "reference.md bash must archive under workflow home evidence");
+  assert.match(reference, /<docsDir>/, "reference.md must document docsDir for slug home");
   assert.match(reference, /원본은.*남긴다/, "reference.md bash must state original is kept");
 });
 
@@ -604,13 +605,13 @@ test("pipeline recovery command skills", async () => {
   assert.match(review, /flake retry 없음/, "review.md must specify no flake retry");
   assert.match(review, /사람 게이트.*PLAN.*Phase 1.*만|사람 게이트는.*PLAN.*만/, "review.md must state human gate is PLAN(Phase 1) only");
 
-  // status prompt recovery policy and bash paths
+  // status prompt recovery policy and resolved paths
   assert.match(status, /막힘.*\/cursor-atomic-execute/, "status.md must guide to /cursor-atomic-execute when blocked");
-  assert.match(status, /~\/\.cursor-atomic-workflow\/runs\//, "status.md must guide global runs path");
-  assert.match(status, /PowerShell|%USERPROFILE%/, "status.md must retain Cursor PowerShell block/path");
+  assert.match(status, /<runsDir>/, "status.md must mention runsDir for run logs");
+  assert.match(status, /work-status\.mjs path/, "status.md must resolve docsDir via path command");
 
-  assert.match(commit, /~\/\.cursor-atomic-workflow\/evidence\//, "commit.md must guide global evidence path");
-  assert.match(commit, /PowerShell|%USERPROFILE%/, "commit.md must retain Cursor PowerShell block/path");
+  assert.match(commit, /<workflowHome>\/evidence/, "wrapup.md must guide evidence under workflow home");
+  assert.match(commit, /work-status\.mjs path/, "wrapup.md must resolve docsDir via path command");
 });
 
 test("pipeline recovery reviewer agent", async () => {
@@ -717,6 +718,7 @@ test("plan-review parent contract docs", async () => {
 
   assert.match(harness, /plan-reviewer/, "harness.md must document plan-reviewer");
   assert.match(harness, /composer-2\.5/, "harness.md must document plan-reviewer model");
+  assert.match(harness, /work-status\.mjs path/, "harness.md must document docsDir path command");
 
   assert.match(context, /## PLAN 비판 검토/, "CONTEXT.md must define PLAN 비판 검토");
   assert.match(context, /## PLAN 자동 수정/, "CONTEXT.md must define PLAN 자동 수정");
@@ -738,6 +740,19 @@ test("plan-review parent contract docs", async () => {
   assert.match(readme, /8 agents/, "README.md must count eight agents");
   assert.match(readmeKr, /plan-reviewer/, "README.kr.md must mention plan-reviewer");
   assert.match(readmeKr, /8종/, "README.kr.md must count eight agents");
+});
+
+test("repository agents do not hardcode workflow docs home paths", async () => {
+  const forbidden = "~/.cursor-atomic-workflow/docs";
+  for (const file of await walkFiles("agents")) {
+    if (!file.endsWith(".md")) continue;
+    const body = await readFile(file, "utf8");
+    assert.equal(
+      body.includes(forbidden),
+      false,
+      `${file} must not hardcode ${forbidden}; use docsDir from parent brief`,
+    );
+  }
 });
 
 

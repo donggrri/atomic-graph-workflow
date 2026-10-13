@@ -124,6 +124,36 @@ export function getWorkflowPaths(repoRoot, slug) {
 }
 
 /**
+ * Absolute slug docs directory under the workflow home; creates it if missing.
+ * @param {string} repoRoot
+ * @param {string} slug
+ */
+export function ensureDocsDir(repoRoot, slug) {
+  const clean = typeof slug === "string" ? slug.trim() : "";
+  if (!clean) throw new Error("ensureDocsDir requires a slug");
+  const paths = getWorkflowPaths(repoRoot, clean);
+  mkdirSync(paths.docsDir, { recursive: true });
+  return resolve(paths.docsDir);
+}
+
+/**
+ * @param {string[]} argv
+ * @param {string} [defaultRepo]
+ */
+export function parseRepoArg(argv, defaultRepo = process.cwd()) {
+  let repo = defaultRepo;
+  const rest = [];
+  for (let i = 0; i < argv.length; i++) {
+    if (argv[i] === "--repo" && argv[i + 1]) {
+      repo = resolve(argv[++i]);
+    } else {
+      rest.push(argv[i]);
+    }
+  }
+  return { repo: resolve(repo), rest };
+}
+
+/**
  * Reads STATUS.json for a slug if it exists.
  */
 export async function readStatus(repoRoot, slug) {
@@ -449,7 +479,8 @@ function takeSessionIdArg(argv) {
 
 // CLI entrypoint
 if (process.argv[1] && process.argv[1].endsWith("work-status.mjs")) {
-  const parsed = takeSessionIdArg(process.argv.slice(2));
+  const { repo: cliRepo, rest: argvAfterRepo } = parseRepoArg(process.argv.slice(2));
+  const parsed = takeSessionIdArg(argvAfterRepo);
   const args = parsed.args;
   const cliSessionId = parsed.sessionId;
   const command = args[0] || "list";
@@ -538,6 +569,14 @@ if (process.argv[1] && process.argv[1].endsWith("work-status.mjs")) {
         ...(cliSessionId !== undefined ? { sessionId: cliSessionId } : {}),
       });
       console.log(JSON.stringify(updated, null, 2));
+    } else if (command === "path") {
+      const slug = args[1];
+      if (!slug) {
+        console.error("Usage: node scripts/work-status.mjs path <slug> [--repo <dir>]");
+        process.exit(1);
+      }
+      const docsDir = ensureDocsDir(cliRepo, slug);
+      console.log(docsDir);
     } else if (command === "import-docs") {
       const srcArg = args[1];
       let repo = process.cwd();
@@ -557,7 +596,7 @@ if (process.argv[1] && process.argv[1].endsWith("work-status.mjs")) {
       }
     } else {
       console.error(`Unknown command: ${command}`);
-      console.error("Usage: node scripts/work-status.mjs list|show <slug>|sync <slug> [phase]|record <slug> [phase]|complete <slug>|import-docs [srcDir] [--session-id <id>]");
+      console.error("Usage: node scripts/work-status.mjs list|show <slug>|sync <slug> [phase]|record <slug> [phase]|complete <slug>|path <slug> [--repo <dir>]|import-docs [srcDir] [--session-id <id>]");
       process.exit(1);
     }
   })().catch((err) => {

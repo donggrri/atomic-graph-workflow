@@ -11,11 +11,11 @@ description: "cursor-atomic-workflow Phase 0. 코드베이스 및 기술 사전 
 
 서브에이전트 호출법, 스크립트 경로, 하네스 전용 도구는 `cursor-atomic-workflow`의 `references/harness.md`를 따른다. CLI 워커를 직접 설치하거나 `agy`/`codex`를 인자 없이 실행하지 마라.
 
-모든 작업(제품 기능 및 워크플로 자체)은 단일 전역 홈 `~/.cursor-atomic-workflow/docs/{shortRepo}/{slug}/EXPLORE-<slug>.md`에 쓴다 (레거시: `.docs/<slug>/`, `docs/<slug>/`). 쓰기 전 슬러그 디렉토리를 만든다. 홈·스킬·제품 루트·제품 `docs/`를 서로 혼용하지 않는다.
+`docsDir` = `node .atomic/scripts/work-status.mjs path <slug> [--repo <dir>]` (기본 홈 `CURSOR_ATOMIC_WORKFLOW_HOME`, 없으면 `~/.cursor-atomic-workflow`). 산출물 `<docsDir>/EXPLORE-<slug>.md` (레거시 읽기: `.docs/<slug>/`, `docs/<slug>/`). 홈·스킬·제품 `docs/` 혼용 금지.
 
-1. 기존 코드, 문서, 설정, 전역 홈 및 기존 `.docs/*/`·하네스 `docs/<slug>/`의 `EXPLORE-*.md` / `PLAN-*.md`를 확인한다.
-2. 사용자의 탐색 주제나 의도를 바탕으로 `explorer` 서브에이전트를 백그라운드로 띄운다. 브리프 첫 줄에 `cursor-atomic-workflow` 경로를 적는다.
-3. `explorer`가 대상 파일, 핵심 코드/인터페이스, 아키텍처 흐름, 리스크를 분석하여 `~/.cursor-atomic-workflow/docs/{shortRepo}/{slug}/EXPLORE-<slug>.md`(레거시: `.docs/<slug>/`, `docs/<slug>/`)를 작성한다.
+1. 기존 코드, 문서, 설정, `docsDir` 및 레거시 `.docs/*/`·하네스 `docs/<slug>/`의 `EXPLORE-*.md` / `PLAN-*.md`를 확인한다.
+2. `explorer`를 백그라운드로 띄운다. 브리프: 1줄 `cursor-atomic-workflow` 경로, 2줄 `docsDir: <absolute>`.
+3. `explorer`가 대상 파일, 핵심 코드/인터페이스, 아키텍처 흐름, 리스크를 분석하여 `<docsDir>/EXPLORE-<slug>.md`(레거시: `.docs/<slug>/`, `docs/<slug>/`)를 작성한다.
 4. 코드를 수정하거나 커밋·푸시하지 않는다.
 5. 지정 모델이 실패하면 그 사실을 보고하고 멈춘다.
 6. EXPLORE 저장 직후 `node .atomic/scripts/work-status.mjs sync <slug>`로 STATUS.json을 갱신한다.

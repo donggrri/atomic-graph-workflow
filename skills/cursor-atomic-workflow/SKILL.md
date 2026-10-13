@@ -25,9 +25,10 @@ Cursor 프로젝트용 워크플로 패키지다. 커맨드 로직은 `.cursor/s
 3. **lite** → `cursor-atomic-lite` 스킬(모델이 읽어 실행). **full** → `cursor-atomic-plan` 스킬 또는 `/cursor-atomic-plan`(이후 기본 파이프라인). 질문·사소한 1~2파일 수정은 [references/routing.md](references/routing.md) 「직접 처리」.
 4. lite 중 범위가 커지면 full로 에스컬레이션한다.
 
-**PLAN 위치 규칙** (템플릿 필드는 양쪽 동일. `PREFIX-<slug>.md` 파일명은 유지. 쓰기 전 슬러그 디렉토리를 만든다):
+**PLAN 위치 규칙** (템플릿 필드는 양쪽 동일. `PREFIX-<slug>.md` 파일명은 유지):
 
-- **단일 전역 홈**: 모든 작업(제품 기능 및 워크플로 자체)은 `~/.cursor-atomic-workflow/docs/{shortRepo}/{slug}/PLAN-<slug>.md`에 쓴다 (같은 폴더에 `STATUS.json`, EXPLORE/TASKS/REVIEW). 홈·스킬 폴더·제품 `docs/`와 혼용하지 않는다.
+- **`docsDir`**: `node .atomic/scripts/work-status.mjs path <slug> [--repo <dir>]` (기본 홈 `CURSOR_ATOMIC_WORKFLOW_HOME`, 없으면 `~/.cursor-atomic-workflow`). 서브에이전트 브리프에 `docsDir: <absolute>` 필수.
+- **단일 전역 홈**: 모든 작업은 `<docsDir>/PLAN-<slug>.md` 등에 쓴다 (`STATUS.json`, EXPLORE/TASKS/REVIEW 동일 폴더). 홈·스킬·제품 `docs/` 혼용 금지.
 - `shortRepo`: `path.basename(repoRoot)` 기반 소문자 kebab-case 정규화 (최대 24자).
 - **레거시 호환**: 기존 저장소 `.docs/<slug>/` 및 하네스 `docs/<slug>/`는 상태 조회 시 읽기 전용 fallback으로만 지원하며, 신규 쓰기는 하지 않는다.
 
@@ -50,12 +51,12 @@ Cursor Cloud Agent는 `CURSOR_CONVERSATION_ID`(`bc-…`)를 `STATUS.json`의 `se
 
 | 단계 | 커맨드 | 산출물 | 다음 |
 |---|---|---|---|
-| 0 | `/cursor-atomic-explore` | `~/.cursor-atomic-workflow/docs/{shortRepo}/{slug}/EXPLORE-<slug>.md` (레거시: `.docs/<slug>/`, `docs/<slug>/`) | 탐색 보고 후 `/cursor-atomic-plan` 안내 |
-| 1 | `/cursor-atomic-plan` 또는 사용자가 쓴 PLAN | `~/.cursor-atomic-workflow/docs/{shortRepo}/{slug}/PLAN-<slug>.md` | 막힌 질문 없으면 **자동** Phase 1.5 |
-| 1.5 | (자동) `plan-reviewer` | `~/.cursor-atomic-workflow/docs/{shortRepo}/{slug}/PLAN-REVIEW-<slug>.md` | 차단 결함 없으면 **자동** Phase 2 |
-| 2 | (자동) `tasker` | `~/.cursor-atomic-workflow/docs/{shortRepo}/{slug}/TASKS-<slug>.md` | **자동** Phase 3 |
+| 0 | `/cursor-atomic-explore` | `<docsDir>/EXPLORE-<slug>.md` (레거시: `.docs/<slug>/`, `docs/<slug>/`) | 탐색 보고 후 `/cursor-atomic-plan` 안내 |
+| 1 | `/cursor-atomic-plan` 또는 사용자가 쓴 PLAN | `<docsDir>/PLAN-<slug>.md` | 막힌 질문 없으면 **자동** Phase 1.5 |
+| 1.5 | (자동) `plan-reviewer` | `<docsDir>/PLAN-REVIEW-<slug>.md` | 차단 결함 없으면 **자동** Phase 2 |
+| 2 | (자동) `tasker` | `<docsDir>/TASKS-<slug>.md` | **자동** Phase 3 |
 | 3 | (자동) `worker` | 코드 + 체크된 TASKS | **자동** Phase 4 |
-| 4 | (자동) `reviewer` | `~/.cursor-atomic-workflow/docs/{shortRepo}/{slug}/REVIEW-<slug>.md` + 테스트 | 보고. 커밋은 수동 |
+| 4 | (자동) `reviewer` | `<docsDir>/REVIEW-<slug>.md` + 테스트 | 보고. 커밋은 수동 |
 | 5 | `/cursor-atomic-wrapup` | 커밋 + 상태 기록 (푸시 없음) | 사용자가 원할 때만 PR |
 | — | `/cursor-atomic-status` | 진행 보고 (`work-status.mjs` 조회) | 이어서 할 커맨드 |
 | — | `/cursor-atomic-config` (`/cursor-atomic-settings`) | 설정 조회 및 대화형 변경 | 설정 확인 및 저장 |
@@ -86,7 +87,7 @@ PLAN이 있고 막힌 질문(보안·범위·데이터 손실)이 없으면 부�
 
 사용자가 이미 `.docs/<slug>/PLAN-<slug>.md`(또는 워크플로 자체 `docs/<slug>/PLAN-<slug>.md`)를 써 두었거나 메시지에 계획을 주면 Phase 1 자식을 건너뛴다. `/cursor-atomic-plan`에 의도만 있으면 `planner`가 PLAN을 쓴 뒤 위 루프로 들어간다.
 
-자식을 띄울 때 task **첫 줄**에 강제 스킬 경로를 적는다. 부모의 `available_skills`에서 찾고, 없으면 「이 스킬 없음. cursor-atomic-workflow만으로 진행」이라고 적는다. 브리프에 비밀·토큰·`.env`를 넣지 않는다.
+자식을 띄울 때 브리프 **1줄** 강제 스킬 경로, **2줄** `docsDir: <path 명령 절대경로>`(CLI 위임은 `runsDir:`도). 부모의 `available_skills`에서 찾고, 없으면 「이 스킬 없음. cursor-atomic-workflow만으로 진행」. 비밀·토큰·`.env` 금지.
 
 ## 하네스 (Cursor)
 
@@ -103,8 +104,8 @@ PLAN이 있고 막힌 질문(보안·범위·데이터 손실)이 없으면 부�
 | test | `tester` | reviewer 완료 후, 테스트 작성 + mutation 검증 |
 | commit/status/config | self | 서브에이전트 금지 |
 
-런 로그: `~/.cursor-atomic-workflow/runs/{shortRepo}/{slug}/`
-증거: `~/.cursor-atomic-workflow/evidence/{shortRepo}/<YYYY-MM-DD>-<slug>/`
+런 로그: `<runsDir>/`
+증거: `<workflowHome>/evidence/{shortRepo}/<YYYY-MM-DD>-<slug>/`
 
 - **Plan 모드**는 쓰기 금지. 동의를 구하지 않고 모드를 바꾸지 않는다.
 - 워크트리를 만들었으면 즉시 `move_agent_to_root`로 옮긴다.
@@ -150,7 +151,7 @@ PLAN이 있고 막힌 질문(보안·범위·데이터 손실)이 없으면 부�
 
 1. 코드베이스 구조, 설정, 기존 `.docs/*/`·하네스 `docs/<slug>/`의 `EXPLORE-*.md` / `PLAN-*.md`를 검토한다.
 2. 코드가 낯설거나 아키텍처/외부 라이브러리 리서치가 필요할 때 `/cursor-atomic-explore`를 실행한다.
-3. `explorer`를 백그라운드 Task로 띄워 [reference.md](reference.md) 템플릿으로 `~/.cursor-atomic-workflow/docs/{shortRepo}/{slug}/EXPLORE-<slug>.md`를 작성한다 (레거시: `.docs/<slug>/`, `docs/<slug>/`).
+3. `explorer`를 백그라운드 Task로 띄워 [reference.md](reference.md) 템플릿으로 `<docsDir>/EXPLORE-<slug>.md`를 작성한다 (레거시: `.docs/<slug>/`, `docs/<slug>/`).
 4. 핵심 대상 파일, 인터페이스/타입, 아키텍처 흐름, 리스크, 권장 방향을 정리한다.
 5. 탐색 완료 후 `node .atomic/scripts/work-status.mjs sync <slug>`로 STATUS를 갱신하고 `/cursor-atomic-plan`으로 이어지도록 안내한다. 코드를 직접 변경하거나 커밋하지 않는다.
 
@@ -264,4 +265,4 @@ PLAN이 있고 막힌 질문(보안·범위·데이터 손실)이 없으면 부�
 
 ## Status
 
-기본은 전역 목록이다. `node .atomic/scripts/work-status.mjs list` (`npm run status`)로 `~/.cursor-atomic-workflow/docs/{shortRepo}/{slug}/STATUS.json` 전체를 보고한다. 현재 작업공간 하나만 보여 주지 않는다. 인자에 슬러그가 있으면 `show <slug>`다. 목록·상세에는 Cursor `sessionId`를 포함한다. 레거시 `.docs/*/`, 형제 워크트리 `.docs/*/`, 하네스 `docs/<slug>/`는 목록에 없는 것만 덧붙인다. 루트/홈에 남은 레거시 평탄 파일은 언급만 하고 자동 이동하지 않는다. 막힘 발생 시 실패한 항목만 재시도하도록 다음 커맨드로 `/cursor-atomic-execute`를 안내한다.
+기본은 전역 목록이다. `node .atomic/scripts/work-status.mjs list` (`npm run status`)로 워크플로 홈 아래 모든 `STATUS.json`을 보고한다. 현재 작업공간 하나만 보여 주지 않는다. 인자에 슬러그가 있으면 `show <slug>`다. 목록·상세에는 Cursor `sessionId`를 포함한다. 레거시 `.docs/*/`, 형제 워크트리 `.docs/*/`, 하네스 `docs/<slug>/`는 목록에 없는 것만 덧붙인다. 루트/홈에 남은 레거시 평탄 파일은 언급만 하고 자동 이동하지 않는다. 막힘 발생 시 실패한 항목만 재시도하도록 다음 커맨드로 `/cursor-atomic-execute`를 안내한다.

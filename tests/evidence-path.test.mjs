@@ -7,8 +7,7 @@ import test from "node:test";
 import { evidencePath, runDone } from "../scripts/run-done.mjs";
 import { taskLogPath } from "../scripts/run-pipeline.mjs";
 
-const EVIDENCE =
-  "~/.cursor-atomic-workflow/runs/{shortRepo}/<slug>/<id>.done.json";
+const EVIDENCE = "<runsDir>/<id>.done.json";
 
 test("pipeline evidence sits beside <id>.log as <id>.done.json", () => {
   const runsDir = join(
