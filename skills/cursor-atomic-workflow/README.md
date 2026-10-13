@@ -14,10 +14,10 @@ TASKS `worker:`가 `agy|opencode|codex|claude`일 때 Cursor는 Task `cli-delega
 
 ```bash
 # PATH 확인
-bash .agents/skills/cursor-atomic-workflow/scripts/ensure-workers.sh
+bash .atomic/scripts/ensure-workers.sh
 
 # 비대화형 실행 (단일 진입점)
-bash .agents/skills/cursor-atomic-workflow/scripts/invoke-worker.sh \
+bash .atomic/scripts/invoke-worker.sh \
   --worker agy \
   --workspace "$(pwd)" \
   --prompt-file /path/to/brief.md \

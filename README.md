@@ -208,7 +208,7 @@ Edit `skills/` and `agents/` in place. Runtime scripts under `scripts/` are mirr
 | Change | Edit |
 |---|---|
 | Command behavior | `skills/cursor-atomic-<name>/SKILL.md` |
-| Agent role / per-phase model | `.cursor/agents/<agent>.md` (+ `scripts/lib/roles.mjs`) |
+| Agent role / per-phase model | `agents/<agent>.md` (+ `scripts/lib/roles.mjs`) |
 | Harness differences | `skills/cursor-atomic-workflow/references/harness.md` |
 | Workflow scripts | `scripts/*.mjs` → `node scripts/sync-bundled.mjs` → `.atomic/scripts/` |
 

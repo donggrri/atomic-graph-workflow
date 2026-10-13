@@ -17,7 +17,7 @@ description: "단일 세션 경량 워크플로: 짧은 PLAN·구현·메모리�
 
 `{workflowHome}/docs/{shortRepo}/{slug}/PLAN-<slug>.md`
 
-`shortRepo`는 `node <memory.mjs> repo <repoRoot>` 출력. 슬러그는 의도에서 ASCII kebab-case (`fix-typo`). 쓰기 전 슬러그 디렉터리를 만든다.
+`shortRepo`는 `node .atomic/scripts/memory.mjs repo <repoRoot>` 출력. 슬러그는 의도에서 ASCII kebab-case (`fix-typo`). 쓰기 전 슬러그 디렉터리를 만든다.
 
 채팅 제목을 3~5단어로 `rename_chat` 한다.
 
@@ -36,8 +36,8 @@ description: "단일 세션 경량 워크플로: 짧은 PLAN·구현·메모리�
 
 ## 0) MEMORY — 시작
 
-1. `node <memory.mjs> repo <repoRoot>`로 `shortRepo`를 확인한다.
-2. `node <memory.mjs> context <shortRepo>`를 실행하고, 출력이 있으면 계획·구현에 반영한다.
+1. `node .atomic/scripts/memory.mjs repo <repoRoot>`로 `shortRepo`를 확인한다.
+2. `node .atomic/scripts/memory.mjs context <shortRepo>`를 실행하고, 출력이 있으면 계획·구현에 반영한다.
 
 ## 1) PLAN — 짧은 계획 후 구현
 
@@ -68,7 +68,7 @@ description: "단일 세션 경량 워크플로: 짧은 PLAN·구현·메모리�
 - <예: `npm test`, 특정 스크립트>
 ```
 
-3. `node <work-status.mjs> sync <slug>`로 STATUS를 맞춘다.
+3. `node .atomic/scripts/work-status.mjs sync <slug>`로 STATUS를 맞춘다.
 4. PLAN에 따라 **이 세션에서 직접** 코드·문서를 수정한다. 범위를 PLAN 밖으로 넓히지 않는다.
 
 ## 2) MEMORY — 종료
@@ -87,13 +87,13 @@ description: "단일 세션 경량 워크플로: 짧은 PLAN·구현·메모리�
 }
 ```
 
-`node <memory.mjs> propose --auto /tmp/memory-<slug>.json` — 항목이 없으면 이 단계를 건너뛴다. 메모리 디렉터리를 직접 편집하지 않는다.
+`node .atomic/scripts/memory.mjs propose --auto /tmp/memory-<slug>.json` — 항목이 없으면 이 단계를 건너뛴다. 메모리 디렉터리를 직접 편집하지 않는다.
 
 ## 3) WRAPUP — 검증·요약
 
 1. PLAN 「검증」에 적은 명령을 실행한다(보통 `npm test`). 실패하면 원인을 고치거나 PLAN/완료 기준을 갱신한 뒤 재실행한다.
 2. PLAN 「완료 기준」 체크박스를 실제 결과에 맞게 `[x]`로 갱신한다.
-3. `node <work-status.mjs> sync <slug>` (필요 시 `complete`는 사용자가 「완료」라고 할 때만).
+3. `node .atomic/scripts/work-status.mjs sync <slug>` (필요 시 `complete`는 사용자가 「완료」라고 할 때만).
 4. 한국어로 **짧게** 요약한다: 무엇을 바꿨는지, 테스트 결과, 완료 기준 충족 여부, 저장한 메모리 건수.
 
 커밋·푸시는 사용자가 `/cursor-atomic-wrapup` 또는 명시적으로 요청할 때만 한다.

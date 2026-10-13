@@ -73,8 +73,8 @@ FORBID (invoke 세션): cmake, ctest, npm test, make, ninja, 항목 done 셸 실
 
 ### Bash (WSL / Linux / macOS)
 
-- `scripts/ensure-workers.sh` — PATH에 CLI가 있는지 확인
-- `scripts/invoke-worker.sh` — 비대화형 실행 (단일 진입점)
+- `.atomic/scripts/ensure-workers.sh` — PATH에 CLI가 있는지 확인
+- `.atomic/scripts/invoke-worker.sh` — 비대화형 실행 (단일 진입점)
 
 | 워커 | CLI | 비고 |
 |---|---|---|
@@ -86,11 +86,10 @@ FORBID (invoke 세션): cmake, ctest, npm test, make, ninja, 항목 done 셸 실
 | `self` | (없음) | 현재 에이전트가 구현 |
 
 ```bash
-SKILL=".agents/skills/cursor-atomic-workflow/scripts"
-RUNS="$HOME/.cursor/cursor-atomic-workflow/runs/<slug>"
+RUNS="$HOME/.cursor-atomic-workflow/runs/<shortRepo>/<slug>"
 mkdir -p "$RUNS"
 
-bash "$SKILL/invoke-worker.sh" \
+bash "<worktree>/.atomic/scripts/invoke-worker.sh" \
   --worker agy \
   --workspace "<worktree>" \
   --prompt-file "$RUNS/T1.brief.md" \
@@ -104,10 +103,8 @@ bash "$SKILL/invoke-worker.sh" \
 
 ### PowerShell (Windows)
 
-- `scripts/ensure-workers.ps1` — 없으면 설치
-- `scripts/invoke-worker.ps1` — 비대화형 실행 (`-Skills` 동일 계약)
-
-절대 경로: `$env:USERPROFILE\.agents\skills\cursor-atomic-workflow\scripts\...`
+- `.atomic/scripts/ensure-workers.ps1` — 없으면 설치
+- `.atomic/scripts/invoke-worker.ps1` — 비대화형 실행 (`-Skills` 동일 계약)
 
 | 워커 | CLI | 비대화형 |
 |---|---|---|
@@ -123,7 +120,7 @@ bash "$SKILL/invoke-worker.sh" \
 설치:
 
 ```powershell
-& "$env:USERPROFILE\.agents\skills\cursor-atomic-workflow\scripts\ensure-workers.ps1" -Workers agy,codex
+& "<worktree>\.atomic\scripts\ensure-workers.ps1" -Workers agy,codex
 ```
 
 없는 것만 설치한다.
@@ -138,14 +135,13 @@ bash "$SKILL/invoke-worker.sh" \
 - `codex login` (이미 ChatGPT면 `codex login status`)
 - agy는 최초 한 번 대화형 로그인이 필요할 수 있다.
 
-브리프는 `~/.cursor/cursor-atomic-workflow/runs/<slug>/<task-id>.brief.md`.
+브리프는 `~/.cursor-atomic-workflow/runs/{shortRepo}/<slug>/<task-id>.brief.md`.
 
 ```powershell
-$skill = Join-Path $env:USERPROFILE ".agents\skills\cursor-atomic-workflow\scripts"
-$runs = Join-Path $env:USERPROFILE ".cursor\cursor-atomic-workflow\runs\<slug>"
+$runs = Join-Path $env:USERPROFILE ".cursor-atomic-workflow\runs\<shortRepo>\<slug>"
 New-Item -ItemType Directory -Force -Path $runs | Out-Null
 
-& "$skill\invoke-worker.ps1" `
+& "<worktree>\.atomic\scripts\invoke-worker.ps1" `
   -Worker agy `
   -Workspace "<worktree>" `
   -PromptFile "$runs\T1.brief.md" `

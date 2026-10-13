@@ -34,10 +34,8 @@ Cursor 프로젝트용 워크플로 패키지다. 커맨드 로직은 `.cursor/s
 **STATUS 자동 동기화** — 슬러그 폴더에 EXPLORE/PLAN/TASKS/REVIEW를 쓰거나 TASKS 체크박스·`막힘:`을 갱신한 **직후** 전역 `STATUS.json`을 맞춘다:
 
 ```bash
-node scripts/work-status.mjs sync <slug>
+node .atomic/scripts/work-status.mjs sync <slug>
 ```
-
-설치 프로젝트(`scripts/` 없음): `node ~/.cursor/skills/cursor-atomic-workflow/scripts/work-status.mjs sync <slug>` ([references/harness.md](references/harness.md) 「스크립트 경로」)
 
 Wrapup 커밋 후: `sync <slug> commit`. 파이프라인 종료: `sync <slug> complete` (또는 `complete <slug>`).
 
@@ -154,7 +152,7 @@ PLAN이 있고 막힌 질문(보안·범위·데이터 손실)이 없으면 부�
 2. 코드가 낯설거나 아키텍처/외부 라이브러리 리서치가 필요할 때 `/cursor-atomic-explore`를 실행한다.
 3. `explorer`를 백그라운드 Task로 띄워 [reference.md](reference.md) 템플릿으로 `~/.cursor-atomic-workflow/docs/{shortRepo}/{slug}/EXPLORE-<slug>.md`를 작성한다 (레거시: `.docs/<slug>/`, `docs/<slug>/`).
 4. 핵심 대상 파일, 인터페이스/타입, 아키텍처 흐름, 리스크, 권장 방향을 정리한다.
-5. 탐색 완료 후 `node scripts/work-status.mjs sync <slug>`로 STATUS를 갱신하고 `/cursor-atomic-plan`으로 이어지도록 안내한다. 코드를 직접 변경하거나 커밋하지 않는다.
+5. 탐색 완료 후 `node .atomic/scripts/work-status.mjs sync <slug>`로 STATUS를 갱신하고 `/cursor-atomic-plan`으로 이어지도록 안내한다. 코드를 직접 변경하거나 커밋하지 않는다.
 
 ## Phase 1 — Plan
 
@@ -165,7 +163,7 @@ PLAN이 있고 막힌 질문(보안·범위·데이터 손실)이 없으면 부�
 5. 작업이 한 세션에 선명하면 `bounded`, 여러 세션·fog·독립 결정이 있으면 `local-wayfinding`으로 라우팅한다. `wayfinder`는 사용자 호출용이므로 사용자가 명시한 경우만 `explicit-wayfinder`로 넘긴다.
 6. [reference.md](reference.md) 템플릿으로 PLAN 위치 규칙에 따라 `.docs/<slug>/PLAN-<slug>.md`(워크플로 자체는 `docs/<slug>/PLAN-<slug>.md`)를 쓴다. 부모가 만든 `계획 정제` brief를 planner에게 전달하며, brief가 없으면 PLAN 완료를 허용하지 않는다.
 7. 한 줄 목표, 하지 않을 것, 의존 순서, 위험, 막힌 질문과 계획 정제 증거를 넣는다.
-8. PLAN 저장 직후 `node scripts/work-status.mjs sync <slug>`로 STATUS를 갱신한다.
+8. PLAN 저장 직후 `node .atomic/scripts/work-status.mjs sync <slug>`로 STATUS를 갱신한다.
 9. 막힌 질문·남은 fog가 있거나 사용자가 「계획만」이면 멈추고 계획을 보여 준다. 아니면 **기본 파이프라인**으로 Phase 1.5(plan-review)부터 자동 진행한다.
 
 ## Phase 1.5 — Plan review (자동)
@@ -228,7 +226,7 @@ PLAN이 있고 막힌 질문(보안·범위·데이터 손실)이 없으면 부�
 4. 같은 파일을 안 건드리는 독립 항목만 `parallel: yes`.
 5. 제품 기능이면 [testing.md](testing.md)대로 테스트 항목을 넣는다. `done`에 실제 명령을 적는다.
 6. 구현 항목의 기본 `worker`는 `worker`. 문서 항목은 `self`.
-7. TASKS 저장 직후 `node scripts/work-status.mjs sync <slug>`로 STATUS를 갱신한다.
+7. TASKS 저장 직후 `node .atomic/scripts/work-status.mjs sync <slug>`로 STATUS를 갱신한다.
 8. 사용자가 「태스크만」이 아니면 **기본 파이프라인**으로 Phase 3으로 간다.
 
 ## Phase 3 — Execute
@@ -236,7 +234,7 @@ PLAN이 있고 막힌 질문(보안·범위·데이터 손실)이 없으면 부�
 1. `.docs/<slug>/TASKS-<slug>.md`(워크플로 자체는 `docs/<slug>/`)가 없으면 Phase 2를 먼저 한다.
 2. `worker`가 `self`이거나 사용자가 `self`를 말한 경우만 이 세션이 구현한다. 기본은 `worker`.
 3. 기본은 Task `worker`로 위임한다. TASKS `worker:`가 외부 CLI이면 `cli-delegate`와 invoke 스크립트만 쓴다.
-4. 항목마다: 위임 → [testing.md](testing.md)의 `done` 명령을 오케스트레이터가 `run-done`으로 실행 → `.done.json` 증거 확인 → `[x]` → `node scripts/work-status.mjs sync <slug>`. 실패하면 `막힘:`과 로그 경로를 남기고 `sync <slug>` 후 멈춘다.
+4. 항목마다: 위임 → [testing.md](testing.md)의 `done` 명령을 오케스트레이터가 `run-done`으로 실행 → `.done.json` 증거 확인 → `[x]` → `node .atomic/scripts/work-status.mjs sync <slug>`. 실패하면 `막힘:`과 로그 경로를 남기고 `sync <slug>` 후 멈춘다.
 5. **막힘 재개**: 실패한 항목만 재시도한다. 이미 [x]는 유지한다. 재시도 시작 때 그 항목의 `막힘:`만 지운다. 입구는 `/cursor-atomic-execute`이다. 사람 게이트는 PLAN(Phase 1)만이며 막힘 재개는 정책으로 자동 실행된다.
 6. PLAN의 「하지 않을 것」을 지킨다. 커밋하지 않는다.
 7. 열린 항목이 없고 「구현만」이 아니면 **기본 파이프라인**으로 Phase 4로 간다.
@@ -254,7 +252,7 @@ PLAN이 있고 막힌 질문(보안·범위·데이터 손실)이 없으면 부�
 5. `reviewer`가 `.docs/<slug>/REVIEW-<slug>.md`(워크플로 자체는 `docs/<slug>/`)를 쓴다. 실패한 테스트나 break 미만 mutation을 통과로 쓰지 않는다.
 6. **리뷰 재작업**: REVIEW 결함을 열린 TASKS로 되돌리거나 새 항목을 붙인 뒤 worker → reviewer를 한 번만 자동 재실행한다. 한 바퀴 후에도 결함이면 멈추고 보고한다. 사람 게이트는 PLAN(Phase 1)만이며 리뷰 재작업 1회는 정책으로 자동 실행된다.
 7. 제품 기능이 끝났고 검사가 통과하면 `docs/README.md` 표대로 문서를 갱신한다.
-8. REVIEW 저장 직후 `node scripts/work-status.mjs sync <slug>`로 STATUS를 갱신한다. 커밋하지 않는다. `/cursor-atomic-wrapup`을 안내한다.
+8. REVIEW 저장 직후 `node .atomic/scripts/work-status.mjs sync <slug>`로 STATUS를 갱신한다. 커밋하지 않는다. `/cursor-atomic-wrapup`을 안내한다.
 
 ## Phase 5 — Wrapup
 
@@ -262,8 +260,8 @@ PLAN이 있고 막힌 질문(보안·범위·데이터 손실)이 없으면 부�
 2. `git status` / `git diff` / `git log`를 본 뒤, 비밀 파일은 제외하고 커밋한다. PLAN/TASKS/REVIEW는 기본적으로 커밋하지 않는다.
 3. 슬러그 폴더의 산출물 복사본을 하네스 `evidence/<YYYY-MM-DD>-<slug>/`에 둔다. 원본은 슬러그 폴더에 남긴다.
 4. 푸시하지 않는다. 커밋 해시와 남은 일을 보고한다.
-5. 커밋 성공 후 `node scripts/work-status.mjs sync <slug> commit`으로 전역 상태를 갱신한다. 파이프라인 종료(완료)는 `node scripts/work-status.mjs sync <slug> complete`(또는 `complete <slug>`)다. 푸시만으로는 `STATUS.json`이 바뀌지 않는다.
+5. 커밋 성공 후 `node .atomic/scripts/work-status.mjs sync <slug> commit`으로 전역 상태를 갱신한다. 파이프라인 종료(완료)는 `node .atomic/scripts/work-status.mjs sync <slug> complete`(또는 `complete <slug>`)다. 푸시만으로는 `STATUS.json`이 바뀌지 않는다.
 
 ## Status
 
-기본은 전역 목록이다. `node scripts/work-status.mjs list` (`npm run status`)로 `~/.cursor-atomic-workflow/docs/{shortRepo}/{slug}/STATUS.json` 전체를 보고한다. 현재 작업공간 하나만 보여 주지 않는다. 인자에 슬러그가 있으면 `show <slug>`다. 목록·상세에는 Cursor `sessionId`를 포함한다. 레거시 `.docs/*/`, 형제 워크트리 `.docs/*/`, 하네스 `docs/<slug>/`는 목록에 없는 것만 덧붙인다. 루트/홈에 남은 레거시 평탄 파일은 언급만 하고 자동 이동하지 않는다. 막힘 발생 시 실패한 항목만 재시도하도록 다음 커맨드로 `/cursor-atomic-execute`를 안내한다.
+기본은 전역 목록이다. `node .atomic/scripts/work-status.mjs list` (`npm run status`)로 `~/.cursor-atomic-workflow/docs/{shortRepo}/{slug}/STATUS.json` 전체를 보고한다. 현재 작업공간 하나만 보여 주지 않는다. 인자에 슬러그가 있으면 `show <slug>`다. 목록·상세에는 Cursor `sessionId`를 포함한다. 레거시 `.docs/*/`, 형제 워크트리 `.docs/*/`, 하네스 `docs/<slug>/`는 목록에 없는 것만 덧붙인다. 루트/홈에 남은 레거시 평탄 파일은 언급만 하고 자동 이동하지 않는다. 막힘 발생 시 실패한 항목만 재시도하도록 다음 커맨드로 `/cursor-atomic-execute`를 안내한다.

@@ -6,22 +6,22 @@ cursor-atomic-workflow/
 ├── AGENTS.md                 # 공통 진입 지침 (모든 하네스가 읽음)
 ├── graph.yaml                # 노드·전환 조건·노드별 실행기
 ├── skills/                   # 원본 스킬 (Agent Skills 표준, 최소 frontmatter)
-│   ├── atomic-router/SKILL.md      # lite/full 판단
-│   ├── atomic-lite/SKILL.md
-│   ├── atomic-explore/SKILL.md
-│   ├── atomic-plan/SKILL.md
-│   ├── atomic-plan-review/SKILL.md
-│   ├── atomic-task/SKILL.md
-│   ├── atomic-execute/SKILL.md
-│   ├── atomic-review/SKILL.md
-│   └── atomic-wrapup/SKILL.md
+│   ├── cursor-atomic-workflow/SKILL.md   # lite/full 판단
+│   ├── cursor-atomic-lite/SKILL.md
+│   ├── cursor-atomic-explore/SKILL.md
+│   ├── cursor-atomic-plan/SKILL.md
+│   ├── cursor-atomic-plan-review/SKILL.md
+│   ├── cursor-atomic-task/SKILL.md
+│   ├── cursor-atomic-execute/SKILL.md
+│   ├── cursor-atomic-review/SKILL.md
+│   └── cursor-atomic-wrapup/SKILL.md
 ├── commands/                 # 얇은 커맨드 원본: "스킬 X 로드 → $ARGUMENTS"
-│   └── atomic-*.md
+│   └── cursor-atomic-*.md
 ├── agents/                   # 역할 정의 (explorer, planner, executor, reviewer, tester …)
 │   └── *.md                  # frontmatter: name, description, role, model_hint
 ├── scripts/                  # 엔진 (Node 20+, 하네스 무관)
 │   ├── work-status.mjs  run-done.mjs  memory.mjs
-│   ├── run-pipeline.mjs invoke-worker.mjs
+│   ├── run-pipeline.mjs invoke-worker.sh invoke-worker.ps1
 │   ├── install.mjs           # --harness auto|cursor|opencode|codex|pi|agy|claude|all
 │   └── doctor.mjs            # 설치 검증
 └── tests/
@@ -35,11 +35,11 @@ target-repo/
 ├── .atomic/                          # 공통 런타임
 │   ├── scripts/*.mjs  graph.yaml  config.json
 │   └── state.json  memory/  docs/    # 실행 중 생성
-├── .agents/skills/atomic-*/SKILL.md  # ★ Cursor·opencode·Codex·Pi·AGY 공통
+├── .agents/skills/cursor-atomic-*/SKILL.md  # ★ Cursor·opencode·Codex·Pi·AGY 공통
 ├── .cursor/agents/*.md               # (cursor) 서브에이전트
-├── .opencode/commands/atomic-*.md    # (opencode) 커맨드
+├── .opencode/commands/cursor-atomic-*.md    # (opencode) 커맨드
 ├── .opencode/agents/*.md             # (opencode) 서브에이전트
-├── .pi/prompts/atomic-*.md           # (pi) 커맨드
+├── .pi/prompts/cursor-atomic-*.md           # (pi) 커맨드
 └── .claude/skills|commands|agents/   # (claude) 복사본
 ```
 
@@ -48,7 +48,7 @@ target-repo/
 |---|---|---|---|---|---|---|
 | `AGENTS.md` | 그대로 | 그대로 | 그대로 | 그대로 | 그대로 | `CLAUDE.md`에 `@AGENTS.md` |
 | `skills/*` | `.agents/skills/` | `.agents/skills/` | `.agents/skills/` | `.agents/skills/` (trust) | `.agents/skills/` | `.claude/skills/` |
-| `commands/*` | 불필요 (스킬=/명령) | `.opencode/commands/` | 불필요 (`$atomic-plan`) | `.pi/prompts/` | 불필요 (스킬=/명령) | `.claude/commands/` |
+| `commands/*` | 불필요 (스킬=/명령) | `.opencode/commands/` | 불필요 (`$cursor-atomic-plan`) | `.pi/prompts/` | 불필요 (스킬=/명령) | `.claude/commands/` |
 | `agents/*` | `.cursor/agents/` (model 매핑) | `.opencode/agents/` (mode: subagent) | 생략 → 순차 실행 / invoke-worker (미검증) | 생략 → 순차 실행 | 생략 또는 플러그인 (미검증) | `.claude/agents/` |
 | `scripts/*.mjs`, `graph.yaml` | `.atomic/` | `.atomic/` | `.atomic/` | `.atomic/` | `.atomic/` | `.atomic/` |
 | router | `AGENTS.md` 섹션 (+ 선택 `.cursor/rules/atomic-router.mdc`) | AGENTS.md | AGENTS.md | AGENTS.md | AGENTS.md | AGENTS.md |

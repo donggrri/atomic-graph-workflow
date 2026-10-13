@@ -7,7 +7,7 @@ description: "cursor-atomic-workflow 설정(작업 홈, 에이전트 모델)을 
 
 입력: `show`, `home`, `home <경로>`, 또는 `<agent> <model>`. 비어 있으면 `show`.
 
-`scripts/work-status.mjs`의 `getWorkflowRoot`와 `.cursor/agents/*.md` frontmatter를 따른다. 서브에이전트를 띄우는 법은 `cursor-atomic-workflow`의 `references/harness.md`를 따른다.
+`.atomic/scripts/work-status.mjs`의 `getWorkflowRoot`와 `.cursor/agents/*.md` frontmatter를 따른다. 서브에이전트를 띄우는 법은 `cursor-atomic-workflow`의 `references/harness.md`를 따른다.
 
 ## 작업 홈
 

@@ -15,14 +15,16 @@
 `.agents/skills/` (Claude: `.claude/skills/`)에 있다. 호출 방법은 하네스마다 다르다: `/cursor-atomic-plan`, `$cursor-atomic-plan`, `/skill:cursor-atomic-plan`.
 - lite: `cursor-atomic-lite`
 - full: `cursor-atomic-explore → cursor-atomic-plan → … → cursor-atomic-wrapup`
-다음 단계는 직접 고르지 말고 `node .atomic/scripts/work-status.mjs next`로 확인한다.
+진행 상태는 `node .atomic/scripts/work-status.mjs list`로 보고, 슬러그 하나는 `show <slug>`, 문서·STATUS 갱신은 `sync <slug> [phase]`로 한다.
 
 ## 3. 엔진 (모든 노드의 시작과 끝, Node 20+)
 ```
-node .atomic/scripts/work-status.mjs next
+node .atomic/scripts/work-status.mjs list
+node .atomic/scripts/work-status.mjs show <slug>
+node .atomic/scripts/work-status.mjs sync <slug> [phase]
 node .atomic/scripts/memory.mjs repo .
 node .atomic/scripts/memory.mjs context <shortRepo>   # 위 repo 출력값
-node .atomic/scripts/run-done.mjs --node <id> --result pass|fail [--note "..."]
+node .atomic/scripts/run-done.mjs "<done-command>" [logPath]
 node .atomic/scripts/memory.mjs propose --auto /tmp/memory-<slug>.json
 ```
 - 메모리 볼트는 `CURSOR_ATOMIC_WORKFLOW_HOME`(없으면 `~/.cursor-atomic-workflow`) 아래 `memory/`다. `propose` JSON은 `shortRepo`, `slug`, `items[]`(`target`: `human.md` | `projects|decisions|gotchas/<name>.md`, `text`: 한 줄·200자 이하) 형식이어야 한다. 승인 대기만 넣을 때는 `propose <file.json>`(without `--auto`); `list` | `approve <id>` | `reject <id>`도 지원한다.
@@ -31,7 +33,7 @@ node .atomic/scripts/memory.mjs propose --auto /tmp/memory-<slug>.json
 
 ## 4. 역할과 실행기
 - 역할 정의는 `.atomic/agents/*.md`. 서브에이전트를 지원하는 하네스는 설치된 서브에이전트를 쓴다.
-- 외부 CLI 위임은 `node .atomic/scripts/invoke-worker.sh`(또는 `.ps1`)를 따른다.
+- 외부 CLI 위임은 `bash .atomic/scripts/invoke-worker.sh ...` 또는 `pwsh -File .atomic/scripts/invoke-worker.ps1 ...`를 따른다.
 
 ## 5. 완료 기준
 테스트를 실행해 PLAN의 done criteria와 대조한다. `node .atomic/scripts/doctor.mjs --harness auto --target .`가 실패하면 설치부터 고친다.

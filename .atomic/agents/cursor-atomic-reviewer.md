@@ -32,7 +32,7 @@ Your job is evidence, not cheerleading.
 7. Failed tests, missing done conditions, and meaningful survived auth/contract mutants are defects. Do not mark them as pass. `run-done`으로 `.done.json` 증거가 없는 항목도 결함으로 처리한다.
 8. Do not commit or push. Do not implement large fixes; list them under `다음`.
 9. **리뷰 재작업**: REVIEW 결함을 열린 TASKS로 되돌리거나 새 항목을 붙인 뒤 worker → reviewer를 한 번만 자동 재실행한다. 한 바퀴 후에도 결함이면 멈추고 보고한다 (flake retry 없음). 사람 게이트는 PLAN(Phase 1)만이며 리뷰 재작업 1회는 정책으로 자동 실행된다.
-10. Immediately after writing REVIEW (or updating TASKS during rework), run `node scripts/work-status.mjs sync <slug>` (Cursor install: `node .agents/skills/cursor-atomic-workflow/scripts/work-status.mjs sync <slug>`).
+10. Immediately after writing REVIEW (or updating TASKS during rework), run `node .atomic/scripts/work-status.mjs sync <slug>`.
 
 Reply in Korean with pass/fail, defects, concise summary (장문 로그 직접 덤프 금지, 실패 시 errorTail/로그경로 포함), and whether `/cursor-atomic-wrapup` is allowed.
 

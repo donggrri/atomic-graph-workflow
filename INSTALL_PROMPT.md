@@ -30,7 +30,7 @@
 
 4. 검증
    - `node .atomic/scripts/doctor.mjs --harness <하네스> --target .` 실행. 실패 항목은 고치고 다시 실행해서 통과할 때까지.
-   - `node .atomic/scripts/work-status.mjs next`가 오류 없이 출력되는지 확인.
+   - `node .atomic/scripts/work-status.mjs list`가 오류 없이 출력되는지 확인.
    - 네 하네스에서 스킬 목록에 `cursor-atomic-lite`, `cursor-atomic-plan`이 보이는지 확인.
 
 5. 보고

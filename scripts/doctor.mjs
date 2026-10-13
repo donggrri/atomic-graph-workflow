@@ -25,12 +25,13 @@ export const WORKFLOW_SKILL = "cursor-atomic-workflow";
 const PACKAGE_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const SOURCE_SKILLS_DIR = "skills";
 
-function parseDoctorArgs(argv) {
-  const opts = { cwd: process.cwd(), harness: null, json: false, fix: false };
+export function parseDoctorArgs(argv) {
+  const opts = { cwd: process.cwd(), harness: null, json: false, fix: false, withClaude: false };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === "--json") opts.json = true;
     else if (a === "--fix") opts.fix = true;
+    else if (a === "--with-claude") opts.withClaude = true;
     else if (a === "--target" && argv[i + 1]) opts.cwd = resolve(argv[++i]);
     else if (a === "--harness" && argv[i + 1]) opts.harness = argv[++i];
     else if (a === "--help" || a === "-h") opts.help = true;
@@ -104,6 +105,19 @@ export async function checkSingleHarness(harness, cwd, root = PACKAGE_ROOT) {
     problems.push("missing .atomic/graph.yaml");
   }
 
+  const agentsMd = join(cwd, "AGENTS.md");
+  if (!existsSync(agentsMd)) {
+    problems.push("missing AGENTS.md");
+  } else {
+    const agentsText = await readFile(agentsMd, "utf8");
+    if (
+      !agentsText.includes("<!-- atomic:begin -->") ||
+      !agentsText.includes("<!-- atomic:end -->")
+    ) {
+      problems.push("AGENTS.md missing atomic marker block");
+    }
+  }
+
   const agentsAtomic = join(cwd, ".atomic", "agents");
   const expectedAgentStems = roleNames().map((role) => agentFileName(role).replace(/\.md$/, ""));
   const atomicAgents = await countMarkdown(agentsAtomic, expectedAgentStems);
@@ -157,6 +171,10 @@ export async function checkSingleHarness(harness, cwd, root = PACKAGE_ROOT) {
   if (harness === "claude") {
     const clSkills = join(cwd, ".claude", "skills", WORKFLOW_SKILL, "SKILL.md");
     if (!existsSync(clSkills)) problems.push("missing .claude/skills/ copy");
+    for (const name of commandNames) {
+      const cmd = join(cwd, ".claude", "commands", `${name}.md`);
+      if (!existsSync(cmd)) problems.push(`missing .claude/commands/${name}.md`);
+    }
     const clAgents = await countMarkdown(join(cwd, ".claude", "agents"), expectedAgentStems);
     for (const m of clAgents.missing) problems.push(`missing .claude/agents/${m}.md`);
     const claudeMd = join(cwd, "CLAUDE.md");
@@ -385,7 +403,9 @@ export async function runDoctor(options = {}) {
 if (process.argv[1] && process.argv[1].endsWith("doctor.mjs")) {
   const opts = parseDoctorArgs(process.argv.slice(2));
   if (opts.help) {
-    console.log("Usage: node scripts/doctor.mjs [--target <dir>] [--harness <list>] [--json] [--fix]");
+    console.log(
+      "Usage: node scripts/doctor.mjs [--target <dir>] [--harness <list>] [--with-claude] [--json] [--fix]",
+    );
     process.exit(0);
   }
 
@@ -393,6 +413,7 @@ if (process.argv[1] && process.argv[1].endsWith("doctor.mjs")) {
     cwd: opts.cwd,
     harness: opts.harness,
     fix: opts.fix,
+    withClaude: opts.withClaude,
   })
     .then((res) => {
       if (opts.json) {

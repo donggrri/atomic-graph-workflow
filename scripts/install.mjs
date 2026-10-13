@@ -50,9 +50,7 @@ export function parseInstallArgs(args) {
     else if (a === "--force") opts.force = true;
     else if (a === "--migrate") opts.migrate = true;
     else if (a === "--with-claude") opts.withClaude = true;
-    else if (a === "--skills-dir" && args[i + 1]) {
-      opts.skillsDir = args[++i];
-    } else if (a === "--set-model" && args[i + 1]) {
+    else if (a === "--set-model" && args[i + 1]) {
       const pair = args[++i];
       const eq = pair.indexOf("=");
       if (eq === -1) throw new Error(`--set-model 형식은 <agent>=<model> (입력: ${pair})`);

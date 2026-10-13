@@ -11,6 +11,6 @@ description: "cursor-atomic-workflow Phase 2. PLAN을 TASKS로 쪼갠 뒤 기본
 
 슬러그 폴더에 `TASKS-<slug>.md`가 없고 같은 폴더에 PLAN이 있으면 `tasker` 서브에이전트를 백그라운드로 띄운다. 브리프 첫 줄에 `cursor-atomic-workflow`·`to-tickets` 경로를 적는다. PLAN도 없으면 Phase 1부터 기본 파이프라인. 산출물은 슬러그 폴더(`~/.cursor-atomic-workflow/docs/{shortRepo}/{slug}/`, 레거시 `.docs/<slug>/`, `docs/<slug>/`)의 `TASKS-<slug>.md`다. 이슈 트래커에 올리지 마라.
 
-TASKS 저장 직후 `node scripts/work-status.mjs sync <slug>`로 STATUS.json을 갱신한다.
+TASKS 저장 직후 `node .atomic/scripts/work-status.mjs sync <slug>`로 STATUS.json을 갱신한다.
 
 커밋하지 않는다. 한국어로 항목 수와 이어서 돌릴 워커를 보고한다.

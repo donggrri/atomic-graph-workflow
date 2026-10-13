@@ -40,7 +40,7 @@ description: "cursor-atomic-workflow Phase 1. grilling preflight 후 PLAN 작성
 3. refinement가 끝났으면 brief를 포함해 `planner` 서브에이전트를 백그라운드로 띄운다. 브리프 첫 줄에 번들된 `cursor-atomic-workflow`, `codebase-design`, `domain-modeling`, `grilling`, `wayfinder`의 경로를 적는다. 사용자가 완성된 PLAN을 제공한 경우에만 부모가 저장하고 planner를 건너뛴다.
 4. 막힌 질문(보안·범위·데이터 손실), `remaining fog`, 또는 입력에 「계획만」이 있으면 구현으로 넘어가지 않는다.
 5. 그 외에는 SKILL의 기본 파이프라인대로 `tasker` → frontier의 `worker` → `reviewer`를 백그라운드로 이어서 띄운다. 항목 `done`은 이 세션이 다시 실행한다.
-6. PLAN 저장 직후 `node scripts/work-status.mjs sync <slug>`로 STATUS.json을 갱신한다.
+6. PLAN 저장 직후 `node .atomic/scripts/work-status.mjs sync <slug>`로 STATUS.json을 갱신한다.
 7. 지정 모델이 실패하면 그 사실을 보고하고 멈춘다.
 
 커밋·푸시하지 않는다. 한국어로 요약한다.

@@ -23,7 +23,7 @@ Your only job is a bounded plan:
 7. Do not implement product code. Do not commit or push. Do not start Phase 2.
 
 All work writes to `~/.cursor-atomic-workflow/docs/{shortRepo}/{slug}/PLAN-<slug>.md` (legacy: `.docs/<slug>/`, `docs/<slug>/`). Never mix product root, skill folders, and home docs. Do not skip writing the PLAN for workflow meta-review.
-Immediately after writing, run `node scripts/work-status.mjs sync <slug>` (Cursor install: `node .agents/skills/cursor-atomic-workflow/scripts/work-status.mjs sync <slug>`).
+Immediately after writing, run `node .atomic/scripts/work-status.mjs sync <slug>`.
 
 Reply in Korean to the parent with the slug, plan path, blocked questions, and that the parent should continue the auto pipeline unless questions are blocked.
 
