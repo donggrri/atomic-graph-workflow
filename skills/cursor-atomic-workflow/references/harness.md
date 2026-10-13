@@ -90,6 +90,28 @@ cost-gate 통과 후 tasker 전에 러너가 `plan-reviewer`를 띄운다. Task 
 
 (개발 중 이 워크플로 패키지 자체에서는 루트 `scripts/<파일>`도 동일 내용이다. `node scripts/sync-bundled.mjs`로 `.atomic/scripts/`와 맞춘다.)
 
+### memory.mjs (승인형 볼트)
+
+볼트 루트는 `CURSOR_ATOMIC_WORKFLOW_HOME`(없으면 `~/.cursor-atomic-workflow`)이다. 메모리 파일은 `<볼트>/memory/` 아래에 있다.
+
+1. `node .atomic/scripts/memory.mjs repo <repoPath>` — `shortRepo` 식별자 출력 (보통 프로젝트 루트 `.`).
+2. `node .atomic/scripts/memory.mjs context <shortRepo>` — 승인된 항목을 `<memory>` 블록으로 출력(없으면 `(주입할 메모리 없음)`).
+3. 작업 종료 시 JSON 파일을 만들고 `node .atomic/scripts/memory.mjs propose --auto <file.json>` — 검증 통과 항목을 바로 저장한다.
+
+`propose` JSON 형식 (`memory.mjs`가 검증):
+
+```json
+{
+  "shortRepo": "<repo 명령 출력>",
+  "slug": "<작업 슬러그>",
+  "items": [
+    { "target": "projects/<shortRepo>.md", "text": "한 줄, 200자 이하, 비밀 없음" }
+  ]
+}
+```
+
+`target`은 `human.md` 또는 `projects|decisions|gotchas/<name>.md`(`name`은 소문자·숫자·`_`·`-`, 최대 48자). 승인 대기만 큐에 넣을 때는 `propose <file.json>`(`--auto` 없음). `list`, `approve <id>`, `reject <id>`도 지원한다.
+
 ## 하네스 전용 도구
 
 - Cursor: `rename_chat`, `move_agent_to_root`. 파이프라인 밖에서만 쓰지 말고, 워크트리를 만들었으면 즉시 `move_agent_to_root`로 옮긴다.

@@ -20,11 +20,13 @@
 ## 3. 엔진 (모든 노드의 시작과 끝, Node 20+)
 ```
 node .atomic/scripts/work-status.mjs next          # 현재 노드·입력 파일·실행기
-node .atomic/scripts/memory.mjs context            # 관련 메모리 읽기
+node .atomic/scripts/memory.mjs repo .
+node .atomic/scripts/memory.mjs context <shortRepo> # repo 출력값으로 관련 메모리 읽기
 ...노드 작업...
 node .atomic/scripts/run-done.mjs --node <id> --result pass|fail [--note "..."]
-node .atomic/scripts/memory.mjs add --kind decision|learning "..."
+node .atomic/scripts/memory.mjs propose --auto /tmp/memory-<slug>.json
 ```
+- 메모리 볼트: `CURSOR_ATOMIC_WORKFLOW_HOME` 아래 `memory/`. `propose` JSON은 `shortRepo`, `slug`, `items[]`(`target`, 한 줄 `text`) 형식. `list` | `approve` | `reject` 지원.
 - 상태는 `.atomic/state.json`, 문서는 `.atomic/docs/`(또는 `CURSOR_ATOMIC_WORKFLOW_HOME`)에 기록한다. 이 파일들을 손으로 고치지 않는다.
 - `node`가 없으면 작업을 멈추고 사용자에게 알린다.
 

@@ -96,7 +96,7 @@ node scripts/sync-bundled.mjs --check   # maintainer: scripts/ vs .atomic/script
 | Session | One parent session, **no subagents** | Explore → plan-review → task → worker → reviewer → tester (Task subagents or SDK runner) |
 | Best for | Small, bounded changes (typically **&lt;5 files**), no schema/auth/security work | Multi-file refactors, DB migrations, security, large plans, parallel workers |
 | Artifacts | Short `PLAN-<slug>.md` only (same global docs home) | `EXPLORE`, `PLAN`, `PLAN-REVIEW`, `TASKS`, `REVIEW`, evidence |
-| Memory | Read `memory.mjs context` at start; `propose --auto` at end | Same vault; optional `memory-curator` / pipeline capture |
+| Memory | `memory.mjs repo .` then `context <shortRepo>` at start; `propose --auto <file.json>` at end | Same vault; optional `memory-curator` / pipeline capture |
 | Finish | Run tests vs plan done criteria; short summary | `/cursor-atomic-wrapup` for commit + STATUS |
 
 If lite hits **5+ files**, **DB/schema**, **auth/security**, or the plan outgrows a short list, stop and switch to `/cursor-atomic-plan` or `/cursor-atomic-run`.

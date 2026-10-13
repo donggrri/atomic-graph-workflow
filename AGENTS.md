@@ -20,10 +20,12 @@
 ## 3. 엔진 (모든 노드의 시작과 끝, Node 20+)
 ```
 node .atomic/scripts/work-status.mjs next
-node .atomic/scripts/memory.mjs context
+node .atomic/scripts/memory.mjs repo .
+node .atomic/scripts/memory.mjs context <shortRepo>   # 위 repo 출력값
 node .atomic/scripts/run-done.mjs --node <id> --result pass|fail [--note "..."]
-node .atomic/scripts/memory.mjs add --kind decision|learning "..."
+node .atomic/scripts/memory.mjs propose --auto /tmp/memory-<slug>.json
 ```
+- 메모리 볼트는 `CURSOR_ATOMIC_WORKFLOW_HOME`(없으면 `~/.cursor-atomic-workflow`) 아래 `memory/`다. `propose` JSON은 `shortRepo`, `slug`, `items[]`(`target`: `human.md` | `projects|decisions|gotchas/<name>.md`, `text`: 한 줄·200자 이하) 형식이어야 한다. 승인 대기만 넣을 때는 `propose <file.json>`(without `--auto`); `list` | `approve <id>` | `reject <id>`도 지원한다.
 - 상태는 `.atomic/state.json`, 문서는 `.atomic/docs/`(또는 `CURSOR_ATOMIC_WORKFLOW_HOME`)에 기록한다.
 - `node`가 없으면 작업을 멈추고 사용자에게 알린다.
 

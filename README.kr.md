@@ -96,7 +96,7 @@ node scripts/sync-bundled.mjs --check
 | 세션 | 부모 한 세션, **서브에이전트 없음** | explore → plan-review → task → worker → reviewer → tester (Task 또는 SDK 러너) |
 | 적합 | 작고 범위가 분명한 변경(보통 **파일 5개 미만**), 스키마·인증·보안 작업 없음 | 다파일 리팩터, DB 마이그레이션, 보안, 큰 계획, 병렬 워커 |
 | 산출물 | 짧은 `PLAN-<slug>.md`만 (동일 전역 docs 홈) | EXPLORE, PLAN, PLAN-REVIEW, TASKS, REVIEW, evidence |
-| 메모리 | 시작 시 `memory.mjs context`, 끝에 `propose --auto` | 같은 볼트; `memory-curator`·파이프라인 캡처 선택 |
+| 메모리 | 시작 시 `memory.mjs repo .` → `context <shortRepo>`, 끝에 `propose --auto <file.json>` | 같은 볼트; `memory-curator`·파이프라인 캡처 선택 |
 | 마무리 | PLAN 완료 기준 대비 테스트·짧은 요약 | `/cursor-atomic-wrapup`으로 커밋 + STATUS |
 
 lite에서 **파일 5개 이상**, **DB/스키마**, **인증·보안**, 계획이 짧은 목록을 넘어가면 멈추고 `/cursor-atomic-plan` 또는 `/cursor-atomic-run`으로 전환한다.
@@ -207,18 +207,18 @@ node scripts/run-pipeline.mjs <slug> [--auto] [--resume] [--adapter sdk|task-car
 
 ## 8. 패키지 유지보수
 
-스킬과 에이전트 파일은 그 자리에서 고친다. 워크플로 스크립트 `scripts/work-status.mjs`, `scripts/run-done.mjs`, `scripts/memory.mjs`는 `node scripts/sync-bundled.mjs`가 `.cursor/skills/cursor-atomic-workflow/scripts/`로 복사한다.
+스킬과 에이전트 파일은 `skills/`, `agents/`에서 고친다. 워크플로 스크립트 `scripts/work-status.mjs`, `scripts/run-done.mjs`, `scripts/memory.mjs`는 `node scripts/sync-bundled.mjs`가 `.atomic/scripts/`로 복사한다.
 
 | 바꿀 것 | 고칠 파일 |
 |---|---|
-| 커맨드 동작 | `.cursor/skills/cursor-atomic-<이름>/SKILL.md` |
-| 에이전트 역할 / 단계 모델 | `.cursor/agents/<에이전트>.md` (+ `scripts/lib/roles.mjs`) |
-| 하네스 차이 | `.cursor/skills/cursor-atomic-workflow/references/harness.md` |
+| 커맨드 동작 | `skills/cursor-atomic-<이름>/SKILL.md` |
+| 에이전트 역할 / 단계 모델 | `agents/<에이전트>.md` (+ `scripts/lib/roles.mjs`) |
+| 하네스 차이 | `skills/cursor-atomic-workflow/references/harness.md` |
 | 워크플로 스크립트 | `scripts/work-status.mjs`, `scripts/run-done.mjs`, `scripts/memory.mjs`를 고친 뒤 `node scripts/sync-bundled.mjs` |
 
 ```bash
 npm test                              # 구조·에이전트·산출물 경로·번들 스크립트 동기화 테스트
-node scripts/sync-bundled.mjs --check # 스킬 복사본이 어긋나면 실패
+node scripts/sync-bundled.mjs --check # .atomic/scripts/ 복사본이 어긋나면 실패
 node scripts/doctor.mjs               # 충돌, YAML frontmatter, 동기화·설치 상태 점검
 ```
 
@@ -236,7 +236,7 @@ node scripts/doctor.mjs               # 충돌, YAML frontmatter, 동기화·설
 
 - `npm test` (`node --test tests/*.test.mjs`)
 - `node scripts/check-agents.mjs` (에이전트 frontmatter `model`이 `scripts/lib/roles.mjs`와 일치하는지)
-- `node scripts/sync-bundled.mjs --check` (`work-status.mjs`, `run-done.mjs`, `memory.mjs` 스킬 복사본이 `scripts/`와 같은지)
+- `node scripts/sync-bundled.mjs --check` (`work-status.mjs`, `run-done.mjs`, `memory.mjs`가 `scripts/`와 `.atomic/scripts/`에서 같은지)
 - 저장소 로컬 doctor 검사: `node scripts/doctor.mjs --json`. 번들 스크립트가 어긋나거나 이 저장소 안의 `SKILL.md` description에 YAML 위험이 있으면 실패한다.
 
 CI에서 실행하지 않는 것:
