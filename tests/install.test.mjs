@@ -193,3 +193,16 @@ test("claude harness is optional and requires explicit harness", async () => {
     await rm(target, { recursive: true, force: true });
   }
 });
+
+test("installed .atomic/scripts/doctor.mjs runs standalone in target", async () => {
+  const { execFileSync } = await import("node:child_process");
+  for (const harness of ["cursor", "opencode", "agy", "codex", "pi", "claude"]) {
+    const dir = await mkdtemp(join(tmpdir(), `atomic-standalone-${harness}-`));
+    try {
+      await install({ target: dir, harness, force: true, quiet: true });
+      execFileSync(process.execPath, [join(dir, ".atomic", "scripts", "doctor.mjs"), "--harness", harness, "--target", "."], { cwd: dir, stdio: "pipe" });
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  }
+});

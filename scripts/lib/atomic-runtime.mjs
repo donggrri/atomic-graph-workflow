@@ -4,8 +4,6 @@ import { join, relative } from "node:path";
 
 /** Dev-only scripts at package root; not copied to target `.atomic/scripts/`. */
 export const PACKAGE_ONLY_SCRIPTS = new Set([
-  "install.mjs",
-  "sync-bundled.mjs",
   "check-agents.mjs",
 ]);
 
