@@ -37,8 +37,43 @@ export function buildWindowsInvokeWorkerArgv(params) {
     "-TimeoutMin",
     String(params.timeoutMin),
   ];
-  if (params.model) {
+  if (params.model && params.worker === "agy") {
     argv.push("-Model", params.model);
+  } else if (params.model && params.worker === "opencode") {
+    argv.push("-OpenCodeModel", params.model);
+  }
+  return argv;
+}
+
+/**
+ * invoke-worker.sh argument builder (POSIX shells).
+ * @param {{
+ *   worker: string,
+ *   repoRoot: string,
+ *   promptFile: string,
+ *   logFile: string,
+ *   timeoutMin: number,
+ *   model?: string,
+ * }} params
+ * @returns {string[]}
+ */
+export function buildInvokeWorkerArgv(params) {
+  const argv = [
+    "--worker",
+    params.worker,
+    "--workspace",
+    params.repoRoot,
+    "--prompt-file",
+    params.promptFile,
+    "--log-file",
+    params.logFile,
+    "--timeout-min",
+    String(params.timeoutMin),
+  ];
+  if (params.model && params.worker === "agy") {
+    argv.push("--model", params.model);
+  } else if (params.model && params.worker === "opencode") {
+    argv.push("--opencode-model", params.model);
   }
   return argv;
 }
@@ -90,21 +125,14 @@ export async function runWorkerExecutor(params) {
   const timeoutMin = params.timeoutMin ?? 45;
   const timeoutMs = timeoutMin * 60 * 1000;
 
-  const baseArgs = [
-    "--worker",
+  const baseArgs = buildInvokeWorkerArgv({
     worker,
-    "--workspace",
-    params.repoRoot,
-    "--prompt-file",
+    repoRoot: params.repoRoot,
     promptFile,
-    "--log-file",
     logFile,
-    "--timeout-min",
-    String(timeoutMin),
-  ];
-  if (params.model && worker === "agy") {
-    baseArgs.push("--model", params.model);
-  }
+    timeoutMin,
+    model: params.model,
+  });
 
   let child;
   if (isWin) {
@@ -114,7 +142,7 @@ export async function runWorkerExecutor(params) {
       promptFile,
       logFile,
       timeoutMin,
-      model: params.model && worker === "agy" ? params.model : undefined,
+      model: params.model,
     });
     child = spawnCli(firstExecutable(["powershell", "pwsh"]) ?? "powershell", psArgv, {
       cwd: params.repoRoot,

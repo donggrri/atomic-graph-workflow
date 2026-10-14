@@ -102,6 +102,8 @@ bash "<worktree>/.atomic/scripts/invoke-worker.sh" \
 
 `agy`의 `--print-timeout`은 `45m0s`처럼 단위가 있는 duration이다. `invoke-worker`가 `--timeout-min`(기본 45)을 `Nm0s`로 넣는다. 모델은 `--model` 또는 env `CURSOR_ATOMIC_AGY_MODEL`(별칭은 `scripts/resolve-agy-model.mjs`).
 
+`opencode` 워커 모델은 `--opencode-model <provider/model>` 또는 env `CURSOR_ATOMIC_OPENCODE_MODEL`이다. 값은 그대로 `opencode run -m`으로 전달하고 agy 별칭 resolver를 타지 않는다.
+
 ### PowerShell (Windows)
 
 - `.atomic/scripts/ensure-workers.ps1` — 없으면 설치
@@ -113,7 +115,7 @@ bash "<worktree>/.atomic/scripts/invoke-worker.sh" \
 | `codex` | `codex exec` | stdin + `--sandbox workspace-write` + `approval_policy=never` |
 | `claude` | `claude` | `-p --dangerously-skip-permissions` |
 | `cursor` | `cursor-agent` | `-p --force --trust --workspace` (v1 TASKS roster 밖) |
-| `opencode` | `opencode run` | `--dir --auto` |
+| `opencode` | `opencode run` | `--dir --auto` (+ `-m` with `--opencode-model`) |
 | `self` | (없음) | 현재 에이전트가 구현 |
 
 `agy`를 인자 없이 실행하지 않는다. TUI가 떠서 멈춘다.
