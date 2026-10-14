@@ -2,7 +2,7 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { runGraphStage } from "./lib/stage-run.mjs";
-import { GRAPH_STAGE_IDS } from "./lib/graph.mjs";
+import { GRAPH_STAGE_IDS, loadGraph } from "./lib/graph.mjs";
 
 function usage() {
   console.error(`Usage: node scripts/run-stage.mjs <stage> --repo <dir> [--slug <slug>] [--prompt <text> | --prompt-file <path>]
@@ -37,7 +37,18 @@ async function main(argv) {
     return 2;
   }
 
-  const result = await runGraphStage({ repoRoot: repo, stage, slug, prompt });
+  const graph = loadGraph(repo);
+  for (const w of graph.warnings ?? []) {
+    console.error(`warning: ${w}`);
+  }
+
+  const result = await runGraphStage({
+    repoRoot: repo,
+    stage,
+    slug,
+    prompt,
+    log: (line) => console.error(String(line)),
+  });
   if (!result.ok) {
     console.error(result.message ?? "stage run failed");
     return 1;

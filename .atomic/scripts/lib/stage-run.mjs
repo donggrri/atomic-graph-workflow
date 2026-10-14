@@ -48,7 +48,10 @@ export async function runGraphStage(options) {
 
   const graph = loadGraph(repoRoot);
   const loaded = loadWorkflowSettings({ repoRoot });
-  const settings = applyEffectiveExecutorSettings(loaded.ok ? loaded : { executors: {} });
+  if (!loaded.ok) {
+    return { ok: false, kind: "run", message: loaded.reason ?? "invalid workflow settings" };
+  }
+  const settings = applyEffectiveExecutorSettings(loaded);
 
   const runner = createCompositeRoleRunner({
     adapter: options.adapter ?? null,
@@ -58,6 +61,7 @@ export async function runGraphStage(options) {
     graph,
     settings,
     log: options.log ?? (() => {}),
+    crossExecutorStartupFallback: true,
   });
 
   if (stage === "lite") {

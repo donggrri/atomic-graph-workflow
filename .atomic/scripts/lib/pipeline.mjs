@@ -330,6 +330,7 @@ export async function runPipeline(opts) {
   }
   const agyDefaults = workflowSettings.agy;
   roleRunner = createCompositeRoleRunner({
+    crossExecutorStartupFallback: false,
     adapter,
     repoRoot,
     slug,

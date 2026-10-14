@@ -1,15 +1,12 @@
 #!/usr/bin/env node
 import { existsSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
-import { writeProjectSettings } from "./lib/project-settings.mjs";
+import { writeProjectSettings, readProjectSettings } from "./lib/project-settings.mjs";
 import { confirm, isInteractiveTTY, select, text } from "./lib/prompt.mjs";
 import { runDoctor } from "./doctor.mjs";
 import { ensureCommandTrusted } from "./lib/command-trust.mjs";
 import { collectExecutorChoices } from "./lib/project-setup-executors.mjs";
 import { parseExecutorTimeouts } from "./lib/workflow-settings.mjs";
-
-const here = fileURLToPath(new URL(".", import.meta.url));
 
 /**
  * @param {string} repoRoot
@@ -36,15 +33,27 @@ export function detectTestDoneCommand(repoRoot) {
 export async function runProjectSetup(repoRoot, options = {}) {
   const root = resolve(repoRoot);
   const interactive = options.interactive ?? isInteractiveTTY();
+  const existing = readProjectSettings(root);
 
   /** @type {Record<string, unknown>} */
   const patch = {};
 
   const agyStages = ["plan", "implement", "review"];
+  const priorAgy =
+    existing.agy && typeof existing.agy === "object" && !Array.isArray(existing.agy)
+      ? existing.agy
+      : {};
+  /** @type {Record<string, string>} */
   const agy = {};
   for (const stage of agyStages) {
     const label =
       stage === "plan" ? "계획" : stage === "implement" ? "구현" : "리뷰";
+    const def =
+      typeof priorAgy[stage] === "string"
+        ? priorAgy[stage]
+        : stage === "plan"
+          ? "sdk"
+          : "ask";
     const value = interactive
       ? await select(
           `${label} 단계 AGY 정책`,
@@ -53,37 +62,67 @@ export async function runProjectSetup(repoRoot, options = {}) {
             { value: "sdk", label: "Cursor SDK (sdk)" },
             { value: "agy", label: "AGY 위임 (agy) — 무승인 실행 주의" },
           ],
-          stage === "plan" ? "sdk" : "ask",
+          def,
         )
-      : stage === "plan"
-        ? "sdk"
-        : "ask";
-    agy[stage] = value;
+      : def;
+    if (!interactive && priorAgy[stage]) {
+      agy[stage] = priorAgy[stage];
+    } else {
+      agy[stage] = value;
+    }
   }
-  patch.agy = agy;
+  if (interactive || Object.keys(agy).some((k) => agy[k] !== priorAgy[k])) {
+    patch.agy = { ...priorAgy, ...agy };
+  }
 
   const detectedTest = detectTestDoneCommand(root);
+  const priorTest =
+    typeof existing.testDone === "string" && existing.testDone.trim()
+      ? existing.testDone.trim()
+      : detectedTest;
   const testDone = interactive
-    ? await text(`작업 완료 확인 명령 (test.done)`, detectedTest)
-    : detectedTest;
-  patch.testDone = testDone;
+    ? await text(`작업 완료 확인 명령 (test.done)`, priorTest)
+    : priorTest;
+  if (!interactive && existing.testDone) {
+    // keep existing
+  } else {
+    patch.testDone = testDone;
+  }
 
+  const priorModel =
+    typeof existing.agyModel === "string" ? existing.agyModel : "";
   const agyModel = interactive
-    ? await text("AGY 모델 (비우면 agy 기본)", "")
-    : "";
-  if (agyModel.trim()) patch.agyModel = agyModel.trim();
+    ? await text("AGY 모델 (비우면 agy 기본)", priorModel)
+    : priorModel;
+  if (agyModel.trim() && agyModel.trim() !== priorModel.trim()) {
+    patch.agyModel = agyModel.trim();
+  } else if (interactive && !agyModel.trim() && priorModel) {
+    patch.agyModel = priorModel;
+  }
 
-  patch.profile = "atomic";
+  if (!existing.profile) patch.profile = "atomic";
 
   const configureExecutors = interactive
     ? (await confirm("단계별 executor를 지금 설정할까요? (고급)", { default: false }))
     : false;
   if (configureExecutors) {
-    patch.executors = await collectExecutorChoices(true);
+    const collected = await collectExecutorChoices(
+      true,
+      existing.executors && typeof existing.executors === "object" ? existing.executors : {},
+    );
+    patch.executors = collected.executors;
+    if (Object.keys(collected.trustedExecutors).length > 0) {
+      patch.trustedExecutors = {
+        ...(existing.trustedExecutors && typeof existing.trustedExecutors === "object"
+          ? existing.trustedExecutors
+          : {}),
+        ...collected.trustedExecutors,
+      };
+    }
     if (interactive) {
       const timeoutsJson = await text(
         `executorTimeouts (분, JSON — 예: {"memory":10,"execute":90}; 비우면 기본 45)`,
-        "",
+        existing.executorTimeouts ? JSON.stringify(existing.executorTimeouts) : "",
       );
       if (timeoutsJson.trim()) {
         let parsed;
@@ -119,7 +158,13 @@ export async function runProjectSetup(repoRoot, options = {}) {
   }
 
   writeProjectSettings(root, patch);
-  await ensureCommandTrusted(testDone, { nonInteractive: !interactive });
+  const trust = await ensureCommandTrusted(
+    typeof patch.testDone === "string" ? patch.testDone : priorTest,
+    { repoRoot: root, nonInteractive: !interactive },
+  );
+  if (!trust.ok) {
+    throw new Error(trust.reason);
+  }
 
   if (!options.skipDoctor) {
     const doctor = await runDoctor({ cwd: root, harness: "auto" });

@@ -36,19 +36,6 @@ async function listLegacySkillDirs(target) {
   return out;
 }
 
-async function backupPaths(paths, target) {
-  const stamp = new Date().toISOString().replace(/[:.]/g, "-");
-  const backupRoot = join(target, `.atomic-install-backup-${stamp}`);
-  await mkdir(backupRoot, { recursive: true });
-  for (const p of paths) {
-    const rel = p.startsWith(target) ? p.slice(target.length + 1) : p;
-    const dest = join(backupRoot, rel);
-    await mkdir(dirname(dest), { recursive: true });
-    await cp(p, dest, { recursive: true, force: true });
-  }
-  return backupRoot;
-}
-
 function printEnvCheck(clis) {
   const nodeOk = process.version.match(/^v(\d+)\.(\d+)/);
   const maj = nodeOk ? Number(nodeOk[1]) : 0;
@@ -132,22 +119,28 @@ async function runInteractiveInstall(opts) {
       default: false,
     });
   }
-  if (opts.migrate && legacy.length) {
-    const backup = await backupPaths(legacy, target);
-    console.log(`│  백업: ${backup}`);
-  }
-
   const advancedExecutors = await confirm("◆  (고급) 단계별 executor 기본값을 지금 설정할까요?", {
     default: false,
   });
+  let pendingProjectSettings = null;
   if (advancedExecutors) {
     const { collectExecutorChoices } = await import("./lib/project-setup-executors.mjs");
-    const { writeProjectSettings } = await import("./lib/project-settings.mjs");
-    writeProjectSettings(target, { executors: await collectExecutorChoices(true) });
+    const collected = await collectExecutorChoices(true);
+    pendingProjectSettings = {
+      executors: collected.executors,
+      ...(Object.keys(collected.trustedExecutors).length
+        ? { trustedExecutors: collected.trustedExecutors }
+        : {}),
+    };
   }
 
   const go = await confirm("◆  설치를 진행할까요?", { default: true });
   if (!go) throw new Error("설치를 취소했습니다.");
+
+  if (pendingProjectSettings) {
+    const { writeProjectSettings } = await import("./lib/project-settings.mjs");
+    writeProjectSettings(target, pendingProjectSettings);
+  }
 
   opts.harness = harnessList.join(",");
   opts.withClaude = withClaude;

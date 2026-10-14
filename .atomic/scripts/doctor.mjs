@@ -8,7 +8,7 @@ import { bundledScriptDiffs } from "./sync-bundled.mjs";
 import { findLegacyCursorCommands, AGENTS_SKILLS_DIR } from "./install.mjs";
 import { parseHarnessSpec, resolveHarnesses } from "./lib/harnesses.mjs";
 import { loadWorkflowSettings } from "./lib/workflow-settings.mjs";
-import { isExecutorAvailable } from "./lib/executors/availability.mjs";
+import { isExecutorAvailable, probeCursorSdkAvailable } from "./lib/executors/availability.mjs";
 import { loadGraph } from "./lib/graph.mjs";
 import { listRuntimeScriptRelPaths } from "./lib/atomic-runtime.mjs";
 
@@ -337,7 +337,8 @@ export function checkNodeVersion(version = process.version) {
 /**
  * @param {string} repoRoot
  */
-export function checkConfiguredExecutors(repoRoot) {
+export async function checkConfiguredExecutors(repoRoot) {
+  await probeCursorSdkAvailable();
   const settings = loadWorkflowSettings({ repoRoot });
   if (!settings.ok) {
     return { ok: false, problems: [settings.reason], warnings: [] };
@@ -356,7 +357,11 @@ export function checkConfiguredExecutors(repoRoot) {
       warnings.push(
         `executor ${stage}=pi: pi CLI not on PATH — install Pi agent CLI; runtime will fallback (see https://pi.dev/docs/latest/cli-integration)`,
       );
-    } else if (!isExecutorAvailable(exec) && exec !== "cursor-subagent" && exec !== "cursor-sdk") {
+    } else if (exec === "cursor-sdk" && !isExecutorAvailable("cursor-sdk")) {
+      warnings.push(
+        `executor ${stage}=cursor-sdk: @cursor/sdk import failed (install optionalDependency or use another executor)`,
+      );
+    } else if (!isExecutorAvailable(exec) && exec !== "cursor-subagent") {
       warnings.push(`executor ${stage}=${exec}: CLI not on PATH (pipeline will fallback at runtime)`);
     }
   }
@@ -448,7 +453,7 @@ export async function runDoctor(options = {}) {
     );
   }
 
-  results.executorCheck = checkConfiguredExecutors(cwd);
+  results.executorCheck = await checkConfiguredExecutors(cwd);
   if (results.executorCheck.warnings?.length) {
     for (const w of results.executorCheck.warnings) {
       results.problems.push(`[executor] ${w}`);

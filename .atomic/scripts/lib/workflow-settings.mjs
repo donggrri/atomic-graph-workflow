@@ -98,6 +98,26 @@ function parseExecutorsBlock(block, label) {
  * @param {unknown} block
  * @param {string} label
  */
+/**
+ * @param {unknown} block
+ * @param {string} label
+ */
+export function parseTrustedExecutors(block, label) {
+  if (block == null) return { ok: true, trustedExecutors: {} };
+  if (typeof block !== "object" || Array.isArray(block)) {
+    return { ok: false, reason: `${label}: trustedExecutors must be an object` };
+  }
+  /** @type {Record<string, boolean>} */
+  const trustedExecutors = {};
+  for (const [key, value] of Object.entries(block)) {
+    if (!EXECUTOR_IDS.includes(key)) {
+      return { ok: false, reason: `${label}: trustedExecutors.${key} is not a valid executor` };
+    }
+    trustedExecutors[key] = Boolean(value);
+  }
+  return { ok: true, trustedExecutors };
+}
+
 export function parseExecutorTimeouts(block, label) {
   if (block == null) return { ok: true, executorTimeouts: {} };
   if (typeof block !== "object" || Array.isArray(block)) {
@@ -153,11 +173,20 @@ export function loadWorkflowSettings(options) {
   const projectTimeouts = parseExecutorTimeouts(project.data.executorTimeouts, "project settings");
   if (!projectTimeouts.ok) return projectTimeouts;
 
+  const globalTrust = parseTrustedExecutors(global.data.trustedExecutors, "global settings");
+  if (!globalTrust.ok) return globalTrust;
+  const projectTrust = parseTrustedExecutors(project.data.trustedExecutors, "project settings");
+  if (!projectTrust.ok) return projectTrust;
+
   /** @type {Partial<Record<string, "ask"|"sdk"|"agy">>} */
   const agy = { ...globalAgy.choices, ...projectAgy.choices };
   const executors = { ...globalExec.executors, ...projectExec.executors };
   const executorModels = { ...globalExec.executorModels, ...projectExec.executorModels };
   const executorTimeouts = { ...globalTimeouts.executorTimeouts, ...projectTimeouts.executorTimeouts };
+  const trustedExecutors = {
+    ...globalTrust.trustedExecutors,
+    ...projectTrust.trustedExecutors,
+  };
 
   const agyModel =
     typeof project.data.agyModel === "string" && project.data.agyModel.trim()
@@ -171,7 +200,16 @@ export function loadWorkflowSettings(options) {
       ? project.data.testDone.trim()
       : null;
 
-  return { ok: true, agy, agyModel, testDone, executors, executorModels, executorTimeouts };
+  return {
+    ok: true,
+    agy,
+    agyModel,
+    testDone,
+    executors,
+    executorModels,
+    executorTimeouts,
+    trustedExecutors,
+  };
 }
 
 /**

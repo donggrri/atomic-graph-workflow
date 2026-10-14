@@ -267,7 +267,10 @@ export function discoverProfiles(options = {}) {
     join(packageRoot, "profiles"),
     join(workflowHome, "profiles"),
   ];
-  if (repoRoot) dirs.push(join(repoRoot, "profiles"));
+  if (repoRoot) {
+    dirs.push(join(repoRoot, ".atomic", "profiles"));
+    dirs.push(join(repoRoot, "profiles"));
+  }
 
   for (const dir of dirs) {
     for (const name of listJson(dir, fs)) {

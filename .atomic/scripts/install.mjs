@@ -49,12 +49,16 @@ export function parseInstallArgs(args) {
     dryRun: false,
     skipDoctor: false,
   };
+  let harnessExplicit = false;
   for (let i = 0; i < args.length; i++) {
     const a = args[i];
     if (a === "--help" || a === "-h") {
       opts.help = true;
     } else if (a === "--target" && args[i + 1]) opts.target = resolve(args[++i]);
-    else if (a === "--harness" && args[i + 1]) opts.harness = args[++i];
+    else if (a === "--harness" && args[i + 1]) {
+      opts.harness = args[++i];
+      harnessExplicit = true;
+    }
     else if (a === "--force") opts.force = true;
     else if (a === "--migrate") opts.migrate = true;
     else if (a === "--with-claude") opts.withClaude = true;
@@ -71,6 +75,17 @@ export function parseInstallArgs(args) {
     } else if (a.startsWith("-")) {
       throw new Error(`알 수 없는 옵션: ${a}`);
     }
+  }
+  if (opts.withClaude && harnessExplicit) {
+    const parts = parseHarnessSpec(opts.harness);
+    if (!parts.includes("auto") && !parts.includes("all") && !parts.includes("claude")) {
+      console.warn(
+        "warning: --with-claude has no effect when --harness lists explicit harnesses without claude",
+      );
+    }
+  }
+  if (Object.keys(opts.setModel).length > 0 && !opts.force) {
+    console.warn("warning: --set-model without --force may not override existing agent models");
   }
   return opts;
 }
@@ -104,6 +119,35 @@ export async function findLegacyCursorCommands(target) {
   return (await listMarkdown(join(target, LEGACY_CURSOR_COMMANDS_DIR)))
     .filter((f) => f.startsWith("cursor-atomic-"))
     .map((f) => join(target, LEGACY_CURSOR_COMMANDS_DIR, f));
+}
+
+export async function listLegacyCursorSkillDirs(target) {
+  const legacyRoot = join(target, LEGACY_CURSOR_SKILLS);
+  if (!existsSync(legacyRoot)) return [];
+  const out = [];
+  for (const entry of await readdir(legacyRoot)) {
+    if (!entry.startsWith("cursor-atomic-")) continue;
+    out.push(join(legacyRoot, entry));
+  }
+  return out;
+}
+
+/**
+ * @param {string[]} paths
+ * @param {string} target
+ */
+export async function backupInstallPaths(paths, target) {
+  if (!paths.length) return null;
+  const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+  const backupRoot = join(target, `.atomic-install-backup-${stamp}`);
+  await mkdir(backupRoot, { recursive: true });
+  for (const p of paths) {
+    const rel = p.startsWith(target) ? p.slice(target.length + 1) : p;
+    const dest = join(backupRoot, rel);
+    await mkdir(dirname(dest), { recursive: true });
+    await cp(p, dest, { recursive: true, force: true });
+  }
+  return backupRoot;
 }
 
 async function removeLegacyCursorSkills(target) {
@@ -259,7 +303,7 @@ export async function install(options = {}) {
   if (dryRun) {
     record.copied.push(join(target, ".atomic/"));
     record.copied.push(join(target, AGENTS_SKILLS_DIR, "/"));
-    record.copied.push(join(target, "profiles/"));
+    record.copied.push(join(target, ".atomic/profiles/"));
     record.copied.push(join(target, ".atomic/VERSION"));
     if (harnesses.has("cursor")) record.copied.push(join(target, ".cursor/agents/"));
     return {
@@ -274,6 +318,14 @@ export async function install(options = {}) {
   }
 
   if (options.migrate) {
+    const legacyDirs = await listLegacyCursorSkillDirs(target);
+    if (legacyDirs.length) {
+      const backupRoot = await backupInstallPaths(legacyDirs, target);
+      if (backupRoot) {
+        record.copied.push(backupRoot);
+        console.log(`legacy skills backup: ${backupRoot}`);
+      }
+    }
     record.removed.push(...(await removeLegacyCursorSkills(target)));
   }
 

@@ -3,9 +3,7 @@ import { existsSync } from "node:fs";
 import { join, relative, resolve } from "node:path";
 
 /** Dev-only scripts at package root; not copied to target `.atomic/scripts/`. */
-export const PACKAGE_ONLY_SCRIPTS = new Set([
-  "check-agents.mjs",
-]);
+export const PACKAGE_ONLY_SCRIPTS = new Set([]);
 
 /**
  * @param {string} scriptsRoot package `scripts/` directory
@@ -71,7 +69,7 @@ export async function installAtomicRuntime(packageRoot, targetRoot, options = {}
   }
 
   const profilesSrc = join(packageRoot, "profiles");
-  const profilesDest = join(targetRoot, "profiles");
+  const profilesDest = join(targetRoot, ".atomic", "profiles");
   if (existsSync(profilesSrc)) {
     for (const name of await readdir(profilesSrc)) {
       if (!name.endsWith(".json") && !name.endsWith(".example.json")) continue;

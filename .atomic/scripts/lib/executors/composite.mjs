@@ -2,7 +2,12 @@ import { createTaskCardAdapter, formatSkillPrompt } from "../adapters/task-card.
 import { createSdkAdapter, loadSdk } from "../adapters/sdk.mjs";
 import { ROLES, AUXILIARY_ROLES } from "../roles.mjs";
 import { resolveExecutorForPhase, resolveExecutorModel } from "./resolve.mjs";
-import { resolveExecutorWithFallback } from "./availability.mjs";
+import {
+  isExecutorAvailable,
+  probeCursorSdkAvailable,
+  resolveExecutorWithFallbackAsync,
+} from "./availability.mjs";
+import { EXECUTOR_FALLBACK_CHAIN } from "./constants.mjs";
 import { runWorkerExecutor } from "./worker-cli.mjs";
 import { runCursorAgentCli } from "./cursor-agent-cli.mjs";
 import { runPiCli } from "./pi-cli.mjs";
@@ -16,13 +21,15 @@ import { resolveExecutorTimeoutMin } from "../effective-settings.mjs";
  *   slug: string,
  *   runsDir: string,
  *   graph: { nodes: Record<string, Record<string, unknown>> },
- *   settings: { executors?: Record<string, string>, executorModels?: Record<string, string>, executorTimeouts?: Record<string, number>, agyModel?: string | null },
+ *   settings: { executors?: Record<string, string>, executorModels?: Record<string, string>, executorTimeouts?: Record<string, number>, trustedExecutors?: Record<string, boolean>, agyModel?: string | null },
  *   log?: (...args: unknown[]) => void,
  *   loadSdkFn?: typeof loadSdk,
  *   createSdkAdapterFn?: typeof createSdkAdapter,
+ *   crossExecutorStartupFallback?: boolean,
  * }} options
  */
 export function createCompositeRoleRunner(options) {
+  const crossExecutorStartupFallback = options.crossExecutorStartupFallback !== false;
   const log = options.log ?? (() => {});
   const taskCard = createTaskCardAdapter({
     runsDir: options.runsDir,
@@ -129,6 +136,7 @@ export function createCompositeRoleRunner(options) {
         model: agyModel,
         timeoutMin,
         skipTrust: process.env.CURSOR_ATOMIC_TRUST_COMMANDS === "1",
+        settings: options.settings,
       });
     }
 
@@ -145,6 +153,7 @@ export function createCompositeRoleRunner(options) {
   }
 
   async function resolveAndDispatch(phaseKey, params, roleKey) {
+    await probeCursorSdkAvailable();
     const { stage, executorId } = resolveExecutorForPhase({
       phaseKey,
       graph: options.graph,
@@ -155,13 +164,38 @@ export function createCompositeRoleRunner(options) {
     if (phaseKey === "lite" && preferred === "cursor-subagent") {
       preferred = "cursor-sdk";
     }
-    const { executor, fallbackFrom } = resolveExecutorWithFallback(preferred, {
-      allowPi: preferred === "pi",
+    const allowPi = preferred === "pi";
+    const { executor, fallbackFrom } = await resolveExecutorWithFallbackAsync(preferred, {
+      allowPi,
     });
     if (fallbackFrom) {
       log(`executor: ${stage ?? phaseKey} ${fallbackFrom} → ${executor} (CLI missing)`);
     }
-    return dispatchExecutor(executor, stage, params, roleKey);
+
+    const tried = new Set();
+    let current = executor;
+    while (true) {
+      const result = await dispatchExecutor(current, stage, params, roleKey);
+      if (result.ok || result.kind !== "startup") {
+        return result;
+      }
+      if (!crossExecutorStartupFallback) {
+        return result;
+      }
+      tried.add(current);
+      let next = null;
+      for (const candidate of [preferred, ...EXECUTOR_FALLBACK_CHAIN]) {
+        if (tried.has(candidate) || candidate === current) continue;
+        if (candidate === "pi" && !allowPi) continue;
+        if (isExecutorAvailable(candidate)) {
+          next = candidate;
+          break;
+        }
+      }
+      if (!next) return result;
+      log(`executor: ${stage ?? phaseKey} ${current} startup failed → ${next}`);
+      current = next;
+    }
   }
 
   return {

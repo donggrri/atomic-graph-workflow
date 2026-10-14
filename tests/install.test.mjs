@@ -57,6 +57,10 @@ test("bundled workflow scripts match the root scripts", async () => {
   assert.equal(sync.inSync, true, `drift: ${sync.mismatches.join(", ")}`);
 });
 
+test("check-agents.mjs is bundled under .atomic/scripts", () => {
+  assert.equal(existsSync(".atomic/scripts/check-agents.mjs"), true);
+});
+
 test("legacy .cursor/commands is gone from the package", async () => {
   assert.equal(existsSync(".cursor/commands"), false);
 });

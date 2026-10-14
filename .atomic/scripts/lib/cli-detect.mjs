@@ -1,17 +1,19 @@
-import { spawnSync } from "node:child_process";
+import { firstExecutable } from "./exec-cross.mjs";
 
 /**
  * @param {string[]} names
  * @returns {boolean}
  */
 export function binOnPath(names) {
-  for (const name of names) {
-    const res = spawnSync("sh", ["-c", `command -v ${name} >/dev/null 2>&1`], {
-      stdio: "ignore",
-    });
-    if (res.status === 0) return true;
-  }
-  return false;
+  return firstExecutable(names) != null;
+}
+
+/**
+ * @param {string[]} names
+ * @returns {string | null}
+ */
+export function resolveBin(names) {
+  return firstExecutable(names);
 }
 
 /** @typedef {{ id: string, label: string, bins: string[], installed: boolean }} HarnessCliInfo */

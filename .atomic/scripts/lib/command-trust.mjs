@@ -1,6 +1,6 @@
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from "node:fs";
 import { createHash } from "node:crypto";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { getWorkflowRoot } from "../work-status.mjs";
 import { confirm, isInteractiveTTY } from "./prompt.mjs";
 
@@ -10,8 +10,9 @@ function trustPath(workflowHome) {
   return join(workflowHome, TRUST_FILE);
 }
 
-function hashCommand(command) {
-  return createHash("sha256").update(command, "utf8").digest("hex");
+function hashCommand(command, repoRoot) {
+  const scope = repoRoot ? `${repoRoot}\0${command}` : command;
+  return createHash("sha256").update(scope, "utf8").digest("hex");
 }
 
 /**
@@ -51,8 +52,9 @@ export async function ensureCommandTrusted(command, options = {}) {
   if (process.env.CURSOR_ATOMIC_TRUST_COMMANDS === "1") return { ok: true };
 
   const workflowHome = options.workflowHome ?? getWorkflowRoot();
+  const repoRoot = options.repoRoot ? resolve(options.repoRoot) : "";
   const hashes = loadTrusted(workflowHome);
-  const digest = hashCommand(cmd);
+  const digest = hashCommand(cmd, repoRoot);
   if (hashes.has(digest)) return { ok: true };
 
   const nonInteractive = options.nonInteractive ?? !isInteractiveTTY();

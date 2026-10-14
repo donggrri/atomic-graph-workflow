@@ -8,7 +8,8 @@
 #>
 param(
   [ValidateSet('agy', 'codex', 'claude', 'cursor', 'opencode')]
-  [string[]]$Workers = @('agy', 'codex', 'claude', 'opencode')
+  [string[]]$Workers = @('agy', 'codex', 'claude', 'opencode'),
+  [switch]$Yes
 )
 
 $ErrorActionPreference = 'Stop'
@@ -41,7 +42,7 @@ foreach ($w in $Workers) {
       if (Test-Bin @('agy', 'agy.exe')) {
         $results += Write-State 'agy' 'ok' ((Get-Command agy).Source)
       } else {
-        $answer = Read-Host 'agy not found. Run irm https://antigravity.google/cli/install.ps1 | iex ? [y/N]'
+        $answer = if ($Yes) { 'y' } else { Read-Host 'agy not found. Run irm https://antigravity.google/cli/install.ps1 | iex ? [y/N]' }
         if ($answer -notmatch '^[yY]') {
           $results += Write-State 'agy' 'missing' 'user declined agy install'
           continue
@@ -67,7 +68,7 @@ foreach ($w in $Workers) {
       if (Test-Bin @('codex', 'codex.exe')) {
         $results += Write-State 'codex' 'ok' ((Get-Command codex).Source)
       } else {
-        $answer = Read-Host 'codex not found. Run winget install OpenAI.Codex ? [y/N]'
+        $answer = if ($Yes) { 'y' } else { Read-Host 'codex not found. Run winget install OpenAI.Codex ? [y/N]' }
         if ($answer -notmatch '^[yY]') {
           $results += Write-State 'codex' 'missing' 'user declined codex install'
           continue

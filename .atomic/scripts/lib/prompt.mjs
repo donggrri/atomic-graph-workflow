@@ -60,7 +60,6 @@ export async function multiselect(message, choices) {
   const state = choices.map((c) => ({ ...c, on: Boolean(c.selected) }));
   let cursor = Math.max(0, state.findIndex((c) => c.selected));
   const render = () => {
-    if (typeof console.clear === "function") console.clear();
     output.write(`\n${message}\n`);
     output.write("  ↑/↓: 이동 · 스페이스: 선택/해제 · Enter: 확인\n\n");
     for (let i = 0; i < state.length; i++) {
@@ -74,13 +73,21 @@ export async function multiselect(message, choices) {
   render();
   return new Promise((resolve) => {
     readline.emitKeypressEvents(input);
-    if (input.isTTY) input.setRawMode(true);
+    if (input.isTTY) {
+      input.setRawMode(true);
+      input.resume();
+    }
     const onKey = (_str, key) => {
       if (!key) return;
       if (key.name === "return" || key.name === "enter") {
-        cleanup();
         const picked = state.filter((c) => c.on).map((c) => c.value);
-        resolve(picked.length ? picked : [state[cursor].value]);
+        if (!picked.length) {
+          output.write("\n  (항목을 하나 이상 선택하세요 — 스페이스로 선택)\n");
+          render();
+          return;
+        }
+        cleanup();
+        resolve(picked);
         return;
       }
       if (key.name === "space") {
@@ -105,7 +112,10 @@ export async function multiselect(message, choices) {
     };
     const cleanup = () => {
       input.off("keypress", onKey);
-      if (input.isTTY) input.setRawMode(false);
+      if (input.isTTY) {
+        input.setRawMode(false);
+        input.pause();
+      }
     };
     input.on("keypress", onKey);
   });

@@ -77,7 +77,7 @@ npx github:donggrri/atomic-graph-workflow --target /path/to/project --harness au
 
 설치 후 에이전트에서 **`/atomic-setup`** 으로 `.cursor-atomic-workflow.json`을 만든다 (AGY 정책, `executors`, `executorTimeouts`, `testDone` 등).
 
-`run-pipeline.mjs`와 `run-stage.mjs`는 `.atomic/graph.yaml`의 단계별 `executor`·`model`을 읽고, 프로젝트 `executors`가 graph를 덮어쓴다. 지원 executor: `cursor-subagent`, `cursor-agent`, `cursor-sdk`, `agy`, `codex`, `opencode`, `pi` (비대화형 `pi -p`), `claude`. CLI가 없으면 런타임 fallback, doctor가 경고한다. `executorTimeouts`는 단계 id → 분(기본 45).
+`run-pipeline.mjs`와 `run-stage.mjs`는 `.atomic/graph.yaml`의 단계별 `executor`·`model`을 읽고, 프로젝트 `executors`가 graph를 덮어쓴다. 지원 executor: `cursor-subagent`, `cursor-agent`, `cursor-sdk` (`@cursor/sdk` import 성공 시), `agy`, `codex`, `opencode`, `pi` (비대화형 `pi -p`), `claude`. CLI·SDK가 없으면 런타임 fallback(`run-stage`는 stderr에 로그), doctor가 경고한다. 외부 CLI는 `trustedExecutors` 또는 TTY 신뢰(저장소별 해시)로 승인한다. `executorTimeouts`는 단계 id → 분(기본 45).
 
 **AGY 정책 vs 단계별 executor:** `agy.plan` / `agy.implement` / `agy.review`는 파이프라인이 AGY 위임을 *물을지*(`ask`), Cursor SDK 역할로 돌릴지(`sdk`), 부모 `/cursor-atomic-agy`에 멈출지(`agy`)를 정한다. 정책이 `agy`이고 `executors.<stage>`를 명시하지 않았으면 해당 graph 단계 executor가 `agy`로 채워진다 (`plan` → `explore`·`plan`·`plan-review`; `implement` → `task`·`execute`; `review` → `review`·`wrapup`). 명시한 `executors`가 항상 우선한다. 헤드리스 단계 실행: `node .atomic/scripts/run-stage.mjs <stage> --repo . --slug <slug> --prompt-file <brief.md>`.
 

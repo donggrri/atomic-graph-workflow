@@ -18,4 +18,19 @@ nodes:
 test("phaseToGraphStage maps pipeline phases", () => {
   assert.equal(phaseToGraphStage("tasker"), "task");
   assert.equal(phaseToGraphStage("tester"), "wrapup");
+  assert.equal(phaseToGraphStage("review"), "review");
+  assert.equal(phaseToGraphStage("task"), "task");
+  assert.equal(phaseToGraphStage("wrapup"), "wrapup");
+});
+
+test("parseGraphYaml strips quotes and inline comments", () => {
+  const yaml = `version: 1
+nodes:
+  plan:
+    executor: "agy"
+    agent: planner # role
+`;
+  const graph = parseGraphYaml(yaml);
+  assert.equal(graph.nodes.plan.executor, "agy");
+  assert.equal(graph.nodes.plan.agent, "planner");
 });
