@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
 import { existsSync } from "node:fs";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
@@ -372,6 +372,38 @@ test("invoke-worker.sh never routes the opencode model through the agy resolver"
     assert.doesNotMatch(dryLine, /-m /);
     assert.doesNotMatch(dryLine, /claude-sonnet-4-5/);
     assert.match(dryLine, /^dry-run: agy /);
+  } finally {
+    await rm(tmp, { recursive: true, force: true });
+  }
+});
+
+test("invoke-worker.sh separates skills block and prompt with a blank line", async () => {
+  const tmp = await mkdtemp(join(tmpdir(), "invoke-skills-blank-"));
+  const skillDir = join(tmp, ".agents", "skills", "tdd");
+  await mkdir(skillDir, { recursive: true });
+  await writeFile(join(skillDir, "SKILL.md"), "# tdd", "utf8");
+  const brief = join(tmp, "brief.md");
+  await writeFile(brief, "hi", "utf8");
+  const log = join(tmp, "run.log");
+  try {
+    const { stdout } = await execFileAsync("bash", [
+      "scripts/invoke-worker.sh",
+      "--worker",
+      "opencode",
+      "--workspace",
+      tmp,
+      "--prompt-file",
+      brief,
+      "--log-file",
+      log,
+      "--skills",
+      "tdd",
+      "--dry-run",
+    ]);
+    assert.match(stdout, /exit=0/);
+    const effective = await readFile(join(tmp, "run.effective-prompt.md"), "utf8");
+    assert.match(effective, /SKILL\.md\n\nhi/);
+    assert.doesNotMatch(effective, /SKILL\.mdhi/);
   } finally {
     await rm(tmp, { recursive: true, force: true });
   }

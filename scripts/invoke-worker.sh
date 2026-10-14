@@ -187,7 +187,8 @@ fi
 
 SKILLS_BLOCK="$(build_skills_block "$WS" "$SKILLS")"
 if [[ -n "$SKILLS_BLOCK" ]]; then
-  PROMPT="${SKILLS_BLOCK}${PROMPT}"
+  # $(...) strips the trailing blank line from build_skills_block, so re-add it.
+  PROMPT="${SKILLS_BLOCK}"$'\n\n'"${PROMPT}"
 fi
 
 EFFECTIVE_PROMPT_FILE="${LOG_FILE%.log}.effective-prompt.md"
