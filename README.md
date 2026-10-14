@@ -75,7 +75,9 @@ npx github:donggrri/atomic-graph-workflow --target /path/to/project --harness au
 | `--skip-doctor` | Skip post-install doctor |
 | `-h, --help` | Help |
 
-After install, run **`/atomic-setup`** in your agent to write `.cursor-atomic-workflow.json` (AGY stages, `testDone`, `agyModel`, gitignore policy).
+After install, run **`/atomic-setup`** in your agent to write `.cursor-atomic-workflow.json` (AGY stages, `testDone`, `agyModel`, per-stage `executors`, gitignore policy).
+
+`run-pipeline.mjs` reads `.atomic/graph.yaml` for each stage’s default `executor` and `model`. Project `executors` in `.cursor-atomic-workflow.json` override the graph. Supported executors: `cursor-subagent`, `cursor-agent`, `cursor-sdk`, `agy`, `codex`, `opencode`, `pi`, `claude` (missing CLIs fall back at runtime; doctor warns).
 
 Paste prompt for an installing agent: [INSTALL_PROMPT.md](INSTALL_PROMPT.md).
 

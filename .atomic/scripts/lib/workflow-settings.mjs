@@ -2,6 +2,8 @@ import { readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { getWorkflowRoot } from "../work-status.mjs";
 import { PROJECT_SETTINGS_FILE, GLOBAL_SETTINGS_FILE } from "./profiles.mjs";
+import { EXECUTOR_IDS } from "./executors/constants.mjs";
+import { GRAPH_STAGE_IDS } from "./graph.mjs";
 
 const AGY_STAGES = ["plan", "implement", "review"];
 const AGY_VALUES = new Set(["ask", "sdk", "agy"]);
@@ -53,6 +55,46 @@ function parseAgyBlock(agyBlock, label) {
 }
 
 /**
+ * @param {unknown} block
+ * @param {string} label
+ */
+function parseExecutorsBlock(block, label) {
+  if (block == null) return { ok: true, executors: {}, executorModels: {} };
+  if (typeof block !== "object" || Array.isArray(block)) {
+    return { ok: false, reason: `${label}: executors must be an object` };
+  }
+  /** @type {Record<string, string>} */
+  const executors = {};
+  /** @type {Record<string, string>} */
+  const executorModels = {};
+  for (const [key, value] of Object.entries(block)) {
+    if (!GRAPH_STAGE_IDS.includes(key)) {
+      return { ok: false, reason: `${label}: executors.${key} is not a valid stage` };
+    }
+    if (typeof value === "string") {
+      if (!EXECUTOR_IDS.includes(value)) {
+        return { ok: false, reason: `${label}: executors.${key} unknown executor ${value}` };
+      }
+      executors[key] = value;
+      continue;
+    }
+    if (value && typeof value === "object" && !Array.isArray(value)) {
+      const id = value.executor ?? value.id;
+      if (typeof id !== "string" || !EXECUTOR_IDS.includes(id)) {
+        return { ok: false, reason: `${label}: executors.${key}.executor invalid` };
+      }
+      executors[key] = id;
+      if (typeof value.model === "string" && value.model.trim()) {
+        executorModels[key] = value.model.trim();
+      }
+      continue;
+    }
+    return { ok: false, reason: `${label}: executors.${key} must be string or { executor, model? }` };
+  }
+  return { ok: true, executors, executorModels };
+}
+
+/**
  * Global settings, then project `.cursor-atomic-workflow.json` (project wins per stage).
  *
  * @param {{
@@ -77,8 +119,15 @@ export function loadWorkflowSettings(options) {
   const projectAgy = parseAgyBlock(project.data.agy, "project settings");
   if (!projectAgy.ok) return projectAgy;
 
+  const globalExec = parseExecutorsBlock(global.data.executors, "global settings");
+  if (!globalExec.ok) return globalExec;
+  const projectExec = parseExecutorsBlock(project.data.executors, "project settings");
+  if (!projectExec.ok) return projectExec;
+
   /** @type {Partial<Record<string, "ask"|"sdk"|"agy">>} */
   const agy = { ...globalAgy.choices, ...projectAgy.choices };
+  const executors = { ...globalExec.executors, ...projectExec.executors };
+  const executorModels = { ...globalExec.executorModels, ...projectExec.executorModels };
 
   const agyModel =
     typeof project.data.agyModel === "string" && project.data.agyModel.trim()
@@ -92,7 +141,7 @@ export function loadWorkflowSettings(options) {
       ? project.data.testDone.trim()
       : null;
 
-  return { ok: true, agy, agyModel, testDone };
+  return { ok: true, agy, agyModel, testDone, executors, executorModels };
 }
 
 /**

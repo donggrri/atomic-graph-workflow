@@ -6,6 +6,7 @@ import { writeProjectSettings } from "./lib/project-settings.mjs";
 import { confirm, isInteractiveTTY, select, text } from "./lib/prompt.mjs";
 import { runDoctor } from "./doctor.mjs";
 import { ensureCommandTrusted } from "./lib/command-trust.mjs";
+import { collectExecutorChoices } from "./lib/project-setup-executors.mjs";
 
 const here = fileURLToPath(new URL(".", import.meta.url));
 
@@ -72,6 +73,13 @@ export async function runProjectSetup(repoRoot, options = {}) {
   if (agyModel.trim()) patch.agyModel = agyModel.trim();
 
   patch.profile = "atomic";
+
+  const configureExecutors = interactive
+    ? (await confirm("단계별 executor를 지금 설정할까요? (고급)", { default: false }))
+    : false;
+  if (configureExecutors) {
+    patch.executors = await collectExecutorChoices(true);
+  }
 
   if (interactive) {
     const commitShared = await confirm(

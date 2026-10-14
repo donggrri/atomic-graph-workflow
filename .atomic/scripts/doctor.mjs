@@ -7,6 +7,9 @@ import { fileURLToPath } from "node:url";
 import { bundledScriptDiffs } from "./sync-bundled.mjs";
 import { findLegacyCursorCommands, AGENTS_SKILLS_DIR } from "./install.mjs";
 import { parseHarnessSpec, resolveHarnesses } from "./lib/harnesses.mjs";
+import { loadWorkflowSettings } from "./lib/workflow-settings.mjs";
+import { isExecutorAvailable } from "./lib/executors/availability.mjs";
+import { loadGraph } from "./lib/graph.mjs";
 import { listRuntimeScriptRelPaths } from "./lib/atomic-runtime.mjs";
 
 export const BUNDLED_SKILLS = [
@@ -331,6 +334,31 @@ export function checkNodeVersion(version = process.version) {
   };
 }
 
+/**
+ * @param {string} repoRoot
+ */
+export function checkConfiguredExecutors(repoRoot) {
+  const settings = loadWorkflowSettings({ repoRoot });
+  if (!settings.ok) {
+    return { ok: false, problems: [settings.reason], warnings: [] };
+  }
+  const graph = loadGraph(repoRoot);
+  if (!graph.nodes || Object.keys(graph.nodes).length === 0) {
+    return { ok: true, problems: [], warnings: ["missing or empty .atomic/graph.yaml"] };
+  }
+  const warnings = [];
+  const merged = { ...settings.executors };
+  for (const [stage, node] of Object.entries(graph.nodes)) {
+    if (node.executor && !merged[stage]) merged[stage] = String(node.executor);
+  }
+  for (const [stage, exec] of Object.entries(merged)) {
+    if (!isExecutorAvailable(exec) && exec !== "cursor-subagent" && exec !== "cursor-sdk") {
+      warnings.push(`executor ${stage}=${exec}: CLI not on PATH (pipeline will fallback at runtime)`);
+    }
+  }
+  return { ok: true, problems: [], warnings };
+}
+
 export async function runDoctor(options = {}) {
   const cwd = options.cwd || process.cwd();
   const doFix = !!options.fix;
@@ -414,6 +442,13 @@ export async function runDoctor(options = {}) {
     results.problems.push(
       `bundled scripts drift: ${results.harnessSync.mismatches.join(", ")}`,
     );
+  }
+
+  results.executorCheck = checkConfiguredExecutors(cwd);
+  if (results.executorCheck.warnings?.length) {
+    for (const w of results.executorCheck.warnings) {
+      results.problems.push(`[executor] ${w}`);
+    }
   }
 
   return results;

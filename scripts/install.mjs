@@ -329,6 +329,11 @@ export async function install(options = {}) {
 
   if (harnesses.has("pi")) {
     await installCommandShims(root, target, join(".pi", "prompts"), force, record);
+    await copyAgentsFlat(neutralAgents, join(target, ".pi", "agents"), setModel, force, record);
+  }
+
+  if (harnesses.has("codex")) {
+    await copyAgentsFlat(neutralAgents, join(target, ".codex", "agents"), setModel, force, record);
   }
 
   if (harnesses.has("claude")) {

@@ -33,3 +33,7 @@ nodes:
     skill: cursor-atomic-wrapup
     executor: cursor-subagent
     agent: tester
+  memory:
+    skill: cursor-atomic-workflow
+    executor: cursor-subagent
+    agent: memory-curator

@@ -137,6 +137,15 @@ async function runInteractiveInstall(opts) {
     console.log(`│  백업: ${backup}`);
   }
 
+  const advancedExecutors = await confirm("◆  (고급) 단계별 executor 기본값을 지금 설정할까요?", {
+    default: false,
+  });
+  if (advancedExecutors) {
+    const { collectExecutorChoices } = await import("./lib/project-setup-executors.mjs");
+    const { writeProjectSettings } = await import("./lib/project-settings.mjs");
+    writeProjectSettings(target, { executors: await collectExecutorChoices(true) });
+  }
+
   const go = await confirm("◆  설치를 진행할까요?", { default: true });
   if (!go) throw new Error("설치를 취소했습니다.");
 
