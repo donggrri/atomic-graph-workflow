@@ -25,6 +25,7 @@ export async function runCursorAgentCli(params) {
         (params.timeoutMin ?? 45) * 60 * 1000,
       );
       let stderr = "";
+      child.stdout?.on("data", () => {});
       child.stderr?.on("data", (c) => {
         stderr += String(c);
       });

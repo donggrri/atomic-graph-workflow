@@ -3,6 +3,10 @@ import assert from "node:assert/strict";
 import { resolveExecutorForPhase, defaultExecutorForAdapter } from "../scripts/lib/executors/resolve.mjs";
 import { resolveExecutorWithFallback } from "../scripts/lib/executors/availability.mjs";
 import { createCompositeRoleRunner } from "../scripts/lib/executors/composite.mjs";
+import { createTaskCardAdapter } from "../scripts/lib/adapters/task-card.mjs";
+import { mkdtempSync, rmSync } from "node:fs";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
 
 const graph = {
   nodes: {
@@ -75,4 +79,20 @@ test("composite runner delegates cursor-subagent to task-card", async () => {
   });
   assert.equal(result.ok, true);
   assert.equal(called, true);
+});
+
+test("task-card adapter honors model override", async () => {
+  const runs = mkdtempSync(join(tmpdir(), "task-card-model-"));
+  const repo = process.cwd();
+  try {
+    const adapter = createTaskCardAdapter({ runsDir: runs, slug: "s", repoRoot: repo });
+    const result = await adapter.runRole({
+      role: "worker",
+      prompt: "brief",
+      model: "custom-override-model",
+    });
+    assert.equal(result.card.model, "custom-override-model");
+  } finally {
+    rmSync(runs, { recursive: true, force: true });
+  }
 });

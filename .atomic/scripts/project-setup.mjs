@@ -94,10 +94,14 @@ export async function runProjectSetup(repoRoot, options = {}) {
   const agyModel = interactive
     ? await text("AGY 모델 (비우면 agy 기본)", priorModel)
     : priorModel;
-  if (agyModel.trim() && agyModel.trim() !== priorModel.trim()) {
+  if (interactive) {
+    if (!agyModel.trim()) {
+      if (priorModel) patch.agyModel = null;
+    } else if (agyModel.trim() !== priorModel.trim()) {
+      patch.agyModel = agyModel.trim();
+    }
+  } else if (agyModel.trim()) {
     patch.agyModel = agyModel.trim();
-  } else if (interactive && !agyModel.trim() && priorModel) {
-    patch.agyModel = priorModel;
   }
 
   if (!existing.profile) patch.profile = "atomic";

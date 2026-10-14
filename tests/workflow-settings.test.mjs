@@ -43,6 +43,29 @@ test("loadWorkflowSettings merges global and project agy", () => {
   }
 });
 
+test("loadWorkflowSettings project agyModel null overrides global", () => {
+  const home = mkdtempSync(join(tmpdir(), "caw-home-null-"));
+  const repo = mkdtempSync(join(tmpdir(), "caw-repo-null-"));
+  try {
+    writeFileSync(
+      join(home, "settings.json"),
+      JSON.stringify({ agyModel: "global-model" }),
+      "utf8",
+    );
+    writeFileSync(
+      join(repo, ".cursor-atomic-workflow.json"),
+      JSON.stringify({ agyModel: null }),
+      "utf8",
+    );
+    const loaded = loadWorkflowSettings({ repoRoot: repo, workflowHome: home });
+    assert.equal(loaded.ok, true);
+    assert.equal(loaded.agyModel, null);
+  } finally {
+    rmSync(home, { recursive: true, force: true });
+    rmSync(repo, { recursive: true, force: true });
+  }
+});
+
 test("loadWorkflowSettings reads agyModel and testDone from project", () => {
   const repo = mkdtempSync(join(tmpdir(), "caw-repo2-"));
   try {

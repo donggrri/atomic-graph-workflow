@@ -453,12 +453,6 @@ export async function runDoctor(options = {}) {
     );
   }
 
-  const workflowSettings = loadWorkflowSettings({ repoRoot: cwd });
-  if (!workflowSettings.ok) {
-    results.ok = false;
-    results.problems.push(workflowSettings.reason);
-  }
-
   results.executorCheck = await checkConfiguredExecutors(cwd);
   if (!results.executorCheck.ok) {
     results.ok = false;

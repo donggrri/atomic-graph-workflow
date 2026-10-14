@@ -96,7 +96,7 @@ foreach ($w in $Workers) {
       if (Test-Bin @('opencode', 'opencode.exe')) {
         $results += Write-State 'opencode' 'ok' ((Get-Command opencode).Source)
       } else {
-        $answer = Read-Host 'opencode not found. Run npm install -g opencode-ai ? [y/N]'
+        $answer = if ($Yes) { 'y' } else { Read-Host 'opencode not found. Run npm install -g opencode-ai ? [y/N]' }
         if ($answer -notmatch '^[yY]') {
           $results += Write-State 'opencode' 'missing' 'user declined opencode install'
           continue

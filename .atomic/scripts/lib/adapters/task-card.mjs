@@ -66,11 +66,13 @@ export function createTaskCardAdapter({ runsDir, slug, repoRoot, homeDir, exists
     /**
      * @param {{ role: string, prompt?: string, cwd?: string, model?: string }} params
      */
-    async runRole({ role, prompt }) {
+    async runRole({ role, prompt, model }) {
       const roleDef = getRole(role);
+      const cardModel =
+        typeof model === "string" && model.trim() ? model.trim() : roleDef.taskModel;
       const card = {
         subagent_type: roleDef.subagentType,
-        model: roleDef.taskModel,
+        model: cardModel,
         run_in_background: true,
         prompt: formatPrompt(repoRoot, role, prompt ?? "", skillOptions),
       };

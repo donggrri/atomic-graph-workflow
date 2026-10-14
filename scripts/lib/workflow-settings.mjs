@@ -189,11 +189,13 @@ export function loadWorkflowSettings(options) {
   };
 
   const agyModel =
-    typeof project.data.agyModel === "string" && project.data.agyModel.trim()
-      ? project.data.agyModel.trim()
-      : typeof global.data.agyModel === "string" && global.data.agyModel.trim()
-        ? global.data.agyModel.trim()
-        : null;
+    project.data.agyModel === null
+      ? null
+      : typeof project.data.agyModel === "string" && project.data.agyModel.trim()
+        ? project.data.agyModel.trim()
+        : typeof global.data.agyModel === "string" && global.data.agyModel.trim()
+          ? global.data.agyModel.trim()
+          : null;
 
   const testDone =
     typeof project.data.testDone === "string" && project.data.testDone.trim()

@@ -7,6 +7,37 @@ const PATHEXT = process.env.PATHEXT
   ? process.env.PATHEXT.split(delimiter).map((e) => e.toLowerCase())
   : [".exe", ".cmd", ".bat", ".com"];
 
+const CMD_META = new Set(["&", "|", "<", ">", "^", "%"]);
+
+/**
+ * Quote one argument for `cmd.exe` parsing (used inside `/d /s /c "..."`).
+ * @param {string} arg
+ */
+export function quoteCmdArgument(arg) {
+  let out = '"';
+  for (const ch of String(arg)) {
+    if (ch === '"') {
+      out += '""';
+    } else if (ch === "%") {
+      out += "%^%";
+    } else if (CMD_META.has(ch)) {
+      out += `^${ch}`;
+    } else {
+      out += ch;
+    }
+  }
+  out += '"';
+  return out;
+}
+
+/**
+ * @param {string} executable
+ * @param {string[]} args
+ */
+export function buildCmdExeCommandLine(executable, args) {
+  return [quoteCmdArgument(executable), ...args.map((a) => quoteCmdArgument(a))].join(" ");
+}
+
 /**
  * @param {string} name
  * @returns {string | null}
@@ -64,7 +95,12 @@ export function needsShellSpawn(file) {
  */
 export function spawnCli(file, args, options = {}) {
   if (needsShellSpawn(file)) {
-    return spawn(file, args, { ...options, shell: true, windowsVerbatimArguments: true });
+    const commandLine = buildCmdExeCommandLine(file, args);
+    return spawn("cmd.exe", ["/d", "/s", "/c", commandLine], {
+      ...options,
+      shell: false,
+      windowsVerbatimArguments: false,
+    });
   }
   return spawn(file, args, { ...options, shell: false });
 }

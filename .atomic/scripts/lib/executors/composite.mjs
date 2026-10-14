@@ -122,7 +122,6 @@ export function createCompositeRoleRunner(options) {
         repoRoot: options.repoRoot,
         prompt: params.prompt ?? "",
         timeoutMin,
-        agentStem: roleKey,
       });
     }
 
