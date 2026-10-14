@@ -7,10 +7,9 @@ const PATHEXT = process.env.PATHEXT
   ? process.env.PATHEXT.split(delimiter).map((e) => e.toLowerCase())
   : [".exe", ".cmd", ".bat", ".com"];
 
-const CMD_META = new Set(["&", "|", "<", ">", "^", "%"]);
-
 /**
- * Quote one argument for `cmd.exe` parsing (used inside `/d /s /c "..."`).
+ * Quote one argument for `cmd.exe /d /s /c "…"` (inside the outer quoted command).
+ * Metacharacters (&|<>^) stay literal inside double quotes; only `"` and `%` are escaped.
  * @param {string} arg
  */
 export function quoteCmdArgument(arg) {
@@ -20,8 +19,6 @@ export function quoteCmdArgument(arg) {
       out += '""';
     } else if (ch === "%") {
       out += "%^%";
-    } else if (CMD_META.has(ch)) {
-      out += `^${ch}`;
     } else {
       out += ch;
     }
@@ -36,6 +33,19 @@ export function quoteCmdArgument(arg) {
  */
 export function buildCmdExeCommandLine(executable, args) {
   return [quoteCmdArgument(executable), ...args.map((a) => quoteCmdArgument(a))].join(" ");
+}
+
+/**
+ * @param {string} executable
+ * @param {string[]} args
+ */
+export function getCmdExeSpawnInvocation(executable, args) {
+  const commandLine = buildCmdExeCommandLine(executable, args);
+  return {
+    file: "cmd.exe",
+    argv: ["/d", "/s", "/c", `"${commandLine}"`],
+    options: { shell: false, windowsVerbatimArguments: true },
+  };
 }
 
 /**
@@ -89,18 +99,24 @@ export function needsShellSpawn(file) {
 }
 
 /**
+ * @param {typeof spawn} spawnFn
+ * @param {string} file
+ * @param {string[]} args
+ * @param {import("node:child_process").SpawnOptions} [options]
+ */
+export function spawnCliWith(spawnFn, file, args, options = {}) {
+  if (needsShellSpawn(file)) {
+    const inv = getCmdExeSpawnInvocation(file, args);
+    return spawnFn(inv.file, inv.argv, { ...options, ...inv.options });
+  }
+  return spawnFn(file, args, { ...options, shell: false });
+}
+
+/**
  * @param {string} file
  * @param {string[]} args
  * @param {import("node:child_process").SpawnOptions} [options]
  */
 export function spawnCli(file, args, options = {}) {
-  if (needsShellSpawn(file)) {
-    const commandLine = buildCmdExeCommandLine(file, args);
-    return spawn("cmd.exe", ["/d", "/s", "/c", commandLine], {
-      ...options,
-      shell: false,
-      windowsVerbatimArguments: false,
-    });
-  }
-  return spawn(file, args, { ...options, shell: false });
+  return spawnCliWith(spawn, file, args, options);
 }
