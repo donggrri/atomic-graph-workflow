@@ -1,0 +1,10 @@
+{
+  "id": "composer-parent",
+  "plan": {
+    "command": null
+  },
+  "test": {
+    "command": null,
+    "done": "npm test"
+  }
+}

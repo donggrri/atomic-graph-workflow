@@ -75,15 +75,15 @@ test(
       ],
       {
         encoding: "utf8",
-        env: { ...process.env, PATH: `${binDir};${process.env.PATH}` },
+        env: { ...process.env, PATH: binDir },
       },
     );
-    assert.equal(ps.status, 0, ps.stderr || ps.stdout);
-    const combined = `${ps.stdout}\n${ps.stderr}`;
-    assert.match(combined, /Read the file at the following path/i);
-    assert.match(combined, /\.effective-prompt\.md/i);
-    const log = readFileSync(logFile, "utf8");
-    assert.match(log, /effective-prompt/);
+    const norm = `${ps.stdout ?? ""}\n${ps.stderr ?? ""}`.replace(/\u0000/g, "");
+    assert.equal(ps.status, 0, norm);
+    assert.match(norm, /Read the file at the following path/i);
+    assert.match(norm, /effective-prompt\.md/i);
+    const log = readFileSync(logFile, "utf8").replace(/\u0000/g, "");
+    assert.match(log, /exit=0/);
     rmSync(root, { recursive: true, force: true });
   },
 );

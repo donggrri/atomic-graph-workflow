@@ -104,10 +104,10 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Test
-        run: npm test
-
-      - name: Windows smoke (exec-cross + invoke-worker.ps1)
+      - name: Test (Windows-focused suite + smoke)
         env:
           RUN_WINDOWS_SMOKE: "1"
-        run: node --test tests/windows-smoke.test.mjs
+        run: npm run test:win
+
+      - name: Check bundled script copies
+        run: node scripts/sync-bundled.mjs --check
