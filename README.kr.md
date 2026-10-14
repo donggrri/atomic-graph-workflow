@@ -75,7 +75,11 @@ npx github:donggrri/atomic-graph-workflow --target /path/to/project --harness au
 | `--skip-doctor` | 설치 후 doctor 생략 |
 | `-h, --help` | 도움말 |
 
-설치 후 에이전트에서 **`/atomic-setup`** 으로 `.cursor-atomic-workflow.json`을 만든다.
+설치 후 에이전트에서 **`/atomic-setup`** 으로 `.cursor-atomic-workflow.json`을 만든다 (AGY 정책, `executors`, `executorTimeouts`, `testDone` 등).
+
+`run-pipeline.mjs`와 `run-stage.mjs`는 `.atomic/graph.yaml`의 단계별 `executor`·`model`을 읽고, 프로젝트 `executors`가 graph를 덮어쓴다. 지원 executor: `cursor-subagent`, `cursor-agent`, `cursor-sdk`, `agy`, `codex`, `opencode`, `pi` (비대화형 `pi -p`), `claude`. CLI가 없으면 런타임 fallback, doctor가 경고한다. `executorTimeouts`는 단계 id → 분(기본 45).
+
+**AGY 정책 vs 단계별 executor:** `agy.plan` / `agy.implement` / `agy.review`는 파이프라인이 AGY 위임을 *물을지*(`ask`), Cursor SDK 역할로 돌릴지(`sdk`), 부모 `/cursor-atomic-agy`에 멈출지(`agy`)를 정한다. 정책이 `agy`이고 `executors.<stage>`를 명시하지 않았으면 해당 graph 단계 executor가 `agy`로 채워진다 (`plan` → `explore`·`plan`·`plan-review`; `implement` → `task`·`execute`; `review` → `review`·`wrapup`). 명시한 `executors`가 항상 우선한다. 헤드리스 단계 실행: `node .atomic/scripts/run-stage.mjs <stage> --repo . --slug <slug> --prompt-file <brief.md>`.
 
 에이전트에 붙여 넣을 프롬프트: [INSTALL_PROMPT.md](INSTALL_PROMPT.md).
 
@@ -180,7 +184,7 @@ node scripts/run-pipeline.mjs <slug> [--auto] [--resume] [--adapter sdk|task-car
 
 **부모 Composer + 파이프라인 혼합(기본 패키지 구성)** — 채팅(부모)은 Composer 2.5, 파이프라인 역할은 Haiku(탐색·테스트)·Sonnet(계획·리뷰)·Composer(task·worker·plan-review·CLI 위임)로 나뉜다. Grok은 기본 경로에 쓰지 않는다. 프로젝트 `.cursor-atomic-workflow.json`에서 `"profile": "composer-parent"`를 쓸 수 있다.
 
-**AGY** — 계획·구현·리뷰 단계마다 러너가 AGY 위임을 물을 수 있다. `agy` 키를 프로젝트 `.cursor-atomic-workflow.json` 또는 `~/.cursor-atomic-workflow/settings.json`에 넣는다. 단계(`plan`, `implement`, `review`) 값은 `ask`(기본, exit 20으로 질문), `sdk`(Cursor 역할), `agy`(부모가 `/cursor-atomic-agy` 또는 `cli-delegate`로 `invoke-worker --worker agy` 실행). TASKS 항목에 `worker: agy`를 쓰면 구현 단계에서 AGY 항목 위임(exit 10)이 가능하다. `--auto`는 모든 AGY 질문을 `sdk`로 처리한다.
+**AGY** — 계획·구현·리뷰 *정책*(`agy.plan` / `agy.implement` / `agy.review`)마다 러너가 AGY 위임을 물 수 있다. 값은 `ask`(기본, exit 20), `sdk`(Cursor 역할), `agy`(부모가 `/cursor-atomic-agy` 또는 `invoke-worker --worker agy`). 정책 `agy`는 위 표와 같이 graph 단계 executor를 `agy`로 채운다(명시 `executors` 제외). TASKS `worker: agy`는 구현 항목 위임(exit 10). `--auto`는 AGY 질문을 모두 `sdk`로 처리한다. `memory-sweep.mjs`의 curator는 graph `memory` 단계 설정 executor를 사용한다.
 
 ---
 

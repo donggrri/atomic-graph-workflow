@@ -3,6 +3,7 @@ import { EXECUTOR_IDS } from "./executors/constants.mjs";
 import { select } from "./prompt.mjs";
 
 const STAGE_LABELS = {
+  lite: "Lite (single-session)",
   explore: "Explore",
   plan: "Plan",
   "plan-review": "Plan review",

@@ -37,7 +37,7 @@ description: "cursor-atomic-workflow Phase 1. grilling preflight 후 PLAN 작성
 
 1. 코드·문서·전역 홈 및 기존 `.docs/*/`·하네스 `docs/<slug>/`의 EXPLORE/PLAN/TASKS를 읽는다. `<docsDir>/EXPLORE-<slug>.md`(또는 레거시 `.docs/<slug>/`, `docs/<slug>/`)가 있으면 즉시 반영한다.
 2. 사용자가 이미 계획을 줬거나 `<docsDir>/PLAN-<slug>.md`(또는 레거시 `.docs/<slug>/`, `docs/<slug>/`)가 있어도 refinement brief가 없으면 preflight를 건너뛰지 않는다.
-3. refinement가 끝났으면 brief를 포함해 `planner`를 백그라운드로 띄운다. 브리프: 1줄 스킬 경로(`cursor-atomic-workflow`, `codebase-design`, …), 2줄 `docsDir: <absolute>`. 사용자가 완성된 PLAN을 제공한 경우에만 부모가 `<docsDir>`에 저장하고 planner를 건너뛴다.
+3. refinement가 끝났으면 brief를 포함해 `planner`를 백그라운드로 띄운다. 브리프: 1줄 스킬 경로(`cursor-atomic-workflow`, `codebase-design`, …), 2줄 `docsDir: <absolute>`. 비대화형/헤드리스: `node .atomic/scripts/run-stage.mjs plan --repo . --slug <slug> --prompt-file <brief.md>` (executor는 `executors.plan`·graph·`agy.plan` 정책). 사용자가 완성된 PLAN을 제공한 경우에만 부모가 `<docsDir>`에 저장하고 planner를 건너뛴다.
 4. 막힌 질문(보안·범위·데이터 손실), `remaining fog`, 또는 입력에 「계획만」이 있으면 구현으로 넘어가지 않는다.
 5. 그 외에는 SKILL의 기본 파이프라인대로 `tasker` → frontier의 `worker` → `reviewer`를 백그라운드로 이어서 띄운다. 항목 `done`은 이 세션이 다시 실행한다.
 6. PLAN 저장 직후 `node .atomic/scripts/work-status.mjs sync <slug>`로 STATUS.json을 갱신한다.

@@ -21,6 +21,7 @@ import {
 import { loadWorkflowSettings, resolveAgyDecision } from "./workflow-settings.mjs";
 import { loadGraph } from "./graph.mjs";
 import { createCompositeRoleRunner } from "./executors/composite.mjs";
+import { applyEffectiveExecutorSettings } from "./effective-settings.mjs";
 
 const CLI_DELEGATE_WORKERS = new Set(["agy", "opencode", "codex", "claude"]);
 
@@ -334,7 +335,7 @@ export async function runPipeline(opts) {
     slug,
     runsDir: paths.runsDir,
     graph,
-    settings: workflowSettings,
+    settings: applyEffectiveExecutorSettings(workflowSettings),
     log: (...args) => log(...args),
   });
   /** @param {string} stage */

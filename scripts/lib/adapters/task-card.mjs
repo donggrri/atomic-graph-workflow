@@ -38,9 +38,19 @@ export function resolveSkillPath(repoRoot, skillName, options = {}) {
  * @param {string} body
  * @param {{ homeDir?: string, exists?: (path: string) => boolean }} [options]
  */
-function formatPrompt(repoRoot, role, body, options) {
+export function formatPrompt(repoRoot, role, body, options) {
   const dirs = ROLE_SKILL_DIRS[role] ?? ["cursor-atomic-workflow"];
-  const skillLines = dirs.map((name) => resolveSkillPath(repoRoot, name, options));
+  return formatSkillPrompt(repoRoot, dirs, body, options);
+}
+
+/**
+ * @param {string} repoRoot
+ * @param {string[]} skillNames
+ * @param {string} body
+ * @param {{ homeDir?: string, exists?: (path: string) => boolean }} [options]
+ */
+export function formatSkillPrompt(repoRoot, skillNames, body, options) {
+  const skillLines = skillNames.map((name) => resolveSkillPath(repoRoot, name, options));
   const tail = (body ?? "").trim();
   return tail ? `${skillLines.join("\n")}\n${tail}` : skillLines.join("\n");
 }

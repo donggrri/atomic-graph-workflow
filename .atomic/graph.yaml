@@ -5,6 +5,7 @@ nodes:
     next: [lite, explore]
   lite:
     skill: cursor-atomic-lite
+    executor: cursor-sdk
   explore:
     skill: cursor-atomic-explore
     executor: cursor-subagent

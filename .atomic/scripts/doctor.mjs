@@ -352,7 +352,11 @@ export function checkConfiguredExecutors(repoRoot) {
     if (node.executor && !merged[stage]) merged[stage] = String(node.executor);
   }
   for (const [stage, exec] of Object.entries(merged)) {
-    if (!isExecutorAvailable(exec) && exec !== "cursor-subagent" && exec !== "cursor-sdk") {
+    if (exec === "pi" && !isExecutorAvailable("pi")) {
+      warnings.push(
+        `executor ${stage}=pi: pi CLI not on PATH — install Pi agent CLI; runtime will fallback (see https://pi.dev/docs/latest/cli-integration)`,
+      );
+    } else if (!isExecutorAvailable(exec) && exec !== "cursor-subagent" && exec !== "cursor-sdk") {
       warnings.push(`executor ${stage}=${exec}: CLI not on PATH (pipeline will fallback at runtime)`);
     }
   }

@@ -58,6 +58,7 @@ export function loadGraph(repoRoot) {
 
 /** Pipeline / setup stage ids (graph node keys). */
 export const GRAPH_STAGE_IDS = [
+  "lite",
   "explore",
   "plan",
   "plan-review",
@@ -70,6 +71,7 @@ export const GRAPH_STAGE_IDS = [
 
 /** Maps runRoleStep phaseKey → graph node id. */
 export const PHASE_TO_GRAPH_STAGE = {
+  lite: "lite",
   explore: "explore",
   plan: "plan",
   "plan-review": "plan-review",

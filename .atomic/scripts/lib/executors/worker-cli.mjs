@@ -27,9 +27,9 @@ export async function runWorkerExecutor(params) {
     return { ok: false, kind: "run", message: `worker CLI not mapped for ${params.executorId}` };
   }
 
-  if (!params.skipTrust) {
+  if (!params.skipTrust && process.env.CURSOR_ATOMIC_TRUST_COMMANDS !== "1") {
     const trusted = await ensureCommandTrusted(`invoke-worker:${worker}`, { nonInteractive: true });
-    if (!trusted.ok && process.env.CURSOR_ATOMIC_TRUST_COMMANDS !== "1") {
+    if (!trusted.ok) {
       return { ok: false, kind: "run", message: trusted.reason };
     }
   }

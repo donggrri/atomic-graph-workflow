@@ -77,7 +77,9 @@ npx github:donggrri/atomic-graph-workflow --target /path/to/project --harness au
 
 After install, run **`/atomic-setup`** in your agent to write `.cursor-atomic-workflow.json` (AGY stages, `testDone`, `agyModel`, per-stage `executors`, gitignore policy).
 
-`run-pipeline.mjs` reads `.atomic/graph.yaml` for each stage’s default `executor` and `model`. Project `executors` in `.cursor-atomic-workflow.json` override the graph. Supported executors: `cursor-subagent`, `cursor-agent`, `cursor-sdk`, `agy`, `codex`, `opencode`, `pi`, `claude` (missing CLIs fall back at runtime; doctor warns).
+`run-pipeline.mjs` and `run-stage.mjs` read `.atomic/graph.yaml` for each stage’s default `executor` and `model`. Project `executors` in `.cursor-atomic-workflow.json` override the graph. Supported executors: `cursor-subagent`, `cursor-agent`, `cursor-sdk`, `agy`, `codex`, `opencode`, `pi` (headless `pi -p`), `claude` (missing CLIs fall back at runtime; doctor warns). Optional `executorTimeouts` maps stage ids (`lite`, `explore`, `plan`, …) to timeout minutes (default 45).
+
+**AGY policy vs per-stage executors:** `agy.plan` / `agy.implement` / `agy.review` control whether the pipeline *asks* to delegate to AGY (`ask`), runs Cursor SDK roles (`sdk`), or stops for parent `/cursor-atomic-agy` (`agy`). When a policy is `agy` and you have **not** set an explicit `executors.<stage>`, the runner fills matching graph stages with executor `agy` (`plan` → `explore`, `plan`, `plan-review`; `implement` → `task`, `execute`; `review` → `review`, `wrapup`). Explicit `executors` always win. Headless stage runs: `node .atomic/scripts/run-stage.mjs <stage> --repo . --slug <slug> --prompt-file <brief.md>` (explore, plan, lite, memory, …).
 
 Paste prompt for an installing agent: [INSTALL_PROMPT.md](INSTALL_PROMPT.md).
 

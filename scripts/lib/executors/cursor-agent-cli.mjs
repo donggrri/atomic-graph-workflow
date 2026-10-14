@@ -5,7 +5,7 @@ import { binOnPath } from "../cli-detect.mjs";
 const execFileAsync = promisify(execFile);
 
 /**
- * @param {{ repoRoot: string, prompt: string, timeoutMin?: number }} params
+ * @param {{ repoRoot: string, prompt: string, timeoutMin?: number, agentStem?: string }} params
  */
 export async function runCursorAgentCli(params) {
   if (!binOnPath(["cursor-agent", "agent"])) {

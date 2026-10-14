@@ -7,6 +7,7 @@ import { confirm, isInteractiveTTY, select, text } from "./lib/prompt.mjs";
 import { runDoctor } from "./doctor.mjs";
 import { ensureCommandTrusted } from "./lib/command-trust.mjs";
 import { collectExecutorChoices } from "./lib/project-setup-executors.mjs";
+import { parseExecutorTimeouts } from "./lib/workflow-settings.mjs";
 
 const here = fileURLToPath(new URL(".", import.meta.url));
 
@@ -79,6 +80,27 @@ export async function runProjectSetup(repoRoot, options = {}) {
     : false;
   if (configureExecutors) {
     patch.executors = await collectExecutorChoices(true);
+    if (interactive) {
+      const timeoutsJson = await text(
+        `executorTimeouts (분, JSON — 예: {"memory":10,"execute":90}; 비우면 기본 45)`,
+        "",
+      );
+      if (timeoutsJson.trim()) {
+        let parsed;
+        try {
+          parsed = JSON.parse(timeoutsJson.trim());
+        } catch {
+          throw new Error("executorTimeouts: invalid JSON");
+        }
+        const parsedTimeouts = parseExecutorTimeouts(parsed, "project settings");
+        if (!parsedTimeouts.ok) {
+          throw new Error(parsedTimeouts.reason);
+        }
+        if (Object.keys(parsedTimeouts.executorTimeouts).length > 0) {
+          patch.executorTimeouts = parsedTimeouts.executorTimeouts;
+        }
+      }
+    }
   }
 
   if (interactive) {

@@ -15,8 +15,9 @@ description: "설치 후 저장소별 atomic-graph-workflow 설정(AGY 단계, �
 4. **완료 명령** (`testDone`): `package.json`의 `scripts.test` → `npm test`, 없으면 Makefile/pyproject 등을 보고 제안. `profiles`의 `test.done`보다 프로젝트 키가 우선한다.
 5. **git**: `.atomic/`, `.agents/skills/`, 하네스 생성 파일을 팀과 공유할지 묻는다. 공유 시 `output.log*`만 `.gitignore`에 추가하는 것을 제안한다 (`runs/`는 workflowHome 아래).
 6. **memory sweep hook**: Cursor 전용, 기본 끔. 켜면 `memorySweepHook: true`만 저장(자동 설치는 아직 없음).
-7. **단계별 executor** (`executors`): `explore`, `plan`, `plan-review`, `task`, `execute`, `review`, `wrapup`, `memory` 각각에 `cursor-subagent` | `cursor-agent` | `cursor-sdk` | `agy` | `codex` | `opencode` | `pi` | `claude`. 값은 문자열 또는 `{ "executor": "agy", "model": "…" }`. 기본은 `.atomic/graph.yaml`의 `executor` 필드와 파이프라인 adapter(`sdk`→`cursor-sdk`, `task-card`→`cursor-subagent`). CLI가 없으면 런타임 fallback, doctor는 경고를 남긴다.
-8. 설정 JSON을 저장한 뒤 `node .atomic/scripts/doctor.mjs --harness auto --target .` 를 실행하고 결과를 보고한다.
+7. **단계별 executor** (`executors`): `lite`, `explore`, `plan`, `plan-review`, `task`, `execute`, `review`, `wrapup`, `memory` 각각에 `cursor-subagent` | `cursor-agent` | `cursor-sdk` | `agy` | `codex` | `opencode` | `pi` | `claude`. 값은 문자열 또는 `{ "executor": "agy", "model": "…" }`. 기본은 `.atomic/graph.yaml`의 `executor` 필드와 파이프라인 adapter(`sdk`→`cursor-sdk`, `task-card`→`cursor-subagent`). CLI가 없으면 런타임 fallback, doctor는 경고를 남긴다. `agy.plan`/`implement`/`review`가 `agy`이고 해당 단계에 명시 `executors`가 없으면 위 매핑으로 executor가 `agy`로 채워진다(명시 설정이 우선).
+8. **타임아웃** (`executorTimeouts`, 선택): 단계 id → 분(기본 45). `pi`·외부 CLI는 `run-stage.mjs`·파이프라인·`memory-sweep`에서 동일하게 적용된다.
+9. 설정 JSON을 저장한 뒤 `node .atomic/scripts/doctor.mjs --harness auto --target .` 를 실행하고 결과를 보고한다.
 
 ## 스크립트
 

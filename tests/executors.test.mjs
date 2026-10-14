@@ -39,6 +39,17 @@ test("resolveExecutorWithFallback returns an executor id", () => {
   assert.ok(res.executor.length > 0);
 });
 
+test("resolveExecutorWithFallback keeps pi only when allowPi", () => {
+  const blocked = resolveExecutorWithFallback("pi");
+  assert.notEqual(blocked.executor, "pi");
+  const allowed = resolveExecutorWithFallback("pi", { allowPi: true });
+  if (allowed.executor === "pi") {
+    assert.equal(allowed.fallbackFrom, null);
+  } else {
+    assert.equal(allowed.fallbackFrom, "pi");
+  }
+});
+
 test("composite runner delegates cursor-subagent to task-card", async () => {
   let called = false;
   const adapter = {
