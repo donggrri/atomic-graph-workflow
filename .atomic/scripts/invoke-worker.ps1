@@ -147,7 +147,7 @@ try {
 
   switch ($Worker) {
     'agy' {
-      $bin = Resolve-Bin @('agy.exe', 'agy')
+      $bin = Resolve-Bin @('agy', 'agy.exe')
       if (-not $bin) { throw 'agy not on PATH. Run scripts/ensure-workers.ps1 -Workers agy' }
       $agyArgs = @('--output-format', 'text', '--mode', 'accept-edits', '--dangerously-skip-permissions', '--print-timeout', $agyTimeout)
       if ($agyModel) { $agyArgs += @('--model', $agyModel) }

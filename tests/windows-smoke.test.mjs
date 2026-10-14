@@ -4,6 +4,7 @@ import { mkdtempSync, writeFileSync, mkdirSync, readFileSync, rmSync } from "nod
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { spawnSync } from "node:child_process";
+import { delimiter } from "node:path";
 import { spawnCli } from "../scripts/lib/exec-cross.mjs";
 
 const isWin = process.platform === "win32";
@@ -54,8 +55,15 @@ test(
     writeFileSync(promptFile, "한글 지시: 테스트 완료\r\n", "utf8");
     const logFile = join(root, "run.log");
     const script = join(process.cwd(), "scripts", "invoke-worker.ps1");
+    const psExe = join(
+      process.env.SystemRoot ?? "C:\\Windows",
+      "System32",
+      "WindowsPowerShell",
+      "v1.0",
+      "powershell.exe",
+    );
     const ps = spawnSync(
-      "powershell",
+      psExe,
       [
         "-NoProfile",
         "-ExecutionPolicy",
@@ -75,9 +83,12 @@ test(
       ],
       {
         encoding: "utf8",
-        env: { ...process.env, PATH: binDir },
+        env: { ...process.env, PATH: `${binDir}${delimiter}${process.env.PATH}` },
       },
     );
+    if (ps.error) {
+      assert.fail(ps.error.message);
+    }
     const norm = `${ps.stdout ?? ""}\n${ps.stderr ?? ""}`.replace(/\u0000/g, "");
     assert.equal(ps.status, 0, norm);
     assert.match(norm, /Read the file at the following path/i);
