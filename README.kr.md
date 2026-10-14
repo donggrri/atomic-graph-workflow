@@ -67,10 +67,15 @@ npx github:donggrri/atomic-graph-workflow --target /path/to/project --harness au
 | `--target <dir>` | 설치 대상 (기본: cwd) |
 | `--harness <목록>` | `auto`, `cursor`, `opencode`, `codex`, `pi`, `agy`, `claude`, `all` (쉼표 구분). `auto`/`all`은 `--with-claude` 없으면 Claude 제외 |
 | `--migrate` | 레거시 `.cursor/skills/cursor-atomic-*` 제거 |
-| `--force` | 생성 파일 덮어쓰기 |
-| `--set-model <agent>=<model>` | 에이전트 모델 고정 |
+| `--force` | 생성 파일 덮어쓰기 (`model`은 `--set-model` 없으면 유지) |
+| `--set-model <agent>=<model>` | 에이전트 모델 고정 (`reviewer` → `cursor-atomic-reviewer`) |
 | `--with-claude` | Claude Code (`.claude/*`, `CLAUDE.md`의 `@AGENTS.md`) |
+| `--yes`, `-y` | 비대화형 기본값 (TTY에서는 체크박스 설치기) |
+| `--dry-run` | 생성 예정 경로만 출력 |
+| `--skip-doctor` | 설치 후 doctor 생략 |
 | `-h, --help` | 도움말 |
+
+설치 후 에이전트에서 **`/atomic-setup`** 으로 `.cursor-atomic-workflow.json`을 만든다.
 
 에이전트에 붙여 넣을 프롬프트: [INSTALL_PROMPT.md](INSTALL_PROMPT.md).
 
