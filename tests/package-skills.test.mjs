@@ -22,6 +22,7 @@ const COMMAND_SKILLS = [
   "cursor-atomic-review",
   "cursor-atomic-run",
   "cursor-atomic-settings",
+  "cursor-atomic-setup",
   "cursor-atomic-status",
   "cursor-atomic-task",
   "cursor-atomic-wrapup",
@@ -84,8 +85,10 @@ function isAllowedOldAgentMention(line) {
 
 test("package.json includes harness-neutral source dirs", async () => {
   const pkg = JSON.parse(await readFile("package.json", "utf8"));
-  assert.equal(pkg.name, "cursor-atomic-workflow");
+  assert.equal(pkg.name, "atomic-graph-workflow");
   assert.ok(pkg.files.includes("skills/"), "package.json files must ship skills/");
+  assert.ok(pkg.files.includes("bin/"), "package.json files must ship bin/");
+  assert.ok(pkg.bin?.["atomic-graph-workflow"]);
   assert.equal(pkg.engines?.node, ">=22.13");
   assert.ok(pkg.optionalDependencies?.["@cursor/sdk"]);
   assert.equal(pkg.pi, undefined, "Cursor package must not declare pi manifest");
@@ -103,6 +106,7 @@ test("package.json meets public publish metadata contract", async () => {
     "agents"
   ];
   const expectedFiles = [
+    "bin/",
     "skills/",
     "agents/",
     "commands/",
@@ -118,18 +122,18 @@ test("package.json meets public publish metadata contract", async () => {
     "LICENSE"
   ];
 
-  assert.equal(pkg.name, "cursor-atomic-workflow");
-  assert.equal(pkg.version, "0.1.0");
+  assert.equal(pkg.name, "atomic-graph-workflow");
+  assert.equal(pkg.version, "0.2.0");
   assert.ok(!Object.hasOwn(pkg, "private"), "package.json must not declare private");
   assert.equal(typeof pkg.description, "string");
   assert.ok(pkg.description.trim().length > 0, "description must be non-empty");
   assert.equal(pkg.license, "MIT");
   assert.deepEqual(pkg.repository, {
     type: "git",
-    url: "git+https://github.com/donggrri/cursor-atomic-workflow.git"
+    url: "git+https://github.com/donggrri/atomic-graph-workflow.git"
   });
-  assert.equal(pkg.homepage, "https://github.com/donggrri/cursor-atomic-workflow#readme");
-  assert.equal(pkg.bugs?.url, "https://github.com/donggrri/cursor-atomic-workflow/issues");
+  assert.equal(pkg.homepage, "https://github.com/donggrri/atomic-graph-workflow#readme");
+  assert.equal(pkg.bugs?.url, "https://github.com/donggrri/atomic-graph-workflow/issues");
   for (const keyword of expectedKeywords) {
     assert.ok(pkg.keywords?.includes(keyword), `keywords must include ${keyword}`);
   }
@@ -356,6 +360,7 @@ test("run-done returns ok:true for successful command", async () => {
   const tmpDir = mkdtempSync(join(tmpdir(), "test-run-done-"));
   try {
     const result = await runDone({
+      skipTrust: true,
       cwd: tmpDir,
       command: "echo hello",
       logPath: join(tmpDir, "output.log"),
@@ -375,6 +380,7 @@ test("run-done returns ok:false for failing command", async () => {
   const tmpDir = mkdtempSync(join(tmpdir(), "test-run-done-"));
   try {
     const result = await runDone({
+      skipTrust: true,
       cwd: tmpDir,
       command: "exit 1",
       logPath: join(tmpDir, "output.log"),
@@ -394,6 +400,7 @@ test("run-done handles timeout with ok:false and exitCode -1", async () => {
   const tmpDir = mkdtempSync(join(tmpdir(), "test-run-done-"));
   try {
     const result = await runDone({
+      skipTrust: true,
       cwd: tmpDir,
       command: "sleep 10",
       logPath: join(tmpDir, "output.log"),
@@ -414,6 +421,7 @@ test("run-done creates .done.json at logPath", async () => {
   try {
     const logPath = join(tmpDir, "build.log");
     await runDone({
+      skipTrust: true,
       cwd: tmpDir,
       command: "echo test",
       logPath,
@@ -434,6 +442,7 @@ test("run-done extracts errorTail of last 20 lines on command failure", async ()
   try {
     const logPath = join(tmpDir, "output.log");
     const result = await runDone({
+      skipTrust: true,
       cwd: tmpDir,
       command: `node -e "for (let i = 1; i <= 25; i++) console.log('line ' + i); process.exit(1);"`,
       logPath,
@@ -459,6 +468,7 @@ test("run-done extracts errorTail on command timeout", async () => {
   try {
     const logPath = join(tmpDir, "output.log");
     const result = await runDone({
+      skipTrust: true,
       cwd: tmpDir,
       command: `node -e "console.log('timeout log line'); setTimeout(() => {}, 5000);"`,
       logPath,

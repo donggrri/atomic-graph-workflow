@@ -58,7 +58,8 @@ Node `>=22.13` 필요. `@cursor/sdk`는 패키지 루트의 optional dependency�
 이 저장소(또는 설치된 npm 패키지 디렉터리)에서 실행한다:
 
 ```bash
-node scripts/install.mjs --target /path/to/project --harness auto
+npx github:donggrri/atomic-graph-workflow --target /path/to/project --harness auto --yes
+# 또는 클론 후: node scripts/install.mjs --target /path/to/project --harness auto
 ```
 
 | 옵션 | 의미 |

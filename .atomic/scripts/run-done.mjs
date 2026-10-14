@@ -3,6 +3,7 @@ import { spawn } from "node:child_process";
 import { readFile, writeFile } from "node:fs/promises";
 import { createWriteStream } from "node:fs";
 import { join } from "node:path";
+import { ensureCommandTrusted } from "./lib/command-trust.mjs";
 
 /**
  * Command log `…/<id>.log` stores evidence at `…/<id>.done.json`.
@@ -20,8 +21,15 @@ export function evidencePath(logPath) {
  * @param {{ cwd?: string, command: string, logPath: string, timeoutMs: number }} opts
  * @returns {Promise<{ ok: boolean, exitCode: number, outputPath: string, errorTail?: string }>}
  */
-export async function runDone({ cwd, command, logPath, timeoutMs }) {
+export async function runDone({ cwd, command, logPath, timeoutMs, skipTrust }) {
   const donePath = evidencePath(logPath);
+  if (!skipTrust) {
+    const trusted = await ensureCommandTrusted(command);
+    if (!trusted.ok) {
+      await writeSummary(donePath, { ok: false, exitCode: -2, outputPath: donePath, command, errorTail: trusted.reason });
+      return { ok: false, exitCode: -2, outputPath: donePath, errorTail: trusted.reason };
+    }
+  }
 
   return new Promise((resolve) => {
     let settled = false;

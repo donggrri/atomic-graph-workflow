@@ -58,7 +58,8 @@ The bundled upstream skills snapshot records its source, revision, and MIT licen
 From this repository (or an installed npm package directory), run:
 
 ```bash
-node scripts/install.mjs --target /path/to/project --harness auto
+npx github:donggrri/atomic-graph-workflow --target /path/to/project --harness auto --yes
+# or from a clone: node scripts/install.mjs --target /path/to/project --harness auto
 ```
 
 | Option | Meaning |
@@ -66,10 +67,15 @@ node scripts/install.mjs --target /path/to/project --harness auto
 | `--target <dir>` | Target project (default: current directory) |
 | `--harness <list>` | `auto`, `cursor`, `opencode`, `codex`, `pi`, `agy`, `claude`, `all` (comma-separated). `auto`/`all` omit Claude unless `--with-claude` |
 | `--migrate` | Remove legacy `.cursor/skills/cursor-atomic-*` (duplicate with `.agents/skills`) |
-| `--force` | Overwrite generated files |
-| `--set-model <agent>=<model>` | Pin a phase model in agent frontmatter (repeatable) |
+| `--force` | Overwrite generated files (keeps existing agent `model` unless `--set-model` overrides) |
+| `--set-model <agent>=<model>` | Pin a phase model in agent frontmatter (`reviewer` → `cursor-atomic-reviewer`) |
 | `--with-claude` | Include Claude Code (`.claude/*`, `CLAUDE.md` with `@AGENTS.md`) |
+| `--yes`, `-y` | Non-interactive defaults (TTY without `--yes` opens the checkbox installer) |
+| `--dry-run` | Print what would be created |
+| `--skip-doctor` | Skip post-install doctor |
 | `-h, --help` | Help |
+
+After install, run **`/atomic-setup`** in your agent to write `.cursor-atomic-workflow.json` (AGY stages, `testDone`, `agyModel`, gitignore policy).
 
 Paste prompt for an installing agent: [INSTALL_PROMPT.md](INSTALL_PROMPT.md).
 

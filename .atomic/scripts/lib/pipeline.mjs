@@ -840,7 +840,7 @@ export async function runPipeline(opts) {
   }
 
   if (state.cursor?.phase === "tester" || cursorPhase === "tester") {
-    const step = testerStep(profile, slug);
+    const step = testerStep(profile, slug, { repoRoot });
     const ter = await runRoleStep("tester", step.prompt, "tester");
     await syncAfter({ statusSync }, slug);
     if (!ter.ok) {

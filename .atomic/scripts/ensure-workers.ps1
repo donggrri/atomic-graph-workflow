@@ -41,6 +41,11 @@ foreach ($w in $Workers) {
       if (Test-Bin @('agy', 'agy.exe')) {
         $results += Write-State 'agy' 'ok' ((Get-Command agy).Source)
       } else {
+        $answer = Read-Host 'agy not found. Run irm https://antigravity.google/cli/install.ps1 | iex ? [y/N]'
+        if ($answer -notmatch '^[yY]') {
+          $results += Write-State 'agy' 'missing' 'user declined agy install'
+          continue
+        }
         Write-Host 'Installing agy (Antigravity CLI)...'
         irm https://antigravity.google/cli/install.ps1 | iex
         Refresh-Path
@@ -62,6 +67,11 @@ foreach ($w in $Workers) {
       if (Test-Bin @('codex', 'codex.exe')) {
         $results += Write-State 'codex' 'ok' ((Get-Command codex).Source)
       } else {
+        $answer = Read-Host 'codex not found. Run winget install OpenAI.Codex ? [y/N]'
+        if ($answer -notmatch '^[yY]') {
+          $results += Write-State 'codex' 'missing' 'user declined codex install'
+          continue
+        }
         Write-Host 'Installing Codex CLI (winget OpenAI.Codex)...'
         winget install --id OpenAI.Codex -e --accept-package-agreements --accept-source-agreements
         Refresh-Path
@@ -85,6 +95,11 @@ foreach ($w in $Workers) {
       if (Test-Bin @('opencode', 'opencode.exe')) {
         $results += Write-State 'opencode' 'ok' ((Get-Command opencode).Source)
       } else {
+        $answer = Read-Host 'opencode not found. Run npm install -g opencode-ai ? [y/N]'
+        if ($answer -notmatch '^[yY]') {
+          $results += Write-State 'opencode' 'missing' 'user declined opencode install'
+          continue
+        }
         Write-Host 'Installing opencode (npm -g opencode-ai)...'
         npm install -g opencode-ai
         Refresh-Path

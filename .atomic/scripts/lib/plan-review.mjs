@@ -50,9 +50,12 @@ export function planReviewHasDefects(text) {
  * @returns {string}
  */
 function agentInstructionsPath(repoRoot, agentFile) {
-  const inRepo = join(repoRoot, ".cursor/agents", agentFile);
-  if (existsSync(inRepo)) {
-    return inRepo;
+  const candidates = [
+    join(repoRoot, ".atomic", "agents", agentFile),
+    join(repoRoot, ".cursor/agents", agentFile),
+  ];
+  for (const path of candidates) {
+    if (existsSync(path)) return path;
   }
   return join(homedir(), ".cursor/agents", agentFile);
 }

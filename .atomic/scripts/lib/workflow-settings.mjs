@@ -80,7 +80,19 @@ export function loadWorkflowSettings(options) {
   /** @type {Partial<Record<string, "ask"|"sdk"|"agy">>} */
   const agy = { ...globalAgy.choices, ...projectAgy.choices };
 
-  return { ok: true, agy };
+  const agyModel =
+    typeof project.data.agyModel === "string" && project.data.agyModel.trim()
+      ? project.data.agyModel.trim()
+      : typeof global.data.agyModel === "string" && global.data.agyModel.trim()
+        ? global.data.agyModel.trim()
+        : null;
+
+  const testDone =
+    typeof project.data.testDone === "string" && project.data.testDone.trim()
+      ? project.data.testDone.trim()
+      : null;
+
+  return { ok: true, agy, agyModel, testDone };
 }
 
 /**

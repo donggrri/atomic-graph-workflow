@@ -42,3 +42,20 @@ test("loadWorkflowSettings merges global and project agy", () => {
     rmSync(repo, { recursive: true, force: true });
   }
 });
+
+test("loadWorkflowSettings reads agyModel and testDone from project", () => {
+  const repo = mkdtempSync(join(tmpdir(), "caw-repo2-"));
+  try {
+    writeFileSync(
+      join(repo, ".cursor-atomic-workflow.json"),
+      JSON.stringify({ agyModel: "gemini-3.8-flash", testDone: "pnpm test" }),
+      "utf8",
+    );
+    const loaded = loadWorkflowSettings({ repoRoot: repo, workflowHome: repo });
+    assert.equal(loaded.ok, true);
+    assert.equal(loaded.agyModel, "gemini-3.8-flash");
+    assert.equal(loaded.testDone, "pnpm test");
+  } finally {
+    rmSync(repo, { recursive: true, force: true });
+  }
+});

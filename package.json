@@ -1,15 +1,18 @@
 {
-  "name": "cursor-atomic-workflow",
-  "version": "0.1.0",
-  "description": "Atomic explore → plan → task → execute → review workflow for Cursor (SDK runner + Task subagents).",
+  "name": "atomic-graph-workflow",
+  "version": "0.2.0",
+  "description": "Atomic explore → plan → task → execute → review workflow for Cursor and other agent harnesses.",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/donggrri/cursor-atomic-workflow.git"
+    "url": "git+https://github.com/donggrri/atomic-graph-workflow.git"
   },
-  "homepage": "https://github.com/donggrri/cursor-atomic-workflow#readme",
+  "homepage": "https://github.com/donggrri/atomic-graph-workflow#readme",
   "bugs": {
-    "url": "https://github.com/donggrri/cursor-atomic-workflow/issues"
+    "url": "https://github.com/donggrri/atomic-graph-workflow/issues"
+  },
+  "bin": {
+    "atomic-graph-workflow": "./bin/atomic-graph-workflow.mjs"
   },
   "keywords": [
     "cursor",
@@ -20,6 +23,7 @@
     "agents"
   ],
   "files": [
+    "bin/",
     "skills/",
     "agents/",
     "commands/",
