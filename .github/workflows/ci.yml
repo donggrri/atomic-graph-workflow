@@ -87,3 +87,27 @@ jobs:
 
           console.log("doctor: repository checks passed");
           EOF
+
+  test-windows:
+    name: test (windows)
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Test (Windows-focused suite + smoke)
+        env:
+          RUN_WINDOWS_SMOKE: "1"
+        run: npm run test:win
+
+      - name: Check bundled script copies
+        run: node scripts/sync-bundled.mjs --check

@@ -13,6 +13,7 @@ const ROLE_SKILL_DIRS = {
   reviewer: ["cursor-atomic-workflow", "code-review"],
   tester: ["cursor-atomic-workflow", "tdd", "codebase-design"],
   "cli-delegate": ["cursor-atomic-workflow"],
+  "memory-curator": ["cursor-atomic-workflow"],
 };
 
 /**
@@ -38,9 +39,19 @@ export function resolveSkillPath(repoRoot, skillName, options = {}) {
  * @param {string} body
  * @param {{ homeDir?: string, exists?: (path: string) => boolean }} [options]
  */
-function formatPrompt(repoRoot, role, body, options) {
+export function formatPrompt(repoRoot, role, body, options) {
   const dirs = ROLE_SKILL_DIRS[role] ?? ["cursor-atomic-workflow"];
-  const skillLines = dirs.map((name) => resolveSkillPath(repoRoot, name, options));
+  return formatSkillPrompt(repoRoot, dirs, body, options);
+}
+
+/**
+ * @param {string} repoRoot
+ * @param {string[]} skillNames
+ * @param {string} body
+ * @param {{ homeDir?: string, exists?: (path: string) => boolean }} [options]
+ */
+export function formatSkillPrompt(repoRoot, skillNames, body, options) {
+  const skillLines = skillNames.map((name) => resolveSkillPath(repoRoot, name, options));
   const tail = (body ?? "").trim();
   return tail ? `${skillLines.join("\n")}\n${tail}` : skillLines.join("\n");
 }
@@ -55,11 +66,13 @@ export function createTaskCardAdapter({ runsDir, slug, repoRoot, homeDir, exists
     /**
      * @param {{ role: string, prompt?: string, cwd?: string, model?: string }} params
      */
-    async runRole({ role, prompt }) {
+    async runRole({ role, prompt, model }) {
       const roleDef = getRole(role);
+      const cardModel =
+        typeof model === "string" && model.trim() ? model.trim() : roleDef.taskModel;
       const card = {
         subagent_type: roleDef.subagentType,
-        model: roleDef.taskModel,
+        model: cardModel,
         run_in_background: true,
         prompt: formatPrompt(repoRoot, role, prompt ?? "", skillOptions),
       };

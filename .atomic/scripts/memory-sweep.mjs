@@ -18,8 +18,7 @@ import { join, resolve } from "node:path";
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { getShortRepo, getWorkflowRoot } from "./work-status.mjs";
-import { AUXILIARY_ROLES } from "./lib/roles.mjs";
-import { loadSdk } from "./lib/adapters/sdk.mjs";
+import { runGraphStage } from "./lib/stage-run.mjs";
 import { buildMemoryContext, memoryDir } from "./memory.mjs";
 
 export const CHILD_ENV = "CURSOR_ATOMIC_MEMORY_CHILD";
@@ -203,33 +202,16 @@ function writeState(root, state) {
  * 헤드리스 curator 에이전트를 한 번 돌린다.
  * @returns {Promise<{ ok: boolean, message: string }>}
  */
-async function runCurator(prompt, cwd) {
-  const sdk = await loadSdk(undefined, () => {});
-  if (!sdk) return { ok: false, message: "@cursor/sdk를 불러오지 못함" };
-  const { Agent } = sdk;
-  const role = AUXILIARY_ROLES["memory-curator"];
+async function runCurator(prompt, repoRoot) {
   process.env[CHILD_ENV] = "1";
-  let agent;
-  try {
-    agent = await Agent.create({
-      model: role.sdk,
-      local: { cwd, settingSources: [] },
-    });
-    const run = await agent.send(prompt);
-    const result = await run.wait();
-    if (result.status === "error") {
-      return { ok: false, message: result.error?.message ?? "run error" };
-    }
-    return { ok: true, message: `status=${result.status}` };
-  } catch (err) {
-    return { ok: false, message: err.message };
-  } finally {
-    if (agent && typeof agent[Symbol.asyncDispose] === "function") {
-      await agent[Symbol.asyncDispose]();
-    } else if (agent && typeof agent.dispose === "function") {
-      await agent.dispose();
-    }
-  }
+  const result = await runGraphStage({
+    repoRoot,
+    stage: "memory",
+    prompt,
+    slug: "memory-sweep",
+    log: (line) => logLine(getWorkflowRoot(), String(line)),
+  });
+  return { ok: result.ok, message: result.summary ?? result.message ?? "memory stage failed" };
 }
 
 /**
@@ -291,7 +273,8 @@ async function sweepOnce(root, input) {
     existingMemory: buildMemoryContext({ root, shortRepo }),
   });
   logLine(root, `sweep start: ${transcript} messages=${messageCount} shortRepo=${shortRepo}`);
-  const result = await runCurator(prompt, homedir());
+  const repoRoot = ids.workspaceRoot && existsSync(ids.workspaceRoot) ? ids.workspaceRoot : homedir();
+  const result = await runCurator(prompt, repoRoot);
   logLine(root, `sweep ${result.ok ? "done" : "failed"}: ${result.message}`);
   if (result.ok) {
     writeState(root, { ...state, [key]: raw.length });

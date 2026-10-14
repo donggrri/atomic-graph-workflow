@@ -2,6 +2,8 @@ import { readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { getWorkflowRoot } from "../work-status.mjs";
 import { PROJECT_SETTINGS_FILE, GLOBAL_SETTINGS_FILE } from "./profiles.mjs";
+import { EXECUTOR_IDS } from "./executors/constants.mjs";
+import { GRAPH_STAGE_IDS } from "./graph.mjs";
 
 const AGY_STAGES = ["plan", "implement", "review"];
 const AGY_VALUES = new Set(["ask", "sdk", "agy"]);
@@ -53,6 +55,90 @@ function parseAgyBlock(agyBlock, label) {
 }
 
 /**
+ * @param {unknown} block
+ * @param {string} label
+ */
+function parseExecutorsBlock(block, label) {
+  if (block == null) return { ok: true, executors: {}, executorModels: {} };
+  if (typeof block !== "object" || Array.isArray(block)) {
+    return { ok: false, reason: `${label}: executors must be an object` };
+  }
+  /** @type {Record<string, string>} */
+  const executors = {};
+  /** @type {Record<string, string>} */
+  const executorModels = {};
+  for (const [key, value] of Object.entries(block)) {
+    if (!GRAPH_STAGE_IDS.includes(key)) {
+      return { ok: false, reason: `${label}: executors.${key} is not a valid stage` };
+    }
+    if (typeof value === "string") {
+      if (!EXECUTOR_IDS.includes(value)) {
+        return { ok: false, reason: `${label}: executors.${key} unknown executor ${value}` };
+      }
+      executors[key] = value;
+      continue;
+    }
+    if (value && typeof value === "object" && !Array.isArray(value)) {
+      const id = value.executor ?? value.id;
+      if (typeof id !== "string" || !EXECUTOR_IDS.includes(id)) {
+        return { ok: false, reason: `${label}: executors.${key}.executor invalid` };
+      }
+      executors[key] = id;
+      if (typeof value.model === "string" && value.model.trim()) {
+        executorModels[key] = value.model.trim();
+      }
+      continue;
+    }
+    return { ok: false, reason: `${label}: executors.${key} must be string or { executor, model? }` };
+  }
+  return { ok: true, executors, executorModels };
+}
+
+/**
+ * @param {unknown} block
+ * @param {string} label
+ */
+/**
+ * @param {unknown} block
+ * @param {string} label
+ */
+export function parseTrustedExecutors(block, label) {
+  if (block == null) return { ok: true, trustedExecutors: {} };
+  if (typeof block !== "object" || Array.isArray(block)) {
+    return { ok: false, reason: `${label}: trustedExecutors must be an object` };
+  }
+  /** @type {Record<string, boolean>} */
+  const trustedExecutors = {};
+  for (const [key, value] of Object.entries(block)) {
+    if (!EXECUTOR_IDS.includes(key)) {
+      return { ok: false, reason: `${label}: trustedExecutors.${key} is not a valid executor` };
+    }
+    trustedExecutors[key] = Boolean(value);
+  }
+  return { ok: true, trustedExecutors };
+}
+
+export function parseExecutorTimeouts(block, label) {
+  if (block == null) return { ok: true, executorTimeouts: {} };
+  if (typeof block !== "object" || Array.isArray(block)) {
+    return { ok: false, reason: `${label}: executorTimeouts must be an object` };
+  }
+  /** @type {Record<string, number>} */
+  const executorTimeouts = {};
+  for (const [key, value] of Object.entries(block)) {
+    if (!GRAPH_STAGE_IDS.includes(key) && key !== "lite") {
+      return { ok: false, reason: `${label}: executorTimeouts.${key} is not a valid stage` };
+    }
+    const num = typeof value === "number" ? value : Number(value);
+    if (!Number.isFinite(num) || num <= 0) {
+      return { ok: false, reason: `${label}: executorTimeouts.${key} must be a positive number (minutes)` };
+    }
+    executorTimeouts[key] = num;
+  }
+  return { ok: true, executorTimeouts };
+}
+
+/**
  * Global settings, then project `.cursor-atomic-workflow.json` (project wins per stage).
  *
  * @param {{
@@ -77,10 +163,55 @@ export function loadWorkflowSettings(options) {
   const projectAgy = parseAgyBlock(project.data.agy, "project settings");
   if (!projectAgy.ok) return projectAgy;
 
+  const globalExec = parseExecutorsBlock(global.data.executors, "global settings");
+  if (!globalExec.ok) return globalExec;
+  const projectExec = parseExecutorsBlock(project.data.executors, "project settings");
+  if (!projectExec.ok) return projectExec;
+
+  const globalTimeouts = parseExecutorTimeouts(global.data.executorTimeouts, "global settings");
+  if (!globalTimeouts.ok) return globalTimeouts;
+  const projectTimeouts = parseExecutorTimeouts(project.data.executorTimeouts, "project settings");
+  if (!projectTimeouts.ok) return projectTimeouts;
+
+  const globalTrust = parseTrustedExecutors(global.data.trustedExecutors, "global settings");
+  if (!globalTrust.ok) return globalTrust;
+  const projectTrust = parseTrustedExecutors(project.data.trustedExecutors, "project settings");
+  if (!projectTrust.ok) return projectTrust;
+
   /** @type {Partial<Record<string, "ask"|"sdk"|"agy">>} */
   const agy = { ...globalAgy.choices, ...projectAgy.choices };
+  const executors = { ...globalExec.executors, ...projectExec.executors };
+  const executorModels = { ...globalExec.executorModels, ...projectExec.executorModels };
+  const executorTimeouts = { ...globalTimeouts.executorTimeouts, ...projectTimeouts.executorTimeouts };
+  const trustedExecutors = {
+    ...globalTrust.trustedExecutors,
+    ...projectTrust.trustedExecutors,
+  };
 
-  return { ok: true, agy };
+  const agyModel =
+    project.data.agyModel === null
+      ? null
+      : typeof project.data.agyModel === "string" && project.data.agyModel.trim()
+        ? project.data.agyModel.trim()
+        : typeof global.data.agyModel === "string" && global.data.agyModel.trim()
+          ? global.data.agyModel.trim()
+          : null;
+
+  const testDone =
+    typeof project.data.testDone === "string" && project.data.testDone.trim()
+      ? project.data.testDone.trim()
+      : null;
+
+  return {
+    ok: true,
+    agy,
+    agyModel,
+    testDone,
+    executors,
+    executorModels,
+    executorTimeouts,
+    trustedExecutors,
+  };
 }
 
 /**

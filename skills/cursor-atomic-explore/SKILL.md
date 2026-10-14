@@ -14,7 +14,7 @@ description: "cursor-atomic-workflow Phase 0. 코드베이스 및 기술 사전 
 `docsDir` = `node .atomic/scripts/work-status.mjs path <slug> [--repo <dir>]` (기본 홈 `CURSOR_ATOMIC_WORKFLOW_HOME`, 없으면 `~/.cursor-atomic-workflow`). 산출물 `<docsDir>/EXPLORE-<slug>.md` (레거시 읽기: `.docs/<slug>/`, `docs/<slug>/`). 홈·스킬·제품 `docs/` 혼용 금지.
 
 1. 기존 코드, 문서, 설정, `docsDir` 및 레거시 `.docs/*/`·하네스 `docs/<slug>/`의 `EXPLORE-*.md` / `PLAN-*.md`를 확인한다.
-2. `explorer`를 백그라운드로 띄운다. 브리프: 1줄 `cursor-atomic-workflow` 경로, 2줄 `docsDir: <absolute>`.
+2. `explorer`를 백그라운드로 띄운다. 브리프: 1줄 `cursor-atomic-workflow` 경로, 2줄 `docsDir: <absolute>`. 비대화형/헤드리스: `node .atomic/scripts/run-stage.mjs explore --repo . --slug <slug> --prompt-file <brief.md>` (executor는 `.cursor-atomic-workflow.json`의 `executors.explore`와 graph 기본값).
 3. `explorer`가 대상 파일, 핵심 코드/인터페이스, 아키텍처 흐름, 리스크를 분석하여 `<docsDir>/EXPLORE-<slug>.md`(레거시: `.docs/<slug>/`, `docs/<slug>/`)를 작성한다.
 4. 코드를 수정하거나 커밋·푸시하지 않는다.
 5. 지정 모델이 실패하면 그 사실을 보고하고 멈춘다.

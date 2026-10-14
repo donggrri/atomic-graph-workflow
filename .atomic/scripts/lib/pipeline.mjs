@@ -19,6 +19,9 @@ import {
   testerStep,
 } from "./profiles.mjs";
 import { loadWorkflowSettings, resolveAgyDecision } from "./workflow-settings.mjs";
+import { loadGraph } from "./graph.mjs";
+import { createCompositeRoleRunner } from "./executors/composite.mjs";
+import { applyEffectiveExecutorSettings } from "./effective-settings.mjs";
 
 const CLI_DELEGATE_WORKERS = new Set(["agy", "opencode", "codex", "claude"]);
 
@@ -263,6 +266,9 @@ export async function runPipeline(opts) {
   }
 
   const planText = readFileSync(planPath, "utf8");
+  const graph = loadGraph(repoRoot);
+  /** @type {ReturnType<typeof createCompositeRoleRunner> | null} */
+  let roleRunner = null;
 
   function emit(line) {
     log(line);
@@ -323,6 +329,16 @@ export async function runPipeline(opts) {
     return { exitCode: 2, state };
   }
   const agyDefaults = workflowSettings.agy;
+  roleRunner = createCompositeRoleRunner({
+    crossExecutorStartupFallback: false,
+    adapter,
+    repoRoot,
+    slug,
+    runsDir: paths.runsDir,
+    graph,
+    settings: applyEffectiveExecutorSettings(workflowSettings),
+    log: (...args) => log(...args),
+  });
   /** @param {string} stage */
   const agyFor = (stage) => resolveAgyDecision(state, stage, flags, agyDefaults);
 
@@ -360,6 +376,9 @@ export async function runPipeline(opts) {
   }
 
   async function runRoleStep(role, rolePrompt, phaseKey) {
+    if (!roleRunner) {
+      return { ok: false, exitCode: 2, message: "role runner not initialized" };
+    }
     const roleDef = getRole(role);
     const model = roleDef.taskModel;
     const prompt = withMemoryContext(
@@ -376,11 +395,12 @@ export async function runPipeline(opts) {
         const retry = attempts > 1 ? ` (attempt ${attempts}/${maxAttempts})` : "";
         emit(`▶ [${phaseKey}] ${role} started · model=${model}${retry}`);
       }
-      const result = await adapter.runRole({
+      const result = await roleRunner.runRole({
         role,
         prompt,
         cwd: repoRoot,
         model,
+        phaseKey,
         onProgress: showProgress
           ? (line) => emit(`    [${phaseKey}/${role}] ${line}`)
           : undefined,
@@ -840,7 +860,7 @@ export async function runPipeline(opts) {
   }
 
   if (state.cursor?.phase === "tester" || cursorPhase === "tester") {
-    const step = testerStep(profile, slug);
+    const step = testerStep(profile, slug, { repoRoot });
     const ter = await runRoleStep("tester", step.prompt, "tester");
     await syncAfter({ statusSync }, slug);
     if (!ter.ok) {

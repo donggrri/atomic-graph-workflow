@@ -24,6 +24,7 @@ test("runDone writes <id>.done.json for a .log path", async () => {
   try {
     const logPath = join(tmp, "T1.log");
     const result = await runDone({
+      skipTrust: true,
       cwd: tmp,
       command: "echo ok",
       logPath,

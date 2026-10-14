@@ -58,7 +58,8 @@ Node `>=22.13` 필요. `@cursor/sdk`는 패키지 루트의 optional dependency�
 이 저장소(또는 설치된 npm 패키지 디렉터리)에서 실행한다:
 
 ```bash
-node scripts/install.mjs --target /path/to/project --harness auto
+npx github:donggrri/atomic-graph-workflow --target /path/to/project --harness auto --yes
+# 또는 클론 후: node scripts/install.mjs --target /path/to/project --harness auto
 ```
 
 | 옵션 | 의미 |
@@ -66,10 +67,19 @@ node scripts/install.mjs --target /path/to/project --harness auto
 | `--target <dir>` | 설치 대상 (기본: cwd) |
 | `--harness <목록>` | `auto`, `cursor`, `opencode`, `codex`, `pi`, `agy`, `claude`, `all` (쉼표 구분). `auto`/`all`은 `--with-claude` 없으면 Claude 제외 |
 | `--migrate` | 레거시 `.cursor/skills/cursor-atomic-*` 제거 |
-| `--force` | 생성 파일 덮어쓰기 |
-| `--set-model <agent>=<model>` | 에이전트 모델 고정 |
+| `--force` | 생성 파일 덮어쓰기 (`model`은 `--set-model` 없으면 유지) |
+| `--set-model <agent>=<model>` | 에이전트 모델 고정 (`reviewer` → `cursor-atomic-reviewer`) |
 | `--with-claude` | Claude Code (`.claude/*`, `CLAUDE.md`의 `@AGENTS.md`) |
+| `--yes`, `-y` | 비대화형 기본값 (TTY에서는 체크박스 설치기) |
+| `--dry-run` | 생성 예정 경로만 출력 |
+| `--skip-doctor` | 설치 후 doctor 생략 |
 | `-h, --help` | 도움말 |
+
+설치 후 에이전트에서 **`/atomic-setup`** 으로 `.cursor-atomic-workflow.json`을 만든다 (AGY 정책, `executors`, `executorTimeouts`, `testDone` 등).
+
+`run-pipeline.mjs`와 `run-stage.mjs`는 `.atomic/graph.yaml`의 단계별 `executor`·`model`을 읽고, 프로젝트 `executors`가 graph를 덮어쓴다. 지원 executor: `cursor-subagent`, `cursor-agent`, `cursor-sdk` (`@cursor/sdk` import 성공 시), `agy`, `codex`, `opencode`, `pi` (비대화형 `pi -p`), `claude`. CLI·SDK가 없으면 런타임 fallback(`run-stage`는 stderr에 로그), doctor가 경고한다. 외부 CLI는 `trustedExecutors` 또는 TTY 신뢰(저장소별 해시)로 승인한다. `executorTimeouts`는 단계 id → 분(기본 45).
+
+**AGY 정책 vs 단계별 executor:** `agy.plan` / `agy.implement` / `agy.review`는 파이프라인이 AGY 위임을 *물을지*(`ask`), Cursor SDK 역할로 돌릴지(`sdk`), 부모 `/cursor-atomic-agy`에 멈출지(`agy`)를 정한다. 정책이 `agy`이고 `executors.<stage>`를 명시하지 않았으면 해당 graph 단계 executor가 `agy`로 채워진다 (`plan` → `explore`·`plan`·`plan-review`; `implement` → `task`·`execute`; `review` → `review`·`wrapup`). 명시한 `executors`가 항상 우선한다. 헤드리스 단계 실행: `node .atomic/scripts/run-stage.mjs <stage> --repo . --slug <slug> --prompt-file <brief.md>`.
 
 에이전트에 붙여 넣을 프롬프트: [INSTALL_PROMPT.md](INSTALL_PROMPT.md).
 
@@ -174,7 +184,7 @@ node scripts/run-pipeline.mjs <slug> [--auto] [--resume] [--adapter sdk|task-car
 
 **부모 Composer + 파이프라인 혼합(기본 패키지 구성)** — 채팅(부모)은 Composer 2.5, 파이프라인 역할은 Haiku(탐색·테스트)·Sonnet(계획·리뷰)·Composer(task·worker·plan-review·CLI 위임)로 나뉜다. Grok은 기본 경로에 쓰지 않는다. 프로젝트 `.cursor-atomic-workflow.json`에서 `"profile": "composer-parent"`를 쓸 수 있다.
 
-**AGY** — 계획·구현·리뷰 단계마다 러너가 AGY 위임을 물을 수 있다. `agy` 키를 프로젝트 `.cursor-atomic-workflow.json` 또는 `~/.cursor-atomic-workflow/settings.json`에 넣는다. 단계(`plan`, `implement`, `review`) 값은 `ask`(기본, exit 20으로 질문), `sdk`(Cursor 역할), `agy`(부모가 `/cursor-atomic-agy` 또는 `cli-delegate`로 `invoke-worker --worker agy` 실행). TASKS 항목에 `worker: agy`를 쓰면 구현 단계에서 AGY 항목 위임(exit 10)이 가능하다. `--auto`는 모든 AGY 질문을 `sdk`로 처리한다.
+**AGY** — 계획·구현·리뷰 *정책*(`agy.plan` / `agy.implement` / `agy.review`)마다 러너가 AGY 위임을 물 수 있다. 값은 `ask`(기본, exit 20), `sdk`(Cursor 역할), `agy`(부모가 `/cursor-atomic-agy` 또는 `invoke-worker --worker agy`). 정책 `agy`는 위 표와 같이 graph 단계 executor를 `agy`로 채운다(명시 `executors` 제외). TASKS `worker: agy`는 구현 항목 위임(exit 10). `--auto`는 AGY 질문을 모두 `sdk`로 처리한다. `memory-sweep.mjs`의 curator는 graph `memory` 단계 설정 executor를 사용한다.
 
 ---
 

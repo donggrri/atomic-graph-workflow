@@ -1,11 +1,9 @@
 import { readdir, stat, cp, mkdir } from "node:fs/promises";
 import { existsSync } from "node:fs";
-import { join, relative } from "node:path";
+import { join, relative, resolve } from "node:path";
 
 /** Dev-only scripts at package root; not copied to target `.atomic/scripts/`. */
-export const PACKAGE_ONLY_SCRIPTS = new Set([
-  "check-agents.mjs",
-]);
+export const PACKAGE_ONLY_SCRIPTS = new Set([]);
 
 /**
  * @param {string} scriptsRoot package `scripts/` directory
@@ -67,6 +65,27 @@ export async function installAtomicRuntime(packageRoot, targetRoot, options = {}
       copied.push(graphDest);
     } else {
       skipped.push(graphDest);
+    }
+  }
+
+  const profilesSrc = join(packageRoot, "profiles");
+  const profilesDest = join(targetRoot, ".atomic", "profiles");
+  if (existsSync(profilesSrc)) {
+    for (const name of await readdir(profilesSrc)) {
+      if (!name.endsWith(".json") && !name.endsWith(".example.json")) continue;
+      const src = join(profilesSrc, name);
+      const dest = join(profilesDest, name);
+      if (resolve(src) === resolve(dest)) {
+        skipped.push(dest);
+        continue;
+      }
+      if (existsSync(dest) && !force) {
+        skipped.push(dest);
+        continue;
+      }
+      await mkdir(profilesDest, { recursive: true });
+      await cp(src, dest, { force: true });
+      copied.push(dest);
     }
   }
 

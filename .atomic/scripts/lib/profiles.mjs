@@ -3,6 +3,7 @@ import { homedir } from "node:os";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { getWorkflowRoot } from "../work-status.mjs";
+import { loadWorkflowSettings } from "./workflow-settings.mjs";
 
 export const DEFAULT_PROFILE_ID = "atomic";
 export const PROJECT_SETTINGS_FILE = ".cursor-atomic-workflow.json";
@@ -266,7 +267,10 @@ export function discoverProfiles(options = {}) {
     join(packageRoot, "profiles"),
     join(workflowHome, "profiles"),
   ];
-  if (repoRoot) dirs.push(join(repoRoot, "profiles"));
+  if (repoRoot) {
+    dirs.push(join(repoRoot, ".atomic", "profiles"));
+    dirs.push(join(repoRoot, "profiles"));
+  }
 
   for (const dir of dirs) {
     for (const name of listJson(dir, fs)) {
@@ -316,14 +320,21 @@ export function plannerProfileLines(profile, planPath) {
  * @param {string} slug
  * @returns {{ prompt: string, done: string | null }}
  */
-export function testerStep(profile, slug) {
+export function testerStep(profile, slug, options = {}) {
   const lines = [`Test slug ${slug}`];
   if (profile.test?.command) {
     lines.push(`Profile test command: ${profile.test.command} — read and follow it.`);
     lines.push(SSH_LINE);
   }
+  let done = profile.test?.done ?? null;
+  if (options.repoRoot) {
+    const settings = loadWorkflowSettings({ repoRoot: options.repoRoot });
+    if (settings.ok && settings.testDone) {
+      done = settings.testDone;
+    }
+  }
   return {
     prompt: lines.join("\n"),
-    done: profile.test?.done ?? null,
+    done,
   };
 }

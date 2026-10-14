@@ -26,7 +26,7 @@ export function taskLogPath(runsDir, taskId) {
 
 export function parseArgs(argv) {
   const args = argv.slice(2);
-  const flags = { auto: false, resume: false, dryRun: false };
+  const flags = { auto: false, resume: false, dryRun: false, trustCommands: false };
   let slug = null;
   let repo = process.cwd();
   let adapterName = null;
@@ -37,6 +37,7 @@ export function parseArgs(argv) {
     if (a === "--auto") flags.auto = true;
     else if (a === "--resume") flags.resume = true;
     else if (a === "--dry-run") flags.dryRun = true;
+    else if (a === "--trust-commands") flags.trustCommands = true;
     else if (a === "--adapter") {
       adapterName = args[i + 1];
       i += 1;
@@ -231,7 +232,13 @@ async function main() {
       const { runsDir } = getWorkflowPaths(repo, slug);
       const logPath = taskLogPath(runsDir, taskId);
       const timeoutMs = parseInt(process.env.TIMEOUT_MS || "30000", 10);
-      const result = await runDone({ cwd, command, logPath, timeoutMs });
+      const result = await runDone({
+        cwd,
+        command,
+        logPath,
+        timeoutMs,
+        skipTrust: flags.trustCommands || process.env.CURSOR_ATOMIC_TRUST_COMMANDS === "1",
+      });
       return {
         ok: result.ok,
         message: result.errorTail || (result.ok ? undefined : `exit ${result.exitCode}`),

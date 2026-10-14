@@ -1,5 +1,6 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
+import { readInstalledHarnesses } from "./project-settings.mjs";
 
 export const HARNESS_IDS = ["cursor", "opencode", "codex", "pi", "agy", "claude"];
 
@@ -41,24 +42,36 @@ export function resolveHarnessSet(parts, options = {}) {
  * @param {string} targetDir
  * @returns {Set<string>}
  */
-export function detectHarnessesSync(targetDir) {
+const MARKERS = [
+  [".cursor", "cursor"],
+  [".opencode", "opencode"],
+  ["opencode.json", "opencode"],
+  [".codex", "codex"],
+  [".pi", "pi"],
+  [".agent", "agy"],
+  [".gemini", "agy"],
+  ["GEMINI.md", "agy"],
+  [".claude", "claude"],
+  ["CLAUDE.md", "claude"],
+];
+
+/** @param {string} targetDir */
+export function detectHarnessMarkers(targetDir) {
   const found = new Set();
-  const markers = [
-    [".cursor", "cursor"],
-    [".opencode", "opencode"],
-    ["opencode.json", "opencode"],
-    [".codex", "codex"],
-    [".pi", "pi"],
-    [".agent", "agy"],
-    [".gemini", "agy"],
-    ["GEMINI.md", "agy"],
-    [".claude", "claude"],
-    ["CLAUDE.md", "claude"],
-  ];
-  for (const [path, harness] of markers) {
+  for (const [path, harness] of MARKERS) {
     if (existsSync(join(targetDir, path))) {
       found.add(harness);
     }
+  }
+  return found;
+}
+
+export function detectHarnessesSync(targetDir) {
+  const found = detectHarnessMarkers(targetDir);
+  const saved = readInstalledHarnesses(targetDir);
+  if (saved?.length) {
+    for (const h of saved) found.add(h);
+    return found;
   }
   if (found.size === 0) {
     found.add("cursor");
@@ -76,7 +89,11 @@ export function resolveHarnesses(parts, targetDir, options = {}) {
   const set = resolveHarnessSet(parts, { withClaude });
 
   if (parts.includes("auto")) {
-    for (const h of detectHarnessesSync(targetDir)) {
+    const saved = readInstalledHarnesses(targetDir);
+    const detected = saved?.length
+      ? new Set(saved)
+      : detectHarnessesSync(targetDir);
+    for (const h of detected) {
       if (h === "claude" && !withClaude) continue;
       set.add(h);
     }

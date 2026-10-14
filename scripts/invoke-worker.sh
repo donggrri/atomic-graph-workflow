@@ -96,6 +96,10 @@ skill_parent_dirs() {
   skill_root="$(find_skill_root "$ws" || true)"
   local -a dirs=("$ws")
   seen["$ws"]=1
+  if [[ -d "$ws/.atomic" && -z "${seen[$ws/.atomic]:-}" ]]; then
+    dirs+=("$ws/.atomic")
+    seen["$ws/.atomic"]=1
+  fi
   if [[ -n "$skill_root" && -z "${seen[$skill_root]:-}" ]]; then
     dirs+=("$skill_root")
     seen["$skill_root"]=1
@@ -188,6 +192,9 @@ printf '%s' "$PROMPT" >"$EFFECTIVE_PROMPT_FILE"
 
 LAST_MESSAGE_FILE="${LOG_FILE%.log}.last.md"
 AGY_TIMEOUT="${TIMEOUT_MIN}m0s"
+if [[ -z "$AGY_MODEL" && -f "$SCRIPT_DIR/lib/read-project-agy-model.mjs" ]]; then
+  AGY_MODEL="$(node "$SCRIPT_DIR/lib/read-project-agy-model.mjs" "$WS" 2>/dev/null || true)"
+fi
 if [[ -z "$AGY_MODEL" && -n "${CURSOR_ATOMIC_AGY_MODEL:-}" ]]; then
   AGY_MODEL="$CURSOR_ATOMIC_AGY_MODEL"
 fi

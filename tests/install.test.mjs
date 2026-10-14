@@ -20,6 +20,7 @@ import {
 } from "../scripts/install.mjs";
 import { checkAgents } from "../scripts/check-agents.mjs";
 import { resolveHarnesses } from "../scripts/lib/harnesses.mjs";
+import { validateSetModelKeys } from "../scripts/lib/install-agents.mjs";
 import { ROUTER_DISPATCH_COMMANDS } from "./workflow-constants.mjs";
 
 const SKILLS = "skills";
@@ -38,6 +39,7 @@ const COMMANDS = [
   "cursor-atomic-review",
   "cursor-atomic-run",
   "cursor-atomic-settings",
+  "cursor-atomic-setup",
   "cursor-atomic-status",
   "cursor-atomic-task",
   "cursor-atomic-wrapup",
@@ -53,6 +55,10 @@ test("bundled workflow scripts match the root scripts", async () => {
   const sync = await checkHarnessSync({ cwd: "." });
   assert.equal(sync.skipped, false);
   assert.equal(sync.inSync, true, `drift: ${sync.mismatches.join(", ")}`);
+});
+
+test("check-agents.mjs is bundled under .atomic/scripts", () => {
+  assert.equal(existsSync(".atomic/scripts/check-agents.mjs"), true);
 });
 
 test("legacy .cursor/commands is gone from the package", async () => {
@@ -118,6 +124,13 @@ test("installer copies skills, atomic runtime, and cursor adapters", async () =>
       await read(join(target, ".cursor", "agents", "worker.md")),
       /^model: composer-2\.5-fast$/m,
     );
+
+    await install({ root: ".", target, harness: "cursor", force: true, setModel: { reviewer: "claude-sonnet-5-5-high" } });
+    assert.match(
+      await read(join(target, ".cursor", "agents", "cursor-atomic-reviewer.md")),
+      /^model: claude-sonnet-5-5-high$/m,
+    );
+    assert.throws(() => validateSetModelKeys({ bogus: "x" }), /unknown --set-model/);
   } finally {
     await rm(target, { recursive: true, force: true });
   }
@@ -168,7 +181,11 @@ for (const harness of HARNESS_TARGETS) {
         await mkdir(join(target, ".pi"), { recursive: true });
       }
       await install({ root: ".", target, harness, force: true });
-      const report = await runDoctor({ cwd: target, harness, root: "." });
+      if (harness === "agy" || harness === "codex") {
+        const settings = JSON.parse(await read(join(target, ".cursor-atomic-workflow.json")));
+        assert.ok(settings.installedHarnesses.includes(harness));
+      }
+      const report = await runDoctor({ cwd: target, harness: "auto", root: "." });
       assert.equal(report.ok, true, report.problems.join("\n"));
     } finally {
       await rm(target, { recursive: true, force: true });

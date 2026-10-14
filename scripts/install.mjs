@@ -10,8 +10,13 @@ import {
   applyModelOverride,
   copyAgentsFlat,
   copyAgentsToAtomic,
+  normalizeSetModel,
   opencodeAgentContent,
+  preserveExistingModel,
+  validateSetModelKeys,
 } from "./lib/install-agents.mjs";
+import { getWorkflowRoot } from "./work-status.mjs";
+import { writeInstalledHarnesses } from "./lib/project-settings.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -40,40 +45,65 @@ export function parseInstallArgs(args) {
     migrate: false,
     withClaude: false,
     setModel: {},
+    yes: false,
+    dryRun: false,
+    skipDoctor: false,
   };
+  let harnessExplicit = false;
   for (let i = 0; i < args.length; i++) {
     const a = args[i];
     if (a === "--help" || a === "-h") {
       opts.help = true;
     } else if (a === "--target" && args[i + 1]) opts.target = resolve(args[++i]);
-    else if (a === "--harness" && args[i + 1]) opts.harness = args[++i];
+    else if (a === "--harness" && args[i + 1]) {
+      opts.harness = args[++i];
+      harnessExplicit = true;
+    }
     else if (a === "--force") opts.force = true;
     else if (a === "--migrate") opts.migrate = true;
     else if (a === "--with-claude") opts.withClaude = true;
+    else if (a === "--yes" || a === "-y") opts.yes = true;
+    else if (a === "--dry-run") opts.dryRun = true;
+    else if (a === "--skip-doctor") opts.skipDoctor = true;
     else if (a === "--set-model" && args[i + 1]) {
       const pair = args[++i];
       const eq = pair.indexOf("=");
       if (eq === -1) throw new Error(`--set-model 형식은 <agent>=<model> (입력: ${pair})`);
       opts.setModel[pair.slice(0, eq)] = pair.slice(eq + 1);
     } else if (a === "--no-skills" || a === "--no-agents" || a === "--no-rules") {
-      // legacy flags ignored; harness install always applies components
+      console.warn(`warning: ${a} is deprecated and ignored`);
     } else if (a.startsWith("-")) {
       throw new Error(`알 수 없는 옵션: ${a}`);
     }
+  }
+  if (opts.withClaude && harnessExplicit) {
+    const parts = parseHarnessSpec(opts.harness);
+    if (!parts.includes("auto") && !parts.includes("all") && !parts.includes("claude")) {
+      console.warn(
+        "warning: --with-claude has no effect when --harness lists explicit harnesses without claude",
+      );
+    }
+  }
+  if (Object.keys(opts.setModel).length > 0 && !opts.force) {
+    console.warn("warning: --set-model without --force may not override existing agent models");
   }
   return opts;
 }
 
 export function printInstallHelp() {
-  console.log(`Usage: node scripts/install.mjs [options]
+  console.log(`Usage: npx github:donggrri/atomic-graph-workflow [options]
+       node scripts/install.mjs [options]
 
 Options:
   --target <dir>       설치 대상 (기본: cwd)
   --harness <list>     auto|cursor|opencode|codex|pi|agy|claude|all (쉼표 구분)
   --with-claude        auto/all에 Claude Code 포함
-  --migrate            레거시 .cursor/skills/cursor-atomic-* 제거
-  --force              기존 생성 파일 덮어쓰기
-  --set-model <a>=<m>  에이전트 frontmatter model (Cursor/opencode/claude)
+  --migrate            레거시 .cursor/skills/cursor-atomic-* 제거 (백업 권장)
+  --force              기존 생성 파일 덮어쓰기 (에이전트 model은 유지)
+  --set-model <a>=<m>  에이전트 frontmatter model (reviewer 별칭 지원)
+  --yes, -y            비대화형 기본값으로 진행
+  --dry-run            생성·갱신될 경로만 출력
+  --skip-doctor        설치 후 doctor 생략
   -h, --help
 `);
 }
@@ -89,6 +119,47 @@ export async function findLegacyCursorCommands(target) {
   return (await listMarkdown(join(target, LEGACY_CURSOR_COMMANDS_DIR)))
     .filter((f) => f.startsWith("cursor-atomic-"))
     .map((f) => join(target, LEGACY_CURSOR_COMMANDS_DIR, f));
+}
+
+export async function listLegacyCursorSkillDirs(target) {
+  const legacyRoot = join(target, LEGACY_CURSOR_SKILLS);
+  if (!existsSync(legacyRoot)) return [];
+  const out = [];
+  for (const entry of await readdir(legacyRoot)) {
+    if (!entry.startsWith("cursor-atomic-")) continue;
+    out.push(join(legacyRoot, entry));
+  }
+  return out;
+}
+
+/**
+ * @param {string[]} paths
+ * @param {string} target
+ */
+async function ensureGitignoreBackupPattern(target) {
+  const line = ".atomic-install-backup-*/";
+  const path = join(target, ".gitignore");
+  const text = existsSync(path) ? await readFile(path, "utf8") : "";
+  if (text.split(/\r?\n/).some((l) => l.trim() === line || l.includes("atomic-install-backup"))) {
+    return;
+  }
+  const next = text.trimEnd() ? `${text.trimEnd()}\n${line}\n` : `${line}\n`;
+  await writeFile(path, next, "utf8");
+}
+
+export async function backupInstallPaths(paths, target) {
+  if (!paths.length) return null;
+  const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+  const backupRoot = join(target, `.atomic-install-backup-${stamp}`);
+  await mkdir(backupRoot, { recursive: true });
+  for (const p of paths) {
+    const rel = p.startsWith(target) ? p.slice(target.length + 1) : p;
+    const dest = join(backupRoot, rel);
+    await mkdir(dirname(dest), { recursive: true });
+    await cp(p, dest, { recursive: true, force: true });
+  }
+  await ensureGitignoreBackupPattern(target);
+  return backupRoot;
 }
 
 async function removeLegacyCursorSkills(target) {
@@ -195,6 +266,32 @@ async function installCursorRules(root, target, force, record) {
 /**
  * @param {object} options
  */
+async function readPackageVersion(root) {
+  try {
+    const pkg = JSON.parse(await readFile(join(root, "package.json"), "utf8"));
+    return String(pkg.version ?? "0.0.0");
+  } catch {
+    return "0.0.0";
+  }
+}
+
+async function ensureMemoryVault() {
+  const home = getWorkflowRoot();
+  const memoryDir = join(home, "memory");
+  if (!existsSync(memoryDir)) {
+    await mkdir(memoryDir, { recursive: true });
+  }
+  const readme = join(memoryDir, "README.md");
+  if (!existsSync(readme)) {
+    await writeFile(
+      readme,
+      "# Memory vault\n\n`memory.mjs propose`로 기록합니다. `human.md`가 없으면 approve가 실패할 수 있습니다.\n",
+      "utf8",
+    );
+  }
+  return memoryDir;
+}
+
 export async function install(options = {}) {
   {
     const [maj, min] = process.version.slice(1).split(".").map(Number);
@@ -205,18 +302,52 @@ export async function install(options = {}) {
   const root = options.root || resolve(here, "..");
   const target = resolve(options.target || process.cwd());
   const force = !!options.force;
+  const dryRun = !!options.dryRun;
   const harnessParts = parseHarnessSpec(options.harness || "auto");
   const harnesses = resolveHarnesses(harnessParts, target, {
     withClaude: !!options.withClaude || harnessParts.includes("claude"),
   });
-  const setModel = options.setModel || {};
+  validateSetModelKeys(options.setModel || {});
+  const setModel = normalizeSetModel(options.setModel || {});
+  const version = await readPackageVersion(root);
   const record = { copied: [], overwritten: [], skipped: [], removed: [] };
 
+  if (dryRun) {
+    record.copied.push(join(target, ".atomic/"));
+    record.copied.push(join(target, AGENTS_SKILLS_DIR, "/"));
+    record.copied.push(join(target, ".atomic/profiles/"));
+    record.copied.push(join(target, ".atomic/VERSION"));
+    if (harnesses.has("cursor")) record.copied.push(join(target, ".cursor/agents/"));
+    return {
+      target,
+      harnesses: [...harnesses].sort(),
+      skillsDir: AGENTS_SKILLS_DIR,
+      legacy: await findLegacyCursorCommands(target),
+      version,
+      dryRun: true,
+      ...record,
+    };
+  }
+
   if (options.migrate) {
+    const legacyDirs = await listLegacyCursorSkillDirs(target);
+    if (legacyDirs.length) {
+      const backupRoot = await backupInstallPaths(legacyDirs, target);
+      if (backupRoot) {
+        record.copied.push(backupRoot);
+        console.log(`legacy skills backup: ${backupRoot}`);
+      }
+    }
     record.removed.push(...(await removeLegacyCursorSkills(target)));
   }
 
+  await ensureMemoryVault();
+
   await installAtomicRuntime(root, target, { force });
+  const versionDest = join(target, ".atomic", "VERSION");
+  await mkdir(join(versionDest, ".."), { recursive: true });
+  await writeFile(versionDest, `${version}\n`, "utf8");
+  record.copied.push(versionDest);
   const neutralAgents = join(root, AGENTS_DIR);
   await copyAgentsToAtomic(neutralAgents, join(target, ".atomic", "agents"), force, record);
   await mergeAgentsMd(root, target, force, record);
@@ -243,12 +374,15 @@ export async function install(options = {}) {
       content = opencodeAgentContent(content);
       const stem = file.replace(/\.md$/, "");
       const model = setModel[stem];
-      if (model) content = applyModelOverride(content, model);
       const dest = join(destDir, file);
       const existed = existsSync(dest);
       if (existed && !force) {
         record.skipped.push(dest);
         continue;
+      }
+      if (model) content = applyModelOverride(content, model);
+      else if (existed && force) {
+        content = preserveExistingModel(content, await readFile(dest, "utf8"));
       }
       await mkdir(destDir, { recursive: true });
       await writeFile(dest, content, "utf8");
@@ -259,6 +393,11 @@ export async function install(options = {}) {
 
   if (harnesses.has("pi")) {
     await installCommandShims(root, target, join(".pi", "prompts"), force, record);
+    await copyAgentsFlat(neutralAgents, join(target, ".pi", "agents"), setModel, force, record);
+  }
+
+  if (harnesses.has("codex")) {
+    await copyAgentsFlat(neutralAgents, join(target, ".codex", "agents"), setModel, force, record);
   }
 
   if (harnesses.has("claude")) {
@@ -267,43 +406,22 @@ export async function install(options = {}) {
     await installClaudeMd(target, record);
   }
 
+  writeInstalledHarnesses(target, [...harnesses]);
+
   const legacy = await findLegacyCursorCommands(target);
   return {
     target,
     harnesses: [...harnesses].sort(),
     skillsDir: AGENTS_SKILLS_DIR,
     legacy,
+    version,
     ...record,
   };
 }
 
 if (process.argv[1] && process.argv[1].endsWith("install.mjs")) {
-  let opts;
-  try {
-    opts = parseInstallArgs(process.argv.slice(2));
-  } catch (err) {
-    console.error(err.message);
-    process.exit(1);
-  }
-  if (opts.help) {
-    printInstallHelp();
-    process.exit(0);
-  }
-  install({ ...opts, root: resolve(here, "..") })
-    .then((res) => {
-      console.log(`설치 대상: ${res.target}`);
-      console.log(`  하네스: ${res.harnesses.join(", ")}`);
-      console.log(`  스킬: ${res.skillsDir}`);
-      for (const f of res.copied) console.log(`  + ${f}`);
-      for (const f of res.overwritten) console.log(`  ~ ${f}`);
-      for (const f of res.skipped) console.log(`  = 유지: ${f}`);
-      for (const f of res.removed) console.log(`  - 제거: ${f}`);
-      if (res.legacy.length) {
-        console.log("\n레거시 .cursor/commands/ 파일이 남아 있습니다:");
-        for (const f of res.legacy) console.log(`  rm ${f}`);
-      }
-      console.log("\n검증: node .atomic/scripts/doctor.mjs --harness auto --target .");
-    })
+  import("./install-cli.mjs")
+    .then(({ runInstallCli }) => runInstallCli(process.argv.slice(2)))
     .catch((err) => {
       console.error("설치 실패:", err.message);
       process.exit(1);

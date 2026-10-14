@@ -28,6 +28,12 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+$OutputEncoding = [Console]::InputEncoding = [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
+
+function Get-ReadPromptFileInstruction {
+  param([string]$PromptPath)
+  return "Read the file at the following path and carry out its instructions exactly. Path: $PromptPath"
+}
 
 function Refresh-Path {
   $machine = [System.Environment]::GetEnvironmentVariable('Path', 'Machine')
@@ -141,19 +147,20 @@ try {
 
   switch ($Worker) {
     'agy' {
-      $bin = Resolve-Bin @('agy.exe', 'agy')
+      $bin = Resolve-Bin @('agy', 'agy.exe')
       if (-not $bin) { throw 'agy not on PATH. Run scripts/ensure-workers.ps1 -Workers agy' }
       $agyArgs = @('--output-format', 'text', '--mode', 'accept-edits', '--dangerously-skip-permissions', '--print-timeout', $agyTimeout)
       if ($agyModel) { $agyArgs += @('--model', $agyModel) }
       foreach ($dir in (Get-SkillAddDirs $ws)) { $agyArgs += @('--add-dir', $dir) }
-      $agyArgs += @('-p', $prompt)
+      $agyArgs += @('-p', (Get-ReadPromptFileInstruction $effectivePromptFile))
       & $bin @agyArgs 2>&1 | Tee-Object -FilePath $LogFile -Append
       $exitCode = $LASTEXITCODE
     }
     'codex' {
       $bin = Resolve-Bin @('codex.exe', 'codex')
       if (-not $bin) { throw 'codex not on PATH. Run scripts/ensure-workers.ps1 -Workers codex' }
-      $prompt | & $bin exec - --sandbox workspace-write -c 'approval_policy="never"' -C $ws --color never -o $LastMessageFile 2>&1 |
+      $codexPrompt = Get-ReadPromptFileInstruction $effectivePromptFile
+      & $bin exec $codexPrompt --sandbox workspace-write -c 'approval_policy="never"' -C $ws --color never -o $LastMessageFile 2>&1 |
         Tee-Object -FilePath $LogFile -Append
       $exitCode = $LASTEXITCODE
     }
@@ -162,21 +169,23 @@ try {
       if (-not $bin) { throw 'claude not on PATH. Run scripts/ensure-workers.ps1 -Workers claude' }
       $claudeArgs = @('-p', '--dangerously-skip-permissions')
       foreach ($dir in (Get-SkillAddDirs $ws)) { $claudeArgs += @('--add-dir', $dir) }
-      $claudeArgs += $prompt
-      & $bin @claudeArgs 2>&1 | Tee-Object -FilePath $LogFile -Append
+      Get-Content -LiteralPath $effectivePromptFile -Raw -Encoding UTF8 | & $bin @claudeArgs 2>&1 |
+        Tee-Object -FilePath $LogFile -Append
       $exitCode = $LASTEXITCODE
     }
     'cursor' {
       $bin = Resolve-Bin @('cursor-agent.cmd', 'cursor-agent')
       if (-not $bin) { throw 'cursor-agent not on PATH.' }
-      & $bin -p --force --trust --workspace $ws --output-format text $prompt 2>&1 |
+      Get-Content -LiteralPath $effectivePromptFile -Raw -Encoding UTF8 |
+        & $bin -p --force --trust --workspace $ws --output-format text 2>&1 |
         Tee-Object -FilePath $LogFile -Append
       $exitCode = $LASTEXITCODE
     }
     'opencode' {
       $bin = Resolve-Bin @('opencode.exe', 'opencode')
       if (-not $bin) { throw 'opencode not on PATH. Run scripts/ensure-workers.ps1 -Workers opencode' }
-      & $bin run --dir $ws --auto --title "cursor-atomic-workflow" $prompt 2>&1 |
+      $ocPrompt = Get-ReadPromptFileInstruction $effectivePromptFile
+      & $bin run --dir $ws --auto --title "cursor-atomic-workflow" $ocPrompt 2>&1 |
         Tee-Object -FilePath $LogFile -Append
       $exitCode = $LASTEXITCODE
     }
@@ -187,6 +196,6 @@ try {
 
 if ($null -eq $exitCode) { $exitCode = 0 }
 "finished=$(Get-Date -Format o) exit=$exitCode" | Add-Content -LiteralPath $LogFile -Encoding UTF8
-Write-Host "log=$LogFile"
-Write-Host "exit=$exitCode"
+Write-Output "log=$LogFile"
+Write-Output "exit=$exitCode"
 exit $exitCode

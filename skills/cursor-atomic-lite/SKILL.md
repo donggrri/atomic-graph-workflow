@@ -9,7 +9,7 @@ description: "단일 세션 경량 워크플로: 짧은 PLAN·구현·메모리�
 
 입력: 커맨드 뒤 텍스트(의도). 비어 있으면 현재 대화의 요청을 의도로 본다.
 
-**서브에이전트를 띄우지 않는다.** 이 세션(부모)만 PLAN → 구현 → 메모리 → 마무리를 수행한다. `Task`, `explorer`/`planner`/`worker`/`reviewer` 등 파이프라인 역할 호출은 금지.
+**서브에이전트를 띄우지 않는다.** 이 세션(부모)만 PLAN → 구현 → 메모리 → 마무리를 수행한다. `Task`, `explorer`/`planner`/`worker`/`reviewer` 등 파이프라인 역할 호출은 금지. CI·헤드리스에서 lite 전체를 한 번에 위임하려면 `node .atomic/scripts/run-stage.mjs lite --repo . --slug <slug> --prompt "<의도>"` (`graph.yaml`의 `lite.executor`, 기본 `cursor-sdk`).
 
 스크립트 경로는 `cursor-atomic-workflow`의 `references/harness.md` 「스크립트 경로」를 따른다 (`work-status.mjs`, `memory.mjs` 포함).
 
