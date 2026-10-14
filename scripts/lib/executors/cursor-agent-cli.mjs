@@ -2,7 +2,7 @@ import { resolveBin } from "../cli-detect.mjs";
 import { spawnCli } from "../exec-cross.mjs";
 
 /**
- * @param {{ repoRoot: string, prompt: string, timeoutMin?: number, agentStem?: string }} params
+ * @param {{ repoRoot: string, prompt: string, timeoutMin?: number }} params
  */
 export async function runCursorAgentCli(params) {
   const bin = resolveBin(["cursor-agent", "agent"]);

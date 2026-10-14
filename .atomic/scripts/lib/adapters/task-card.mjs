@@ -13,6 +13,7 @@ const ROLE_SKILL_DIRS = {
   reviewer: ["cursor-atomic-workflow", "code-review"],
   tester: ["cursor-atomic-workflow", "tdd", "codebase-design"],
   "cli-delegate": ["cursor-atomic-workflow"],
+  "memory-curator": ["cursor-atomic-workflow"],
 };
 
 /**

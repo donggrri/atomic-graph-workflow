@@ -101,6 +101,7 @@ test("getRole returns all eight pipeline roles and throws for unknown keys", () 
     assert.ok(role.taskModel.length > 0);
   }
   assert.throws(() => getRole("not-a-role"), /Unknown role: not-a-role/);
+  assert.equal(getRole("memory-curator").subagentType, "memory-curator");
 });
 
 test("agentFileName maps reviewer to cursor-atomic-reviewer.md", () => {

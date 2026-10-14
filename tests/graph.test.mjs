@@ -1,6 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { parseGraphYaml, phaseToGraphStage } from "../scripts/lib/graph.mjs";
+import {
+  parseGraphYaml,
+  phaseToGraphStage,
+  stripYamlInlineComment,
+} from "../scripts/lib/graph.mjs";
 
 test("parseGraphYaml reads executors and agents", () => {
   const yaml = `version: 1
@@ -21,6 +25,11 @@ test("phaseToGraphStage maps pipeline phases", () => {
   assert.equal(phaseToGraphStage("review"), "review");
   assert.equal(phaseToGraphStage("task"), "task");
   assert.equal(phaseToGraphStage("wrapup"), "wrapup");
+});
+
+test("stripYamlInlineComment ignores # inside quotes", () => {
+  assert.equal(stripYamlInlineComment('"foo # bar"'), '"foo # bar"');
+  assert.equal(stripYamlInlineComment("plain # comment"), "plain");
 });
 
 test("parseGraphYaml strips quotes and inline comments", () => {

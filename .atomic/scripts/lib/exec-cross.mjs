@@ -22,9 +22,15 @@ export function resolveExecutableOnPath(name) {
     }
   }
   if (WIN) {
-    const res = spawnSync("where.exe", [name], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] });
+    const res = spawnSync("where.exe", [name], {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+    });
     if (res.status === 0 && res.stdout) {
-      const first = res.stdout.split(/\r?\n/).map((l) => l.trim()).find(Boolean);
+      const first = res.stdout
+        .split(/\r?\n/)
+        .map((l) => l.trim())
+        .find(Boolean);
       if (first && existsSync(first)) return first;
     }
   }
@@ -56,16 +62,9 @@ export function needsShellSpawn(file) {
  * @param {string[]} args
  * @param {import("node:child_process").SpawnOptions} [options]
  */
-/**
- * @param {string} file
- * @param {string[]} args
- * @param {import("node:child_process").SpawnOptions} [options]
- */
 export function spawnCli(file, args, options = {}) {
-  const useShell = needsShellSpawn(file);
-  if (useShell) {
-    const quoted = args.map((a) => (/\s/.test(a) ? `"${a.replace(/"/g, '\\"')}"` : a));
-    return spawn(`"${file}" ${quoted.join(" ")}`, [], { ...options, shell: true });
+  if (needsShellSpawn(file)) {
+    return spawn(file, args, { ...options, shell: true, windowsVerbatimArguments: true });
   }
   return spawn(file, args, { ...options, shell: false });
 }

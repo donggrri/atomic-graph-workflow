@@ -2,6 +2,28 @@ import { readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 
 /**
+ * @param {string} val
+ */
+export function stripYamlInlineComment(val) {
+  let inQuote = null;
+  for (let i = 0; i < val.length; i++) {
+    const ch = val[i];
+    if (inQuote) {
+      if (ch === inQuote && val[i - 1] !== "\\") inQuote = null;
+      continue;
+    }
+    if (ch === '"' || ch === "'") {
+      inQuote = ch;
+      continue;
+    }
+    if (ch === "#" && (i === 0 || /\s/.test(val[i - 1] ?? ""))) {
+      return val.slice(0, i).trim();
+    }
+  }
+  return val.trim();
+}
+
+/**
  * Minimal parser for the installed graph.yaml shape (no external YAML dep).
  * @param {string} text
  */
@@ -43,9 +65,7 @@ export function parseGraphYaml(text) {
       continue;
     }
     const key = kv[1];
-    let val = kv[2].trim();
-    const hash = val.indexOf(" #");
-    if (hash >= 0) val = val.slice(0, hash).trim();
+    let val = stripYamlInlineComment(kv[2].trim());
     if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
       val = val.slice(1, -1);
     }

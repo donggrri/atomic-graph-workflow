@@ -11,6 +11,9 @@ test("graphAgentToRoleKey maps reviewer agent file", () => {
 });
 
 test("runGraphStage explore uses injected adapter", async () => {
+  const home = mkdtempSync(join(tmpdir(), "atomic-home-"));
+  const prevHome = process.env.CURSOR_ATOMIC_WORKFLOW_HOME;
+  process.env.CURSOR_ATOMIC_WORKFLOW_HOME = home;
   const repo = mkdtempSync(join(tmpdir(), "stage-run-"));
   try {
     mkdirSync(join(repo, ".atomic"), { recursive: true });
@@ -42,5 +45,8 @@ nodes:
     assert.equal(called, true);
   } finally {
     rmSync(repo, { recursive: true, force: true });
+    rmSync(home, { recursive: true, force: true });
+    if (prevHome === undefined) delete process.env.CURSOR_ATOMIC_WORKFLOW_HOME;
+    else process.env.CURSOR_ATOMIC_WORKFLOW_HOME = prevHome;
   }
 });

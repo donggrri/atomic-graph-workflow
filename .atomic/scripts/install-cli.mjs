@@ -79,7 +79,7 @@ async function runInteractiveInstall(opts) {
       value: c.id,
       label: c.label,
       hint: c.installed ? "설치됨" : "없음",
-      selected: markers.has(c.id) || (markers.size === 0 && c.id === "cursor" && c.installed),
+      selected: markers.has(c.id) || (markers.size === 0 && c.id === "cursor"),
     }));
 
   let harnessList = await multiselect("◆  어떤 도구에서 쓸까요?", choices);

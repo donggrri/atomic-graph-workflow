@@ -187,6 +187,6 @@ try {
 
 if ($null -eq $exitCode) { $exitCode = 0 }
 "finished=$(Get-Date -Format o) exit=$exitCode" | Add-Content -LiteralPath $LogFile -Encoding UTF8
-Write-Host "log=$LogFile"
-Write-Host "exit=$exitCode"
+Write-Output "log=$LogFile"
+Write-Output "exit=$exitCode"
 exit $exitCode

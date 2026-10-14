@@ -136,6 +136,17 @@ export async function listLegacyCursorSkillDirs(target) {
  * @param {string[]} paths
  * @param {string} target
  */
+async function ensureGitignoreBackupPattern(target) {
+  const line = ".atomic-install-backup-*/";
+  const path = join(target, ".gitignore");
+  const text = existsSync(path) ? await readFile(path, "utf8") : "";
+  if (text.split(/\r?\n/).some((l) => l.trim() === line || l.includes("atomic-install-backup"))) {
+    return;
+  }
+  const next = text.trimEnd() ? `${text.trimEnd()}\n${line}\n` : `${line}\n`;
+  await writeFile(path, next, "utf8");
+}
+
 export async function backupInstallPaths(paths, target) {
   if (!paths.length) return null;
   const stamp = new Date().toISOString().replace(/[:.]/g, "-");
@@ -147,6 +158,7 @@ export async function backupInstallPaths(paths, target) {
     await mkdir(dirname(dest), { recursive: true });
     await cp(p, dest, { recursive: true, force: true });
   }
+  await ensureGitignoreBackupPattern(target);
   return backupRoot;
 }
 

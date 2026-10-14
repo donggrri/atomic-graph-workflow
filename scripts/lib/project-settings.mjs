@@ -1,4 +1,4 @@
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from "node:fs";
+import { readFileSync, writeFileSync, existsSync, mkdirSync, copyFileSync } from "node:fs";
 import { join } from "node:path";
 import { PROJECT_SETTINGS_FILE } from "./profiles.mjs";
 
@@ -6,16 +6,22 @@ const HARNESS_IDS = ["cursor", "opencode", "codex", "pi", "agy", "claude"];
 
 /**
  * @param {string} repoRoot
+ * @param {{ strict?: boolean }} [options]
  * @returns {Record<string, unknown>}
  */
-export function readProjectSettings(repoRoot) {
+export function readProjectSettings(repoRoot, options = {}) {
   const path = join(repoRoot, PROJECT_SETTINGS_FILE);
   if (!existsSync(path)) return {};
   try {
     const raw = JSON.parse(readFileSync(path, "utf8"));
     if (raw && typeof raw === "object" && !Array.isArray(raw)) return raw;
-  } catch {
-    // ignore
+    if (options.strict) {
+      throw new Error(`${PROJECT_SETTINGS_FILE}: root must be a JSON object`);
+    }
+  } catch (err) {
+    if (options.strict) {
+      throw err instanceof Error ? err : new Error(String(err));
+    }
   }
   return {};
 }
@@ -26,7 +32,23 @@ export function readProjectSettings(repoRoot) {
  */
 export function writeProjectSettings(repoRoot, patch) {
   const path = join(repoRoot, PROJECT_SETTINGS_FILE);
-  const prior = readProjectSettings(repoRoot);
+  let prior = {};
+  if (existsSync(path)) {
+    try {
+      const raw = JSON.parse(readFileSync(path, "utf8"));
+      if (raw && typeof raw === "object" && !Array.isArray(raw)) {
+        prior = raw;
+      } else {
+        throw new Error("root must be a JSON object");
+      }
+    } catch (err) {
+      const backup = `${path}.invalid-${Date.now()}.bak`;
+      copyFileSync(path, backup);
+      throw new Error(
+        `${PROJECT_SETTINGS_FILE}: invalid JSON (backup: ${backup}): ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+  }
   const next = { ...prior, ...patch };
   mkdirSync(repoRoot, { recursive: true });
   writeFileSync(path, JSON.stringify(next, null, 2) + "\n", "utf8");

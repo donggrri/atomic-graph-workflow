@@ -216,7 +216,7 @@ export function createCompositeRoleRunner(options) {
         ["cursor-atomic-lite", "cursor-atomic-workflow"],
         params.prompt ?? "",
       );
-      return resolveAndDispatch(params.phaseKey ?? "lite", { ...params, prompt }, null);
+      return resolveAndDispatch(params.phaseKey ?? "lite", { ...params, prompt, role: "worker" }, "worker");
     },
   };
 }

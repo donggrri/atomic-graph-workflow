@@ -10,6 +10,41 @@ const scriptsDir = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 
 /**
  * @param {{
+ *   worker: string,
+ *   repoRoot: string,
+ *   promptFile: string,
+ *   logFile: string,
+ *   timeoutMin: number,
+ *   model?: string,
+ * }} params
+ * @returns {string[]}
+ */
+export function buildWindowsInvokeWorkerArgv(params) {
+  const argv = [
+    "-NoProfile",
+    "-ExecutionPolicy",
+    "Bypass",
+    "-File",
+    join(scriptsDir, "invoke-worker.ps1"),
+    "-Worker",
+    params.worker,
+    "-Workspace",
+    params.repoRoot,
+    "-PromptFile",
+    params.promptFile,
+    "-LogFile",
+    params.logFile,
+    "-TimeoutMin",
+    String(params.timeoutMin),
+  ];
+  if (params.model) {
+    argv.push("-Model", params.model);
+  }
+  return argv;
+}
+
+/**
+ * @param {{
  *   executorId: string,
  *   repoRoot: string,
  *   prompt: string,
@@ -52,7 +87,8 @@ export async function runWorkerExecutor(params) {
   const script = isWin
     ? join(scriptsDir, "invoke-worker.ps1")
     : join(scriptsDir, "invoke-worker.sh");
-  const timeoutMs = (params.timeoutMin ?? 45) * 60 * 1000;
+  const timeoutMin = params.timeoutMin ?? 45;
+  const timeoutMs = timeoutMin * 60 * 1000;
 
   const baseArgs = [
     "--worker",
@@ -64,7 +100,7 @@ export async function runWorkerExecutor(params) {
     "--log-file",
     logFile,
     "--timeout-min",
-    String(params.timeoutMin ?? 45),
+    String(timeoutMin),
   ];
   if (params.model && worker === "agy") {
     baseArgs.push("--model", params.model);
@@ -72,11 +108,18 @@ export async function runWorkerExecutor(params) {
 
   let child;
   if (isWin) {
-    child = spawnCli(
-      firstExecutable(["powershell", "pwsh"]) ?? "powershell",
-      ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", script, ...baseArgs],
-      { cwd: params.repoRoot, env: process.env },
-    );
+    const psArgv = buildWindowsInvokeWorkerArgv({
+      worker,
+      repoRoot: params.repoRoot,
+      promptFile,
+      logFile,
+      timeoutMin,
+      model: params.model && worker === "agy" ? params.model : undefined,
+    });
+    child = spawnCli(firstExecutable(["powershell", "pwsh"]) ?? "powershell", psArgv, {
+      cwd: params.repoRoot,
+      env: process.env,
+    });
   } else {
     const bash = firstExecutable(["bash", "sh"]);
     if (!bash) {
@@ -94,7 +137,7 @@ export async function runWorkerExecutor(params) {
     let stderr = "";
     const timer = setTimeout(() => {
       child.kill("SIGTERM");
-      reject(new Error(`worker ${worker} timed out after ${params.timeoutMin ?? 45}m`));
+      reject(new Error(`worker ${worker} timed out after ${timeoutMin}m`));
     }, timeoutMs);
     child.stdout?.on("data", (c) => {
       stdout += String(c);
@@ -108,7 +151,7 @@ export async function runWorkerExecutor(params) {
     });
     child.on("close", (code) => {
       clearTimeout(timer);
-      resolve({ stdout, stderr, code });
+      resolve({ stdout, stderr, code: code ?? 1 });
     });
   }).catch((err) => {
     return { ok: false, kind: "run", message: err instanceof Error ? err.message : String(err) };
@@ -118,20 +161,23 @@ export async function runWorkerExecutor(params) {
     return out;
   }
 
-  const combined = `${out.stdout ?? ""}${out.stderr ?? ""}`;
-  const lines = combined.trim().split(/\r?\n/).filter(Boolean);
+  const stdoutText = String(out.stdout ?? "");
+  const lines = stdoutText.trim().split(/\r?\n/).filter(Boolean);
   const last = lines[lines.length - 1] ?? "";
-  const exitMatch = last.match(/exit=(\d+)/);
-  if (!exitMatch) {
+  const exitMatch = last.match(/^exit=(\d+)\s*$/);
+  const parsedExit = exitMatch ? Number.parseInt(exitMatch[1], 10) : null;
+  const exitCode = parsedExit ?? out.code ?? 1;
+
+  if (exitCode === 0) {
+    return { ok: true, summary: `worker ${worker} exit 0` };
+  }
+  if (parsedExit == null && out.code !== 0) {
+    const errTail = String(out.stderr ?? "").trim().slice(-200);
     return {
       ok: false,
       kind: "run",
-      message: `worker ${worker} output missing exit=N on last line`,
+      message: errTail || `worker ${worker} exit ${out.code}`,
     };
-  }
-  const exitCode = Number.parseInt(exitMatch[1], 10);
-  if (exitCode === 0) {
-    return { ok: true, summary: `worker ${worker} exit 0` };
   }
   return { ok: false, kind: "run", message: `worker ${worker} exit ${exitCode}` };
 }

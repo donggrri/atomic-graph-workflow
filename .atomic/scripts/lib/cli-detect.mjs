@@ -1,3 +1,4 @@
+import { spawnSync } from "node:child_process";
 import { firstExecutable } from "./exec-cross.mjs";
 
 /**

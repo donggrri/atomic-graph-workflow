@@ -91,7 +91,7 @@ export function roleNames() {
  * @returns {RoleDef}
  */
 export function getRole(name) {
-  const role = ROLES[name];
+  const role = ROLES[name] ?? AUXILIARY_ROLES[name];
   if (!role) {
     throw new Error(`Unknown role: ${name}`);
   }
