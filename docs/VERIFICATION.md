@@ -42,3 +42,30 @@ General: code-review, codebase-design, domain-modeling, grill-me, grilling, tdd,
 - [ ] F2 large task (DB/auth/5+ files) -> "full" + reason
 - [ ] F3 lite mid-task discovers bigger scope -> stops & recommends full
 - [ ] F4 explicit command overrides router
+
+## Results — 2026-10-14 (box, Node v22.23.3, agy `gemini-3.8-flash-high`, cursor-agent `composer-2.5`)
+Scratch repos: tiny `calc` npm project; isolated `CURSOR_ATOMIC_WORKFLOW_HOME`; per-step timeout 600–900 s.
+
+| Item | agy | cursor-agent | Evidence / notes |
+|---|---|---|---|
+| A1–A4 npm test / check-agents / sync-bundled / CI | PASS (223 tests) | — | CI green on 95ec4a9 |
+| B1–B2 install + doctor (cursor, opencode, agy, codex, pi, claude) | PASS | PASS | all 6 harnesses exit 0, 24 skills, AGENTS.md marker |
+| B3 --migrate | PASS | PASS | legacy `.cursor/skills/cursor-atomic-*` removed |
+| B4 claude optional | PASS | PASS | `all` → no `.claude`; `--with-claude` → `.claude/*` + `CLAUDE.md` `@AGENTS.md` |
+| B5 doctor on Node 20 | PASS | PASS | exit 1 with clear `Node >=22.13 required` |
+| B6 skill listing | PASS (24) | PASS (24) | opencode: `debug skill` 24 + 9 subagents (no model calls) |
+| C1 lite (router) | PASS | PASS | router printed `lite` + reason; PLAN + STATUS; tests pass |
+| C2 full explore→wrapup | PASS | PASS | EXPLORE/PLAN/PLAN-REVIEW/TASKS/REVIEW, STATUS `complete`, local commit, tests pass |
+| C3 utility (status, config, settings, models, doctor, agy, delegate, run) | PASS | PASS* | *one-shot batch timed out; split batches pass. doctor correctly FAILs under cursor-agent shell using system Node 20 |
+| C4 general (code-review, codebase-design, domain-modeling, grill-me, grilling, tdd, to-tickets, wayfinder) | PASS | PASS | first step of each executed |
+| D1 memory repo/context/propose | PASS | PASS | test + E2E |
+| D2/D3 cross-harness memory | PASS | PASS | agy saved `marker A1` → cursor read; cursor saved `marker C1` → agy read (new sessions, same repo) |
+| E1 work-status list/show/sync/path | PASS | PASS | phases updated by skills |
+| E2 run-done pass/fail | PASS | PASS | `.done.json` ok/exitCode correct |
+| F1 router → lite | PASS | PASS | |
+| F2 router → full (DB/auth) | PASS | PASS | |
+| F3 lite escalation | PASS | PASS | stops and recommends full (when told not to auto-approve) |
+| F4 explicit command overrides | PASS | PASS | `/cursor-atomic-explore`, `/cursor-atomic-lite` honored |
+
+Bugs found & fixed: docs paths hardcoded `~/.cursor-atomic-workflow` (agents ignored `CURSOR_ATOMIC_WORKFLOW_HOME`) → added `work-status.mjs path <slug>` and `<docsDir>` in skills/agents (6f6cb53); doctor `--harness` reset the Node failure (a831095).
+Known: agy network timeouts (retryable) on first attempts; agy may create `GEMINI.md` in repo; cursor-agent shells may use system Node (<22.13) unless PATH is set.
