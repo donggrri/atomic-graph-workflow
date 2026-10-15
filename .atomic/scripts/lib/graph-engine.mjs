@@ -214,8 +214,11 @@ export function evalWhen(expr, ctx = {}) {
       if (t && (t.type === "==" || t.type === "!=")) {
         next();
         const right = parsePrimary();
-        // loose equality so unknown (undefined) == null is true
-        left = t.type === "==" ? left == right : left != right;
+        // strict equality; null and undefined compare equal to each other only
+        const bothNullish =
+          (left === null || left === undefined) && (right === null || right === undefined);
+        const eq = bothNullish ? true : left === right;
+        left = t.type === "==" ? eq : !eq;
         continue;
       }
       if (t && t.type === "ident" && t.value === "in") {
@@ -407,7 +410,13 @@ export function applyFacts(result, facts = {}) {
     !Array.isArray(acStatus) &&
     out.outcome === "pass"
   ) {
-    if (Object.values(acStatus).some((v) => v === "uncovered")) {
+    const values = Object.values(acStatus);
+    if (values.some((v) => v === "fail")) {
+      out.outcome = "fail";
+      const prev = typeof out.reason === "string" ? out.reason : "";
+      out.reason = `fact: ac failed; ${prev}`;
+      overridden = true;
+    } else if (values.some((v) => v === "uncovered")) {
       out.outcome = "spec_mismatch";
       overridden = true;
     }
@@ -470,12 +479,8 @@ export function matchGates(doc, { node, touches = [], gatesApproved = [] } = {})
   const nodeDef = doc?.nodes?.[node] ?? {};
   const requires = Array.isArray(nodeDef.requires_approval) ? nodeDef.requires_approval : [];
   const rawGates = doc?.gates;
-  const hasGates =
-    rawGates != null &&
-    typeof rawGates === "object" &&
-    !Array.isArray(rawGates) &&
-    Object.keys(rawGates).length > 0;
-  const gates = hasGates ? rawGates : DEFAULT_GATE_DEFS;
+  const hasGates = rawGates != null && typeof rawGates === "object" && !Array.isArray(rawGates);
+  const gates = hasGates ? { ...DEFAULT_GATE_DEFS, ...rawGates } : DEFAULT_GATE_DEFS;
   const approved = new Set(Array.isArray(gatesApproved) ? gatesApproved : []);
   const pending = [];
   const push = (id) => {
@@ -516,10 +521,16 @@ function effectiveLimits(doc) {
 
 function maxVisitsFor(doc, target, defaultMaxVisits) {
   const n = doc?.nodes?.[target];
+  let base = defaultMaxVisits;
   if (n != null && typeof n === "object" && !Array.isArray(n) && Number.isInteger(n.max_visits)) {
-    return n.max_visits;
+    base = n.max_visits;
   }
-  return defaultMaxVisits;
+  // limits.max_loops takes precedence over max_visits: allow at least max_loops + 1 visits
+  const loopLimit = doc?.limits?.max_loops?.[target] ?? DEFAULT_LIMITS.max_loops?.[target];
+  if (loopLimit !== undefined) {
+    return Math.max(base, loopLimit + 1);
+  }
+  return base;
 }
 
 function normalizeState(state) {
@@ -549,6 +560,45 @@ export function nextStep(state, doc, rawResult, facts = {}) {
 
   const validation = validateAtomicResult(rawResult, { doc, node: curNode, ctx });
   if (!validation.ok) {
+    const { max_steps: maxStepsForInvalid } = effectiveLimits(doc);
+    // Count trailing consecutive invalid_result entries for the same node.
+    // Invalid entries are marked with next === null.
+    let consecutiveInvalid = 0;
+    for (let i = s.history.length - 1; i >= 0; i--) {
+      const h = s.history[i];
+      if (h != null && typeof h === "object" && h.node === curNode && h.next === null) {
+        consecutiveInvalid += 1;
+      } else {
+        break;
+      }
+    }
+    // After 2 consecutive invalid_result for the same node, escalate to $user.
+    // Current failure would be consecutiveInvalid + 1; escalate when that reaches 2.
+    if (consecutiveInvalid + 1 >= 2 || s.history.length + 1 > maxStepsForInvalid) {
+      const entry = {
+        step: stepNo,
+        node: curNode,
+        outcome: rawResult?.outcome,
+        next: "$user",
+        accepted: false,
+        overridden: false,
+      };
+      s.history = [...s.history, entry];
+      s.cursor = { ...(s.cursor ?? {}), status: "waiting_user" };
+      return {
+        state: s,
+        decision: {
+          kind: "escalate",
+          reason:
+            consecutiveInvalid + 1 >= 2
+              ? `invalid result repeated 2 times for "${curNode}"`
+              : `max steps exceeded with invalid results (${s.history.length} >= ${maxStepsForInvalid})`,
+          target: "$user",
+          proposalAccepted: false,
+          overridden: false,
+        },
+      };
+    }
     const entry = {
       step: stepNo,
       node: curNode,
@@ -607,19 +657,14 @@ export function nextStep(state, doc, rawResult, facts = {}) {
 
   const { max_steps, max_loops, defaultMaxVisits } = effectiveLimits(doc);
 
-  // loop accounting
+  // loop accounting (deferred: only committed when the transition actually moves;
+  // gate pauses must not increment loops or history)
   const visits = s.visits;
-  const loops = { ...s.loops };
+  const loops = s.loops;
   const wasVisited = (visits[target] ?? 0) > 0;
   const isSelf = target === curNode;
-  let loopCount = loops[target] ?? 0;
-  let loopIncremented = false;
-  if ((isSelf || wasVisited) && !RESERVED_TARGETS.includes(target)) {
-    loopCount += 1;
-    loops[target] = loopCount;
-    loopIncremented = true;
-  }
-  s.loops = loops;
+  const loopIncremented = (isSelf || wasVisited) && !RESERVED_TARGETS.includes(target);
+  const prospectiveLoopCount = loopIncremented ? (loops[target] ?? 0) + 1 : (loops[target] ?? 0);
 
   const escalateEntry = (reason) => {
     const entry = {
@@ -645,8 +690,10 @@ export function nextStep(state, doc, rawResult, facts = {}) {
     };
   };
 
-  if (loopIncremented && max_loops[target] !== undefined && loopCount > max_loops[target]) {
-    return escalateEntry(`loop limit exceeded for "${target}" (${loopCount} > ${max_loops[target]})`);
+  if (loopIncremented && max_loops[target] !== undefined && prospectiveLoopCount > max_loops[target]) {
+    return escalateEntry(
+      `loop limit exceeded for "${target}" (${prospectiveLoopCount} > ${max_loops[target]})`,
+    );
   }
   if (!RESERVED_TARGETS.includes(target)) {
     const mv = maxVisitsFor(doc, target, defaultMaxVisits);
@@ -654,7 +701,8 @@ export function nextStep(state, doc, rawResult, facts = {}) {
       return escalateEntry(`max visits exceeded for "${target}" (${visits[target]} >= ${mv})`);
     }
   }
-  if (s.steps + 1 > max_steps) {
+  // A transition to $end is allowed even when steps == max_steps ($end does not consume a step).
+  if (target !== "$end" && s.steps + 1 > max_steps) {
     return escalateEntry(`max steps exceeded (${s.steps} + 1 > ${max_steps})`);
   }
 
@@ -667,6 +715,7 @@ export function nextStep(state, doc, rawResult, facts = {}) {
       const sameTriple = (e) =>
         e != null &&
         typeof e === "object" &&
+        e.next !== null &&
         e.node === curNode &&
         e.outcome === outcome &&
         (typeof e.reason === "string" ? e.reason : "") === reasonStr;
@@ -676,24 +725,19 @@ export function nextStep(state, doc, rawResult, facts = {}) {
     }
   }
 
-  // gates (skip reserved targets)
-  if (!RESERVED_TARGETS.includes(target)) {
+  // gates: touch-based gates apply even when the target is reserved.
+  // For reserved targets the target has no node def, so the current node's
+  // requires_approval applies instead; gates with always:true (e.g. merge)
+  // therefore still apply when transitioning to $end.
+  // Gate pauses do not commit history or loop counters (committed on move).
+  {
+    const gateNode = RESERVED_TARGETS.includes(target) ? curNode : target;
     const pending = matchGates(doc, {
-      node: target,
+      node: gateNode,
       touches: Array.isArray(after.touches) ? after.touches : [],
       gatesApproved: s.gatesApproved,
     });
     if (pending.length > 0) {
-      const entry = {
-        step: stepNo,
-        node: curNode,
-        outcome,
-        reason: reasonStr,
-        next: target,
-        accepted,
-        overridden,
-      };
-      s.history = [...s.history, entry];
       s.cursor = { ...(s.cursor ?? {}), status: "waiting_gate" };
       return {
         state: s,
@@ -764,9 +808,12 @@ export function nextStep(state, doc, rawResult, facts = {}) {
   s.history = [...s.history, entry];
   s.steps = s.steps + 1;
   s.visits = { ...visits, [target]: (visits[target] ?? 0) + 1 };
+  if (loopIncremented) {
+    s.loops = { ...loops, [target]: prospectiveLoopCount };
+  }
   s.cursor = { ...(s.cursor ?? {}), node: target, status: "running" };
   const decision = { kind: "move", target, ...baseDecision };
-  if (!accepted) decision.reason = "proposal_rejected";
+  if (proposed && !accepted) decision.reason = "proposal_rejected";
   return { state: s, decision };
 }
 
