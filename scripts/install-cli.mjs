@@ -24,6 +24,7 @@ const HARNESS_LABELS = {
   codex: "Codex",
   pi: "Pi",
   claude: "Claude Code",
+  hermes: "Hermes Agent",
 };
 
 async function listLegacySkillDirs(target) {
@@ -277,6 +278,12 @@ export async function runInstallCli(argv) {
   if (res.legacy.length) {
     console.log("\n레거시 .cursor/commands/ 파일이 남아 있습니다:");
     for (const f of res.legacy) console.log(`  rm ${f}`);
+  }
+
+  if (res.harnesses.includes("hermes")) {
+    const { HERMES_ORCHESTRATOR_CONFIG_HINT } = await import("./lib/install-hermes.mjs");
+    console.log("\nHermes: 저장소에서 `hermes skills trust` 를 실행해 스킬 디렉터리를 신뢰하세요.");
+    console.log(`Hermes: ${HERMES_ORCHESTRATOR_CONFIG_HINT}`);
   }
 
   if (!opts.skipDoctor) {

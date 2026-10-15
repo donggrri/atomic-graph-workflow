@@ -253,7 +253,10 @@ test("documentation matches bundled behavior", async () => {
 
 test("command skill directories use package-prefixed slash names", async () => {
   const dirs = (await readdir(SKILLS))
-    .filter((name) => name.startsWith("atomic-") && name !== "atomic-workflow")
+    .filter(
+      (name) =>
+        name.startsWith("atomic-") && name !== "atomic-workflow" && name !== "atomic-hermes-delegate",
+    )
     .sort();
   assert.deepEqual(dirs, COMMAND_SKILLS);
 });

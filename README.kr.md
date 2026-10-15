@@ -65,7 +65,7 @@ npx github:donggrri/atomic-graph-workflow --target /path/to/project --harness au
 | 옵션 | 의미 |
 |---|---|
 | `--target <dir>` | 설치 대상 (기본: cwd) |
-| `--harness <목록>` | `auto`, `cursor`, `opencode`, `codex`, `pi`, `agy`, `claude`, `all` (쉼표 구분). `auto`/`all`은 `--with-claude` 없으면 Claude 제외 |
+| `--harness <목록>` | `auto`, `cursor`, `opencode`, `codex`, `pi`, `agy`, `claude`, `hermes`, `all` (쉼표 구분). `auto`/`all`은 `--with-claude` 없으면 Claude 제외 |
 | `--migrate` | 기존 `.agents/skills/atomic-*` 설치를 얇은 별칭으로 교체하고 `.cursor/skills/atomic-*`는 백업 후 제거 |
 | `--force` | 기존 생성 파일을 패키지 소스로 다시 생성 (에이전트 파일에 모델 핀 없음) |
 | `--with-claude` | Claude Code (`.claude/*`, `CLAUDE.md`의 `@AGENTS.md`) |
@@ -76,7 +76,9 @@ npx github:donggrri/atomic-graph-workflow --target /path/to/project --harness au
 
 설치 후 에이전트에서 **`/atomic-setup`** 으로 `.atomic-workflow.json`을 만든다 (AGY 정책, `executors`, `executorTimeouts`, `testDone` 등).
 
-`run-pipeline.mjs`와 `run-stage.mjs`는 `.atomic/graph.yaml`의 단계별 `executor`를 읽고, 프로젝트 `executors`가 graph를 덮어쓴다. 기본 executor는 모델 중립적인 `cursor-subagent`다. 지원 executor: `cursor-subagent`, `cursor-agent`, `cursor-sdk`(명시적 opt-in 및 SDK 모델 필요), `agy`, `codex`, `opencode`, `pi` (비대화형 `pi -p`), `claude`. CLI·SDK가 없으면 런타임 fallback(`run-stage`는 stderr에 로그), doctor가 경고한다. 외부 CLI는 `trustedExecutors` 또는 TTY 신뢰(저장소별 해시)로 승인한다. `executorTimeouts`는 단계 id → 분(기본 45).
+`run-pipeline.mjs`와 `run-stage.mjs`는 `.atomic/graph.yaml`의 단계별 `executor`를 읽고, 프로젝트 `executors`가 graph를 덮어쓴다. 기본 executor는 모델 중립적인 `cursor-subagent`다. 지원 executor: `cursor-subagent`, `cursor-agent`, `cursor-sdk`(명시적 opt-in 및 SDK 모델 필요), `agy`, `codex`, `opencode`, `pi` (비대화형 `pi -p`), `claude`, `hermes` (비대화형 `hermes chat --oneshot`). CLI·SDK가 없으면 런타임 fallback(`run-stage`는 stderr에 로그), doctor가 경고한다. 외부 CLI는 `trustedExecutors` 또는 TTY 신뢰(저장소별 해시)로 승인한다. `executorTimeouts`는 단계 id → 분(기본 45).
+
+**Hermes** (`--harness hermes`): 스킬은 `.hermes/skills/`에 설치한다(`.agents/skills` 아님). 설치 후 저장소에서 `hermes skills trust`를 실행한다. **오케스트레이터**(부모 Hermes 세션)는 `hermes-cursor-provider` 브리지와 `~/.hermes/config.yaml`의 `model.default: grok-4.7-high`를 사용한다(설치는 안내만 출력, 사용자 설정 파일은 수정하지 않음). `fast` 모델은 쓰지 않는다. 스테이지 위임은 `node .atomic/scripts/hermes-delegate.mjs` (`atomic-hermes-delegate` 스킬). `.hermes.md`는 만들지 않는다(`AGENTS.md`를 가린다). 라우팅은 `.atomic/graph.yaml`의 `nodes.<stage>.executor`·`model` 또는 `hermes.routing`, 환경 변수 `ATOMIC_HERMES_ROUTING`으로 덮어쓴다. 허용 `cursor-agent` 모델: `composer-2.5`(기본), `claude-haiku-5-5-high`, `claude-sonnet-5-5-high`, `grok-4.7-high`(별칭 `haiku-5.5-high`, `sonnet-5.5-high`). `fast` 모델은 거부, 알 수 없는 id는 경고 후 `composer-2.5`. 기본: explore·test → haiku; 구현 단계 → composer-2.5(폴백 agy gemini); plan-review → agy gemini(폴백 cursor-agent grok-4.7-high); spec-review·escalate → grok-4.7-high; plan·spec·review → agy gemini, agy 실패 시 cursor-agent sonnet(리뷰는 구현 runner와 분리).
 
 **AGY 정책 vs 단계별 executor:** `agy.plan` / `agy.implement` / `agy.review`는 파이프라인이 AGY 위임을 *물을지*(`ask`), Cursor SDK 역할로 돌릴지(`sdk`), 부모 `/atomic-agy`에 멈출지(`agy`)를 정한다. 정책이 `agy`이고 `executors.<stage>`를 명시하지 않았으면 해당 graph 단계 executor가 `agy`로 채워진다 (`plan` → `explore`·`plan`·`plan-review`; `implement` → `task`·`execute`; `review` → `review`·`wrapup`). 명시한 `executors`가 항상 우선한다. 헤드리스 단계 실행: `node .atomic/scripts/run-stage.mjs <stage> --repo . --slug <slug> --prompt-file <brief.md>`.
 

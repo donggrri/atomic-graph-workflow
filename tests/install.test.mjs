@@ -171,7 +171,7 @@ test("doctor skips bundle sync check outside the package repo", async () => {
 
 test("all atomic command skill directories exist", async () => {
   const names = (await readdir(SKILLS))
-    .filter((n) => n.startsWith("atomic-") && n !== WORKFLOW)
+    .filter((n) => n.startsWith("atomic-") && n !== WORKFLOW && n !== "atomic-hermes-delegate")
     .sort();
   assert.deepEqual(names, COMMANDS);
 });

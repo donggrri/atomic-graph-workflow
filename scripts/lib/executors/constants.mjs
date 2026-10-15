@@ -1,4 +1,4 @@
-/** @typedef {"cursor-subagent"|"cursor-agent"|"cursor-sdk"|"agy"|"codex"|"opencode"|"pi"|"claude"} ExecutorId */
+/** @typedef {"cursor-subagent"|"cursor-agent"|"cursor-sdk"|"agy"|"codex"|"opencode"|"pi"|"claude"|"hermes"} ExecutorId */
 
 export const EXECUTOR_IDS = [
   "cursor-subagent",
@@ -9,6 +9,7 @@ export const EXECUTOR_IDS = [
   "opencode",
   "pi",
   "claude",
+  "hermes",
 ];
 
 /** @type {Record<ExecutorId, string[]>} */
@@ -21,6 +22,7 @@ export const EXECUTOR_BINS = {
   opencode: ["opencode"],
   pi: ["pi"],
   claude: ["claude"],
+  hermes: ["hermes"],
 };
 
 /** invoke-worker.sh worker names */
@@ -40,4 +42,5 @@ export const EXECUTOR_FALLBACK_CHAIN = [
   "codex",
   "opencode",
   "claude",
+  "hermes",
 ];

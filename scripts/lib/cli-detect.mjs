@@ -28,6 +28,7 @@ export function detectHarnessClis() {
     { id: "codex", label: "Codex", bins: ["codex"] },
     { id: "pi", label: "Pi", bins: ["pi"] },
     { id: "claude", label: "Claude Code", bins: ["claude"] },
+    { id: "hermes", label: "Hermes Agent", bins: ["hermes"] },
   ];
   return specs.map((s) => ({
     ...s,

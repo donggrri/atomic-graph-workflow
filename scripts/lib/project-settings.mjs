@@ -2,7 +2,7 @@ import { readFileSync, writeFileSync, existsSync, mkdirSync, copyFileSync } from
 import { join } from "node:path";
 import { projectSettingsWritePath, resolveProjectSettingsReadPath } from "./legacy-paths.mjs";
 
-const HARNESS_IDS = ["cursor", "opencode", "codex", "pi", "agy", "claude"];
+const HARNESS_IDS = ["cursor", "opencode", "codex", "pi", "agy", "claude", "hermes"];
 
 /**
  * @param {string} repoRoot

@@ -19,6 +19,17 @@ test("detectHarnessesSync does not treat .agents/skills alone as agy", async () 
   }
 });
 
+test("detectHarnessesSync recognizes .hermes marker", async () => {
+  const target = await mkdtemp(join(tmpdir(), "harness-hermes-"));
+  try {
+    await mkdir(join(target, ".hermes"), { recursive: true });
+    const found = detectHarnessesSync(target);
+    assert.equal(found.has("hermes"), true);
+  } finally {
+    await rm(target, { recursive: true, force: true });
+  }
+});
+
 test("after cursor-only install, auto detection does not include agy", async () => {
   const target = await mkdtemp(join(tmpdir(), "harness-cursor-only-"));
   try {
