@@ -134,12 +134,54 @@ async function runInteractiveInstall(opts) {
     };
   }
 
+  const { parseArtifactsFlag } = await import("./lib/artifacts.mjs");
+  if (opts.artifacts) {
+    const parsed = parseArtifactsFlag(String(opts.artifacts));
+    if (!parsed.ok) throw new Error(parsed.reason);
+    pendingProjectSettings = { ...(pendingProjectSettings || {}), artifacts: parsed.artifacts };
+  } else {
+    const artifactsChoice = await select(
+      "◆  (고급) 산출물(docs) 위치를 어디에 둘까요?",
+      [
+        { value: "home", label: "전역 홈 (기본)" },
+        { value: "repo", label: "저장소 안 specs/ (repo)" },
+        { value: "custom", label: "절대 경로 (custom)" },
+      ],
+      "home",
+    );
+    if (artifactsChoice === "repo") {
+      const dir = await text("◆  저장소 안 산출물 폴더", "specs");
+      const parsed = parseArtifactsFlag(`repo:${(dir || "specs").trim() || "specs"}`);
+      if (!parsed.ok) throw new Error(parsed.reason);
+      pendingProjectSettings = { ...(pendingProjectSettings || {}), artifacts: parsed.artifacts };
+    } else if (artifactsChoice === "custom") {
+      const dir = await text("◆  산출물 절대 경로", "");
+      if (dir.trim()) {
+        const parsed = parseArtifactsFlag(`custom:${dir.trim()}`);
+        if (!parsed.ok) throw new Error(parsed.reason);
+        pendingProjectSettings = { ...(pendingProjectSettings || {}), artifacts: parsed.artifacts };
+      }
+    }
+  }
+
   const go = await confirm("◆  설치를 진행할까요?", { default: true });
   if (!go) throw new Error("설치를 취소했습니다.");
 
   if (pendingProjectSettings) {
     const { writeProjectSettings } = await import("./lib/project-settings.mjs");
     writeProjectSettings(target, pendingProjectSettings);
+    if (pendingProjectSettings.artifacts?.location === "repo") {
+      const { artifactsRepoNote, DEFAULT_REPO_ARTIFACTS_DIR } = await import("./lib/artifacts.mjs");
+      const dir =
+        typeof pendingProjectSettings.artifacts.dir === "string" &&
+        pendingProjectSettings.artifacts.dir.trim()
+          ? pendingProjectSettings.artifacts.dir.trim()
+          : DEFAULT_REPO_ARTIFACTS_DIR;
+      console.log(artifactsRepoNote(dir));
+    }
+    // Artifacts were already persisted and announced here; clear the flag so
+    // install() does not persist/print the same note a second time.
+    delete opts.artifacts;
   }
 
   opts.harness = harnessList.join(",");

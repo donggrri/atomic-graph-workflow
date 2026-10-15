@@ -18,6 +18,7 @@ async function main(argv) {
   let repo = process.cwd();
   let slug = "stage-run";
   let prompt = "";
+  let promptFile = null;
   for (let i = 1; i < argv.length; i++) {
     const a = argv[i];
     if (a === "--repo" && argv[i + 1]) {
@@ -27,9 +28,19 @@ async function main(argv) {
     } else if (a === "--prompt" && argv[i + 1]) {
       prompt = argv[++i];
     } else if (a === "--prompt-file" && argv[i + 1]) {
-      prompt = readFileSync(resolve(argv[++i]), "utf8");
+      promptFile = argv[++i];
     } else {
       return usage();
+    }
+  }
+  if (promptFile !== null) {
+    // --prompt-file is a trusted CLI argument (skills pass absolute /tmp paths):
+    // resolve relative to process.cwd(), allow absolute paths anywhere.
+    try {
+      prompt = readFileSync(resolve(promptFile), "utf8");
+    } catch (err) {
+      console.error(`error: cannot read --prompt-file "${promptFile}": ${err.message}`);
+      return 2;
     }
   }
   if (!prompt.trim()) {
@@ -40,6 +51,16 @@ async function main(argv) {
   const graph = loadGraph(repo);
   for (const w of graph.warnings ?? []) {
     console.error(`warning: ${w}`);
+  }
+  for (const e of graph.errors ?? []) {
+    console.error(`error: ${e}`);
+  }
+  if (Array.isArray(graph.errors) && graph.errors.length > 0) {
+    return 1;
+  }
+  if (!GRAPH_STAGE_IDS.includes(stage) && stage !== "lite" && !graph.nodes?.[stage]) {
+    console.error(`error: unknown stage "${stage}" (not in graph)`);
+    return 2;
   }
 
   const result = await runGraphStage({

@@ -20,7 +20,10 @@ export function defaultExecutorForAdapter() {
  * }} options
  */
 export function resolveExecutorForPhase(options) {
-  const stage = phaseToGraphStage(options.phaseKey);
+  let stage = phaseToGraphStage(options.phaseKey);
+  if (!stage && options.graph?.nodes?.[options.phaseKey]) {
+    stage = options.phaseKey;
+  }
   const settingsExec =
     stage && options.settings?.executors?.[stage]
       ? options.settings.executors[stage]
