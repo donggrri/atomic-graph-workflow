@@ -4,37 +4,37 @@ nodes:
   router:
     next: [lite, explore]
   lite:
-    skill: cursor-atomic-lite
-    executor: cursor-sdk
+    skill: atomic-lite
+    executor: cursor-subagent
   explore:
-    skill: cursor-atomic-explore
+    skill: atomic-explore
     executor: cursor-subagent
     agent: explorer
   plan:
-    skill: cursor-atomic-plan
+    skill: atomic-plan
     executor: cursor-subagent
     agent: planner
   plan-review:
-    skill: cursor-atomic-plan
+    skill: atomic-plan
     executor: cursor-subagent
     agent: plan-reviewer
   task:
-    skill: cursor-atomic-task
+    skill: atomic-task
     executor: cursor-subagent
     agent: tasker
   execute:
-    skill: cursor-atomic-execute
+    skill: atomic-execute
     executor: cursor-subagent
     agent: worker
   review:
-    skill: cursor-atomic-review
+    skill: atomic-review
     executor: cursor-subagent
-    agent: cursor-atomic-reviewer
+    agent: atomic-reviewer
   wrapup:
-    skill: cursor-atomic-wrapup
+    skill: atomic-wrapup
     executor: cursor-subagent
     agent: tester
   memory:
-    skill: cursor-atomic-workflow
+    skill: atomic-workflow
     executor: cursor-subagent
     agent: memory-curator

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# cursor-atomic-workflow: check headless CLI workers on PATH.
+# atomic-workflow: check headless CLI workers on PATH.
 set -euo pipefail
 
 WORKERS=(agy opencode codex claude)

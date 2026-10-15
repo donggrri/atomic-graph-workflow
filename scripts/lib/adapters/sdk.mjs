@@ -136,9 +136,9 @@ async function disposeAgent(agent) {
 }
 
 /**
- * @param {{ repoRoot: string, sdk?: Awaited<ReturnType<typeof loadSdk>> }} options
+ * @param {{ repoRoot: string, sdk?: Awaited<ReturnType<typeof loadSdk>>, model?: { id: string, params?: Array<{ id: string, value: string }> } }} options
  */
-export async function createSdkAdapter({ repoRoot, sdk: sdkOverride }) {
+export async function createSdkAdapter({ repoRoot, sdk: sdkOverride, model }) {
   const sdk = sdkOverride ?? await loadSdk();
   if (!sdk) {
     return null;
@@ -152,13 +152,20 @@ export async function createSdkAdapter({ repoRoot, sdk: sdkOverride }) {
      * @param {{ role: string, prompt?: string, cwd?: string, onProgress?: (line: string) => void }} params
      */
     async runRole({ role, prompt, cwd, onProgress }) {
-      const roleDef = getRole(role);
+      getRole(role);
       const workCwd = cwd ?? repoRoot;
       let agent;
 
       try {
+        if (!model || typeof model.id !== "string" || !model.id) {
+          return {
+            ok: false,
+            kind: "startup",
+            message: "cursor-sdk requires an explicit model; use the model-neutral cursor-subagent executor",
+          };
+        }
         agent = await Agent.create({
-          model: roleDef.sdk,
+          model,
           local: {
             cwd: resolve(workCwd),
             settingSources: SETTING_SOURCES,

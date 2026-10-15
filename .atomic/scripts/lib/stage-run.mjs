@@ -4,7 +4,8 @@ import { loadGraph } from "./graph.mjs";
 import { loadWorkflowSettings } from "./workflow-settings.mjs";
 import { applyEffectiveExecutorSettings } from "./effective-settings.mjs";
 import { createCompositeRoleRunner } from "./executors/composite.mjs";
-import { ROLES, AUXILIARY_ROLES, getRole } from "./roles.mjs";
+import { ROLES, AUXILIARY_ROLES } from "./roles.mjs";
+import { canonicalName } from "./legacy-aliases.mjs";
 import { getWorkflowPaths } from "../work-status.mjs";
 
 /**
@@ -13,18 +14,10 @@ import { getWorkflowPaths } from "../work-status.mjs";
  */
 export function graphAgentToRoleKey(agent) {
   if (!agent || typeof agent !== "string") return null;
-  if (agent === "cursor-atomic-reviewer") return "reviewer";
+  agent = canonicalName(agent);
+  if (agent === "atomic-reviewer") return "reviewer";
   if (ROLES[agent] || AUXILIARY_ROLES[agent]) return agent;
   return agent;
-}
-
-/**
- * @param {string} roleKey
- */
-export function roleTaskModel(roleKey) {
-  if (ROLES[roleKey]) return getRole(roleKey).taskModel;
-  if (AUXILIARY_ROLES[roleKey]) return AUXILIARY_ROLES[roleKey].taskModel;
-  return "composer-2.5";
 }
 
 /**
@@ -58,6 +51,7 @@ export async function runGraphStage(options) {
     repoRoot,
     slug,
     runsDir,
+    docsDir: paths.docsDir,
     graph,
     settings,
     log: options.log ?? (() => {}),
@@ -79,7 +73,6 @@ export async function runGraphStage(options) {
     role: roleKey,
     prompt: options.prompt,
     cwd: repoRoot,
-    model: roleTaskModel(roleKey),
     phaseKey: stage,
   });
 

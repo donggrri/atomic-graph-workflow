@@ -61,8 +61,8 @@ import {
 
 const REPO_ROOT = "/tmp/bugbot-repo-root";
 const SLUG = "bugbot-review";
-const PLAN_PATH = "/home/user/docs/cursor-atomic-workflow/bugbot-review/PLAN-bugbot-review.md";
-const TASKS_PATH = "/home/user/docs/cursor-atomic-workflow/bugbot-review/TASKS-bugbot-review.md";
+const PLAN_PATH = "/home/user/docs/atomic-workflow/bugbot-review/PLAN-bugbot-review.md";
+const TASKS_PATH = "/home/user/docs/atomic-workflow/bugbot-review/TASKS-bugbot-review.md";
 
 /** @param {string} prefix */
 function makeRunsDir(prefix) {
@@ -97,7 +97,7 @@ function expectedPrompt(pass) {
   return [
     `Full Repository Path: ${REPO_ROOT}`,
     "Diff: branch changes",
-    `Custom Instructions: cursor-atomic-workflow slug ${SLUG}, review pass ${pass}. Spec: PLAN ${PLAN_PATH}, TASKS ${TASKS_PATH}. Report only concrete bugs in the branch changes.`,
+    `Custom Instructions: atomic-workflow slug ${SLUG}, review pass ${pass}. Spec: PLAN ${PLAN_PATH}, TASKS ${TASKS_PATH}. Report only concrete bugs in the branch changes.`,
   ].join("\n");
 }
 

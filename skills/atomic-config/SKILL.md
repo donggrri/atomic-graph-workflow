@@ -1,0 +1,30 @@
+---
+name: atomic-config
+description: "atomic-workflow 설정(작업 홈)을 조회하고 변경한다. 사용자가 직접 호출할 때만 쓴다."
+---
+
+# /atomic-config
+
+입력: `show`, `home`, `home <경로>`. 비어 있으면 `show`.
+
+`.atomic/scripts/work-status.mjs`의 `getWorkflowRoot`를 따른다. 서브에이전트를 띄우는 법은 `atomic-workflow`의 `references/harness.md`를 따른다.
+
+## 작업 홈
+
+적용 우선순위:
+
+1. 환경 변수 `CURSOR_ATOMIC_WORKFLOW_HOME`
+2. `${XDG_CONFIG_HOME:-~/.config}/atomic-workflow/config.json`의 `home`
+3. 기본값 `~/.cursor-atomic-workflow`
+
+`home` 값의 선행 `~`는 사용자 홈으로 확장한다.
+
+- `show`: 지금 적용 중인 경로와, 위 세 단계 중 어디에서 결정됐는지 보여 준다.
+- `home`: 설정 파일 내용과 적용 중인 경로를 보여 준다. 환경 변수가 있으면 설정 파일보다 우선한다고 적는다.
+- `home <경로>`: 그 설정 파일에 `{ "home": "<경로>" }`를 저장한다. 다른 키는 유지한다. 디렉터리는 만들지 않고 경로만 기록한다. 저장 전에 JSON이 유효한지 확인한다.
+
+## 모델
+
+워크플로는 모델을 설정하지 않는다. 서브에이전트와 외부 CLI는 각 하네스(CLI)의 기본 모델을 쓰므로, 바꾸려면 그 하네스의 설정에서 바꾼다. 사용자가 에이전트 모델을 바꿔 달라고 하면 이 안내를 전하고 파일을 고치지 않는다.
+
+한국어로 명확하게 결과를 보고한다.

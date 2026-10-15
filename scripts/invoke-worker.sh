@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# cursor-atomic-workflow: run agy / opencode / codex / claude headlessly.
+# atomic-workflow: run agy / opencode / codex / claude headlessly.
 set -euo pipefail
 
 WORKER=""
@@ -9,18 +9,15 @@ LOG_FILE=""
 TIMEOUT_MIN=45
 SKILLS=""
 SKILLS_FILE=""
-AGY_MODEL=""
-OPENCODE_MODEL=""
 DRY_RUN=0
 
-CURSOR_ATOMIC_SKILL_ROOT="${CURSOR_ATOMIC_SKILL_ROOT:-$HOME/.agents/skills/cursor-atomic-workflow}"
+CURSOR_ATOMIC_SKILL_ROOT="${CURSOR_ATOMIC_SKILL_ROOT:-$HOME/.agents/skills/atomic-workflow}"
 
 usage() {
   cat <<'EOF'
-Usage: invoke-worker.sh --worker <name> --workspace <path> --prompt-file <path> --log-file <path> [--timeout-min N] [--model <agy-slug>] [--opencode-model <provider/model>] [--skills a,b] [--skills-file path] [--dry-run]
+Usage: invoke-worker.sh --worker <name> --workspace <path> --prompt-file <path> --log-file <path> [--timeout-min N] [--skills a,b] [--skills-file path] [--dry-run]
 Workers: agy, opencode, codex, claude
-Env: CURSOR_ATOMIC_AGY_MODEL — agy --model when --model is omitted (agy worker only)
-Env: CURSOR_ATOMIC_OPENCODE_MODEL — opencode -m when --opencode-model is omitted (opencode worker only)
+The workflow sets no model: each CLI uses its own default (configure it in the CLI).
 EOF
 }
 
@@ -129,19 +126,6 @@ run_with_timeout() {
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-resolve_agy_model() {
-  local raw="$1"
-  [[ -n "${raw//[[:space:]]/}" ]] || return 0
-  if command -v node >/dev/null 2>&1 && [[ -f "$SCRIPT_DIR/resolve-agy-model.mjs" ]]; then
-    node "$SCRIPT_DIR/resolve-agy-model.mjs" "$raw"
-  else
-    case "$raw" in
-      gemini-3.8-flash|gemini-3.8-flash-medium) echo "gemini-3.8-flash-high" ;;
-      *) echo "$raw" ;;
-    esac
-  fi
-}
-
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --worker) WORKER="$2"; shift 2 ;;
@@ -149,8 +133,7 @@ while [[ $# -gt 0 ]]; do
     --prompt-file) PROMPT_FILE="$2"; shift 2 ;;
     --log-file) LOG_FILE="$2"; shift 2 ;;
     --timeout-min) TIMEOUT_MIN="$2"; shift 2 ;;
-    --model) AGY_MODEL="$2"; shift 2 ;;
-    --opencode-model) OPENCODE_MODEL="$2"; shift 2 ;;
+    --model) die "--model is no longer supported: the workflow does not select models; configure the model in the CLI itself" ;;
     --skills) SKILLS="$(merge_skills_csv "$SKILLS" "$2")"; shift 2 ;;
     --skills-file)
       [[ -f "$2" ]] || die "skills file not found: $2"
@@ -182,7 +165,7 @@ PROMPT="$(cat "$PROMPT_FILE")"
 [[ -n "${PROMPT//[[:space:]]/}" ]] || die "prompt file is empty: $PROMPT_FILE"
 
 if [[ -z "$SKILLS" ]]; then
-  SKILLS="cursor-atomic-workflow,tdd"
+  SKILLS="atomic-workflow,tdd"
 fi
 
 SKILLS_BLOCK="$(build_skills_block "$WS" "$SKILLS")"
@@ -196,39 +179,15 @@ printf '%s' "$PROMPT" >"$EFFECTIVE_PROMPT_FILE"
 
 LAST_MESSAGE_FILE="${LOG_FILE%.log}.last.md"
 AGY_TIMEOUT="${TIMEOUT_MIN}m0s"
-if [[ -z "$AGY_MODEL" && -f "$SCRIPT_DIR/lib/read-project-agy-model.mjs" ]]; then
-  AGY_MODEL="$(node "$SCRIPT_DIR/lib/read-project-agy-model.mjs" "$WS" 2>/dev/null || true)"
-fi
-if [[ -z "$AGY_MODEL" && -n "${CURSOR_ATOMIC_AGY_MODEL:-}" ]]; then
-  AGY_MODEL="$CURSOR_ATOMIC_AGY_MODEL"
-fi
-if [[ -n "$AGY_MODEL" ]]; then
-  AGY_MODEL="$(resolve_agy_model "$AGY_MODEL")"
-fi
-# opencode model is passed through verbatim (no agy alias resolution).
-if [[ -z "$OPENCODE_MODEL" && -n "${CURSOR_ATOMIC_OPENCODE_MODEL:-}" ]]; then
-  OPENCODE_MODEL="$CURSOR_ATOMIC_OPENCODE_MODEL"
-fi
-# A whitespace-only model counts as unset so -m is never passed a blank value.
-if [[ -z "${OPENCODE_MODEL//[[:space:]]/}" ]]; then
-  OPENCODE_MODEL=""
-fi
 EXIT_CODE=1
 
-LOG_HEADER="worker=$WORKER workspace=$WS started=$(date -Iseconds) dry_run=$DRY_RUN agy_model=${AGY_MODEL:-default}"
-if [[ "$WORKER" == "opencode" ]]; then
-  LOG_HEADER+=" opencode_model=${OPENCODE_MODEL:-default}"
-fi
 {
-  echo "$LOG_HEADER"
+  echo "worker=$WORKER workspace=$WS started=$(date -Iseconds) dry_run=$DRY_RUN"
 } >"$LOG_FILE"
 
 dry_run_agy() {
   # Print the command only. Real runs still require agy via run_agy.
   local line="agy --output-format text --mode accept-edits --dangerously-skip-permissions --print-timeout $AGY_TIMEOUT"
-  if [[ -n "$AGY_MODEL" ]]; then
-    line+=" --model $(printf '%q' "$AGY_MODEL")"
-  fi
   local add_dir
   while IFS= read -r add_dir; do
     [[ -n "$add_dir" ]] || continue
@@ -243,9 +202,6 @@ run_agy() {
   local -a cmd
   bin="$(resolve_bin agy agy.exe)" || die "agy not on PATH. Run ensure-workers.sh"
   cmd=( "$bin" --output-format text --mode accept-edits --dangerously-skip-permissions --print-timeout "$AGY_TIMEOUT" )
-  if [[ -n "$AGY_MODEL" ]]; then
-    cmd+=( --model "$AGY_MODEL" )
-  fi
   local add_dir
   while IFS= read -r add_dir; do
     [[ -n "$add_dir" ]] || continue
@@ -269,24 +225,14 @@ run_codex() {
 }
 
 dry_run_opencode() {
-  local line="opencode run --dir $(printf '%q' "$WS") --auto --title cursor-atomic-workflow"
-  if [[ -n "$OPENCODE_MODEL" ]]; then
-    line+=" -m $(printf '%q' "$OPENCODE_MODEL")"
-  fi
-  line+=" $(printf '%q' "$PROMPT")"
-  echo "dry-run: $line" | tee -a "$LOG_FILE"
+  echo "dry-run: opencode run --dir $(printf '%q' "$WS") --auto --title atomic-workflow $(printf '%q' "$PROMPT")" | tee -a "$LOG_FILE"
 }
 
 run_opencode() {
   local bin
   local -a cmd
   bin="$(resolve_bin opencode opencode.exe)" || die "opencode not on PATH. Run ensure-workers.sh"
-  cmd=( "$bin" run --dir "$WS" --auto --title "cursor-atomic-workflow" )
-  if [[ -n "$OPENCODE_MODEL" ]]; then
-    cmd+=( -m "$OPENCODE_MODEL" )
-  fi
-  cmd+=( "$PROMPT" )
-  run_with_timeout "${cmd[@]}" 2>&1 | tee -a "$LOG_FILE"
+  run_with_timeout "$bin" run --dir "$WS" --auto --title "atomic-workflow" "$PROMPT" 2>&1 | tee -a "$LOG_FILE"
   return "${PIPESTATUS[0]}"
 }
 

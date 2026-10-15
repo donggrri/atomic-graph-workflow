@@ -1,19 +1,28 @@
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
-import { getRole } from "../roles.mjs";
+import { getRole, GENERIC_SUBAGENT } from "../roles.mjs";
+import { canonicalName, legacyName } from "../legacy-aliases.mjs";
+
+/**
+ * Role instructions live in `.atomic/agents/<subagentType>.md` for every harness.
+ * @param {string} subagentType
+ */
+export function agentInstructionsRelPath(subagentType) {
+  return join(".atomic", "agents", `${subagentType}.md`);
+}
 
 /** @type {Record<string, string[]>} */
 const ROLE_SKILL_DIRS = {
-  explorer: ["cursor-atomic-workflow"],
-  planner: ["cursor-atomic-workflow", "codebase-design", "grilling"],
-  "plan-reviewer": ["cursor-atomic-workflow", "codebase-design", "tdd"],
-  tasker: ["cursor-atomic-workflow", "to-tickets"],
-  worker: ["cursor-atomic-workflow", "tdd"],
-  reviewer: ["cursor-atomic-workflow", "code-review"],
-  tester: ["cursor-atomic-workflow", "tdd", "codebase-design"],
-  "cli-delegate": ["cursor-atomic-workflow"],
-  "memory-curator": ["cursor-atomic-workflow"],
+  explorer: ["atomic-workflow"],
+  planner: ["atomic-workflow", "codebase-design", "grilling"],
+  "plan-reviewer": ["atomic-workflow", "codebase-design", "tdd"],
+  tasker: ["atomic-workflow", "to-tickets"],
+  worker: ["atomic-workflow", "tdd"],
+  reviewer: ["atomic-workflow", "code-review"],
+  tester: ["atomic-workflow", "tdd", "codebase-design"],
+  "cli-delegate": ["atomic-workflow"],
+  "memory-curator": ["atomic-workflow"],
 };
 
 /**
@@ -30,7 +39,15 @@ export function resolveSkillPath(repoRoot, skillName, options = {}) {
   const home = options.homeDir ?? homedir();
   const repoFile = join(resolve(repoRoot), ".agents", "skills", skillName, "SKILL.md");
   if (exists(repoFile)) return repoFile;
-  return join(home, ".agents", "skills", skillName, "SKILL.md");
+  const canonical = canonicalName(skillName);
+  const canonicalRepoFile = join(resolve(repoRoot), ".agents", "skills", canonical, "SKILL.md");
+  if (exists(canonicalRepoFile)) return canonicalRepoFile;
+  const legacyPath = legacyName(canonical);
+  if (legacyPath) {
+    const legacyRepoFile = join(resolve(repoRoot), ".agents", "skills", legacyPath, "SKILL.md");
+    if (exists(legacyRepoFile)) return legacyRepoFile;
+  }
+  return join(home, ".agents", "skills", canonical, "SKILL.md");
 }
 
 /**
@@ -39,9 +56,18 @@ export function resolveSkillPath(repoRoot, skillName, options = {}) {
  * @param {string} body
  * @param {{ homeDir?: string, exists?: (path: string) => boolean }} [options]
  */
-export function formatPrompt(repoRoot, role, body, options) {
-  const dirs = ROLE_SKILL_DIRS[role] ?? ["cursor-atomic-workflow"];
-  return formatSkillPrompt(repoRoot, dirs, body, options);
+export function formatPrompt(repoRoot, role, body, options = {}) {
+  const dirs = options.skillNames ?? ROLE_SKILL_DIRS[role] ?? ["atomic-workflow"];
+  const skillLines = dirs.map((name) => resolveSkillPath(repoRoot, name, options));
+  const roleDef = getRole(role);
+  const instructionPath = resolve(repoRoot, agentInstructionsRelPath(roleDef.subagentType));
+  const context = [
+    `Role instructions: ${instructionPath}`,
+    options.docsDir ? `docsDir: ${options.docsDir}` : null,
+    options.runsDir ? `runsDir: ${options.runsDir}` : null,
+  ].filter(Boolean);
+  const tail = (body ?? "").trim();
+  return [...skillLines, ...context, tail].filter(Boolean).join("\n");
 }
 
 /**
@@ -57,24 +83,25 @@ export function formatSkillPrompt(repoRoot, skillNames, body, options) {
 }
 
 /**
- * @param {{ runsDir: string, slug: string, repoRoot: string, homeDir?: string, exists?: (path: string) => boolean }} options
+ * @param {{ runsDir: string, slug: string, repoRoot: string, docsDir?: string, homeDir?: string, exists?: (path: string) => boolean }} options
  */
-export function createTaskCardAdapter({ runsDir, slug, repoRoot, homeDir, exists }) {
-  const skillOptions = { homeDir, exists };
+export function createTaskCardAdapter({ runsDir, slug, repoRoot, docsDir, homeDir, exists }) {
+  const skillOptions = { homeDir, exists, docsDir, runsDir };
   return {
     mode: "task-card",
     /**
-     * @param {{ role: string, prompt?: string, cwd?: string, model?: string }} params
+     * @param {{ role: string, prompt?: string, cwd?: string }} params
      */
-    async runRole({ role, prompt, model }) {
+    async runRole({ role, prompt }) {
       const roleDef = getRole(role);
-      const cardModel =
-        typeof model === "string" && model.trim() ? model.trim() : roleDef.taskModel;
+      // No `model`: the parent harness decides. `role` tells the parent which instructions apply.
       const card = {
-        subagent_type: roleDef.subagentType,
-        model: cardModel,
-        run_in_background: true,
-        prompt: formatPrompt(repoRoot, role, prompt ?? "", skillOptions),
+        subagent_type: GENERIC_SUBAGENT,
+        role,
+        instructions: agentInstructionsRelPath(roleDef.subagentType),
+        prompt: String(prompt ?? "").includes("Role instructions:")
+          ? prompt
+          : formatPrompt(repoRoot, role, prompt ?? "", skillOptions),
       };
 
       mkdirSync(runsDir, { recursive: true });

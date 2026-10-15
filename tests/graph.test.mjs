@@ -10,7 +10,7 @@ test("parseGraphYaml reads executors and agents", () => {
   const yaml = `version: 1
 nodes:
   plan:
-    skill: cursor-atomic-plan
+    skill: atomic-plan
     executor: agy
     agent: planner
 `;

@@ -5,8 +5,9 @@ import { phaseToGraphStage } from "../graph.mjs";
  * @param {{ adapter?: { mode?: string } }} options
  * @returns {string}
  */
-export function defaultExecutorForAdapter(adapter) {
-  if (adapter?.mode === "sdk") return "cursor-sdk";
+export function defaultExecutorForAdapter() {
+  // The workflow cannot select a local Cursor SDK model. Let the parent harness
+  // run the generic task-card with its own model/default settings instead.
   return "cursor-subagent";
 }
 
@@ -14,7 +15,7 @@ export function defaultExecutorForAdapter(adapter) {
  * @param {{
  *   phaseKey: string,
  *   graph: { nodes: Record<string, Record<string, unknown>> },
- *   settings: { executors?: Record<string, string>, executorModels?: Record<string, string> },
+ *   settings: { executors?: Record<string, string> },
  *   adapter?: { mode?: string },
  * }} options
  */
@@ -33,24 +34,4 @@ export function resolveExecutorForPhase(options) {
     throw new Error(`unknown executor "${raw}" for stage ${stage ?? options.phaseKey}`);
   }
   return { stage, executorId: raw };
-}
-
-/**
- * @param {{
- *   stage: string | null,
- *   graph: { nodes: Record<string, Record<string, unknown>> },
- *   settings: { executorModels?: Record<string, string> },
- *   roleModel: string,
- * }} options
- */
-export function resolveExecutorModel(options) {
-  const { stage, graph, settings, roleModel } = options;
-  if (stage && settings?.executorModels?.[stage]) {
-    return settings.executorModels[stage];
-  }
-  const node = stage ? graph?.nodes?.[stage] : null;
-  if (node && typeof node.model === "string" && node.model.trim()) {
-    return node.model.trim();
-  }
-  return roleModel;
 }

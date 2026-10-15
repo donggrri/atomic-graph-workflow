@@ -1,5 +1,6 @@
 import { readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
+import { canonicalName } from "./legacy-aliases.mjs";
 
 /**
  * @param {string} val
@@ -103,6 +104,10 @@ export function loadGraph(repoRoot) {
   }
   const text = readFileSync(path, "utf8");
   const parsed = parseGraphYaml(text);
+  for (const node of Object.values(parsed.nodes)) {
+    if (typeof node.skill === "string") node.skill = canonicalName(node.skill);
+    if (typeof node.agent === "string") node.agent = canonicalName(node.agent);
+  }
   return { version: parsed.version, nodes: parsed.nodes, warnings: parsed.warnings ?? [] };
 }
 

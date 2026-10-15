@@ -29,8 +29,9 @@ export function readProjectSettings(repoRoot, options = {}) {
 /**
  * @param {string} repoRoot
  * @param {Record<string, unknown>} patch
+ * @param {{ dropKeys?: string[] }} [options] keys to remove from the stored settings
  */
-export function writeProjectSettings(repoRoot, patch) {
+export function writeProjectSettings(repoRoot, patch, options = {}) {
   const path = join(repoRoot, PROJECT_SETTINGS_FILE);
   let prior = {};
   if (existsSync(path)) {
@@ -50,6 +51,7 @@ export function writeProjectSettings(repoRoot, patch) {
     }
   }
   const next = { ...prior, ...patch };
+  for (const key of options.dropKeys ?? []) delete next[key];
   mkdirSync(repoRoot, { recursive: true });
   writeFileSync(path, JSON.stringify(next, null, 2) + "\n", "utf8");
   return next;
@@ -63,6 +65,36 @@ export function readInstalledHarnesses(repoRoot) {
   const data = readProjectSettings(repoRoot);
   if (!Array.isArray(data.installedHarnesses)) return null;
   return data.installedHarnesses.filter((h) => typeof h === "string" && HARNESS_IDS.includes(h));
+}
+
+/**
+ * Normalizes a `docsRoot` setting value. Returns a trimmed non-empty string
+ * or null when unset. Throws with a clear reason when the type is invalid.
+ * Relative values resolve against repoRoot; absolute values are used as-is.
+ * @param {unknown} value
+ * @param {string} label
+ */
+export function parseDocsRoot(value, label = "project settings") {
+  if (value == null || value === "") return { ok: true, docsRoot: null };
+  if (typeof value !== "string") {
+    return { ok: false, reason: `${label}: docsRoot must be a string` };
+  }
+  const trimmed = value.trim();
+  if (!trimmed) return { ok: true, docsRoot: null };
+  if (trimmed.includes("\0")) {
+    return { ok: false, reason: `${label}: docsRoot must not contain null bytes` };
+  }
+  return { ok: true, docsRoot: trimmed };
+}
+
+/**
+ * @param {string} repoRoot
+ * @returns {string | null} trimmed docsRoot or null when unset/invalid
+ */
+export function readDocsRoot(repoRoot) {
+  const data = readProjectSettings(repoRoot);
+  const parsed = parseDocsRoot(data.docsRoot);
+  return parsed.ok ? parsed.docsRoot : null;
 }
 
 /**

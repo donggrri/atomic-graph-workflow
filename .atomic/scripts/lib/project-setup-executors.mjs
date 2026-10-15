@@ -42,9 +42,7 @@ export async function collectExecutorChoices(interactive, existing = {}) {
     const def =
       typeof existing[stage] === "string"
         ? existing[stage]
-        : stage === "plan"
-          ? "cursor-sdk"
-          : "cursor-subagent";
+        : "cursor-subagent";
     const picked = interactive
       ? await select(`${label} 단계 executor`, choices, def)
       : def;

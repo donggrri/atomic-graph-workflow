@@ -2,26 +2,24 @@
 import { readFileSync, existsSync } from "node:fs";
 import { join, dirname, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import {
-  roleNames,
-  getRole,
-  agentFileName,
-  modelFamily,
-  AUXILIARY_ROLES,
-} from "./lib/roles.mjs";
+import { roleNames, agentFileName, AUXILIARY_ROLES } from "./lib/roles.mjs";
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 const defaultAgentsDir = join(scriptDir, "..", "agents");
 
+/** Frontmatter keys that tie an agent to one harness or model. The workflow owns none of them. */
+const FORBIDDEN_FRONTMATTER = ["model", "readonly", "is_background"];
+
 /**
  * @param {string} content
- * @returns {string | null}
+ * @returns {string[]} forbidden keys present in the frontmatter
  */
-function frontmatterModel(content) {
+export function forbiddenFrontmatterKeys(content) {
   const block = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
-  if (!block) return null;
-  const line = block[1].match(/^model:\s*(.+)$/m);
-  return line ? line[1].trim() : null;
+  if (!block) return [];
+  return FORBIDDEN_FRONTMATTER.filter((key) =>
+    new RegExp(`^${key}\\s*:`, "m").test(block[1]),
+  );
 }
 
 /**
@@ -33,19 +31,14 @@ export function checkAgents(options = {}) {
   const problems = [];
 
   const checks = [
-    ...roleNames().map((name) => ({
-      name,
-      taskModel: getRole(name).taskModel,
-      file: agentFileName(name),
-    })),
+    ...roleNames().map((name) => ({ name, file: agentFileName(name) })),
     ...Object.entries(AUXILIARY_ROLES).map(([name, role]) => ({
       name,
-      taskModel: role.taskModel,
       file: `${role.subagentType}.md`,
     })),
   ];
 
-  for (const { name, taskModel, file } of checks) {
+  for (const { name, file } of checks) {
     const path = join(dir, file);
 
     if (!existsSync(path)) {
@@ -61,30 +54,9 @@ export function checkAgents(options = {}) {
       continue;
     }
 
-    const model = frontmatterModel(content);
-    if (model === null) {
-      problems.push(`${name}: no frontmatter model: in ${file}`);
-    } else if (model !== taskModel) {
-      problems.push(
-        `${name}: frontmatter model "${model}" !== taskModel "${taskModel}" (${file})`,
-      );
+    for (const key of forbiddenFrontmatterKeys(content)) {
+      problems.push(`${name}: frontmatter "${key}:" is not allowed in ${file} (harness decides)`);
     }
-  }
-
-  const reviewerFamily = modelFamily(getRole("reviewer").taskModel);
-  const workerFamily = modelFamily(getRole("worker").taskModel);
-  if (reviewerFamily === workerFamily) {
-    problems.push(
-      `reviewer model family "${reviewerFamily}" must differ from worker "${workerFamily}"`,
-    );
-  }
-
-  const plannerFamily = modelFamily(getRole("planner").taskModel);
-  const planReviewerFamily = modelFamily(getRole("plan-reviewer").taskModel);
-  if (plannerFamily === planReviewerFamily) {
-    problems.push(
-      `plan-reviewer model family "${planReviewerFamily}" must differ from planner "${plannerFamily}"`,
-    );
   }
 
   return { ok: problems.length === 0, problems };

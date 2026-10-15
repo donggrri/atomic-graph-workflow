@@ -36,7 +36,7 @@ test("getWorkflowRoot respects CURSOR_ATOMIC_WORKFLOW_HOME and defaults to ~/.cu
 
     delete process.env.CURSOR_ATOMIC_WORKFLOW_HOME;
     assert.match(
-      getWorkflowRoot(process.env, { configPath: join(tmpdir(), "no-cursor-atomic-config.json") }),
+      getWorkflowRoot(process.env, { configPath: join(tmpdir(), "no-atomic-config.json") }),
       /\.cursor-atomic-workflow$/
     );
   } finally {
@@ -90,10 +90,10 @@ test("getWorkflowRoot reads config.json home after env, and ignores invalid JSON
 test("getShortRepo normalizes repo basename to kebab-case and caps at 24 chars", () => {
   assert.equal(getShortRepo("/path/to/my-repo"), "my-repo");
   assert.equal(getShortRepo("/path/to/My_Awesome_Repo"), "my-awesome-repo");
-  assert.equal(getShortRepo("/path/to/cursor-atomic-workflow"), "cursor-atomic-workflow");
+  assert.equal(getShortRepo("/path/to/atomic-workflow"), "atomic-workflow");
   assert.equal(
-    getShortRepo("/path/to/cursor-atomic-workflow-extra"),
-    "cursor-atomic-workflow-e"
+    getShortRepo("/path/to/atomic-workflow-extra"),
+    "atomic-workflow-extra"
   );
   assert.ok(getShortRepo("/path/to/very-very-very-very-long-project-name").length <= 24);
 });
@@ -179,7 +179,7 @@ test("writeStatus and readStatus perform atomic write and read", async () => {
       branch: "main",
       phase: "plan",
       tasks: { total: 3, done: 1, blockedId: null, blockedReason: null },
-      lastCommand: "/cursor-atomic-plan",
+      lastCommand: "/atomic-plan",
     });
 
     assert.equal(initial.phase, "plan");
