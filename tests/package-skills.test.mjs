@@ -266,7 +266,7 @@ test("lite command skill is single-session without subagents", async () => {
   assert.notEqual(meta["disable-model-invocation"], "true", `${file} must be model-invocable for router`);
   assert.match(meta.description ?? "", /메인 채팅|라우터/, `${file} description must mention router`);
   assert.match(body, /서브에이전트/, `${file} must forbid subagents`);
-  assert.match(body, /CURSOR_ATOMIC_WORKFLOW_HOME/, `${file} must respect workflow home`);
+  assert.match(body, /ATOMIC_WORKFLOW_HOME/, `${file} must respect workflow home`);
   assert.match(body, /memory\.mjs/, `${file} must use memory.mjs`);
   assert.match(body, /propose --auto/, `${file} must auto-save memory`);
   assert.match(body, /5개 이상|5\+/, `${file} must escalate on many files`);
@@ -756,7 +756,7 @@ test("plan-review parent contract docs", async () => {
 });
 
 test("repository agents do not hardcode workflow docs home paths", async () => {
-  const forbidden = "~/.cursor-atomic-workflow/docs";
+  const forbidden = "~/.atomic-workflow/docs";
   for (const file of await walkFiles("agents")) {
     if (!file.endsWith(".md")) continue;
     const body = await readFile(file, "utf8");

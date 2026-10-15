@@ -7,7 +7,7 @@ description: "agy(Antigravity CLI)를 헤드리스로 호출해 사용자 요청
 
 사용자 요청(계획 또는 코드 생성)을 공용 서브에이전트(`cli-delegate` 지침)와 `invoke-worker --worker agy`로만 위임한다. 이 스킬은 파이프라인 단계가 아니다. TASKS 항목만 위임할 때는 `/atomic-delegate`도 가능하다.
 
-`atomic-workflow` 스킬과 그 디렉터리의 `workers.md`를 읽는다. 서브에이전트 호출은 `references/harness.md` 「서브에이전트 띄우기」를 따른다. 부모는 CLI를 직접 띄우지 않는다. bare `agy`를 실행하지 않는다. 줄 전체가 `agy`인 명령도 두지 않는다. agy CLI 플래그를 새로 만들지 않는다. `invoke-worker`에만 `--worker`, `--workspace`, `--prompt-file`, `--log-file`, `--timeout-min`, `--skills`와 env `CURSOR_ATOMIC_SKILL_ROOT`를 넘긴다. 모델은 넘기지 않는다(agy 기본 모델).
+`atomic-workflow` 스킬과 그 디렉터리의 `workers.md`를 읽는다. 서브에이전트 호출은 `references/harness.md` 「서브에이전트 띄우기」를 따른다. 부모는 CLI를 직접 띄우지 않는다. bare `agy`를 실행하지 않는다. 줄 전체가 `agy`인 명령도 두지 않는다. agy CLI 플래그를 새로 만들지 않는다. `invoke-worker`에만 `--worker`, `--workspace`, `--prompt-file`, `--log-file`, `--timeout-min`, `--skills`와 env `ATOMIC_SKILL_ROOT`를 넘긴다. 모델은 넘기지 않는다(agy 기본 모델).
 
 `agy`의 `--print-timeout`은 반드시 `45m0s` 같은 **단위가 있는 duration**이다. 숫자만 넣으면 CLI가 즉시 실패한다. 부모는 timeout을 직접 만들지 말고 `invoke-worker`의 `--timeout-min`(기본 45)만 쓴다.
 
@@ -33,7 +33,7 @@ description: "agy(Antigravity CLI)를 헤드리스로 호출해 사용자 요청
 - 브리프: `<runsDir>/<task-id>.brief.md`
 - 로그: `<runsDir>/<task-id>.log`
 - 브리프 내용은 해당 항목의 제목·`files`·`done`·PLAN 비목표 요약(`workers.md` 템플릿).
-- `cli-delegate` 프롬프트 첫 줄은 `atomic-workflow` 스킬 절대 경로. 이어서 `요청 위임: /atomic-agy execute (TASKS 항목: <id>)`, `worker: agy`, 브리프·로그·작업공간, `--skills atomic-workflow,tdd`, `CURSOR_ATOMIC_SKILL_ROOT`, `--timeout-min 45`.
+- `cli-delegate` 프롬프트 첫 줄은 `atomic-workflow` 스킬 절대 경로. 이어서 `요청 위임: /atomic-agy execute (TASKS 항목: <id>)`, `worker: agy`, 브리프·로그·작업공간, `--skills atomic-workflow,tdd`, `ATOMIC_SKILL_ROOT`, `--timeout-min 45`.
 - 돌아온 뒤 부모가 `run-done.mjs`로 `done`을 재실행하고 통과할 때만 `[x]`.
 
 한 번에 **한 항목**만 위임한다. 여러 항목을 자동 연속 실행하지 않는다.
@@ -94,12 +94,12 @@ invoke-worker는 agy를 항상 `--mode accept-edits --dangerously-skip-permissio
 - `요청 위임: /atomic-agy <mode> …` (execute·이어하기 TASKS면 `(TASKS 항목: <id>)` 포함)
 - `worker: agy`, 브리프 경로, 로그 경로, 작업공간 절대 경로
 - `--skills`: plan은 `atomic-workflow`, implement·execute는 `atomic-workflow,tdd`
-- `CURSOR_ATOMIC_SKILL_ROOT=<해석한 atomic-workflow 스킬 디렉터리>`
+- `ATOMIC_SKILL_ROOT=<해석한 atomic-workflow 스킬 디렉터리>`
 - `--timeout-min` 기본 45
 
-`cli-delegate`는 **반드시** `invoke-worker.sh`(bash) 또는 `invoke-worker.ps1`(Windows)만 실행한다.
+`cli-delegate`는 **반드시** `invoke-worker.sh`(bash) 또는 `invoke-worker.sh`(Windows)만 실행한다.
 
-`invoke-worker`는 작업공간 루트의 `bash .atomic/scripts/invoke-worker.sh` (Windows: `pwsh -File .atomic/scripts/invoke-worker.ps1`)만 쓴다.
+`invoke-worker`는 작업공간 루트의 `bash .atomic/scripts/invoke-worker.sh` (Windows: `pwsh -File .atomic/scripts/invoke-worker.sh`)만 쓴다.
 
 ## 돌아온 뒤
 

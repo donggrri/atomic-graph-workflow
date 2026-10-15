@@ -24,7 +24,7 @@
    - 실행:
      node "${TMPDIR:-/tmp}/atomic-workflow/scripts/install.mjs" --target . --harness <2단계 결과>
    - Claude Code도 필요하면 `--with-claude` 또는 `--harness claude`를 추가.
-   - 이전 버전(`.cursor/skills/cursor-atomic-*`)이 있으면 `--migrate`를 붙여 중복 스킬을 정리.
+   - 이전 버전(`.cursor/skills/atomic-*`)이 있으면 `--migrate`를 붙여 중복 스킬을 정리.
    - 기대 결과: `.atomic/`(scripts, graph.yaml), `.agents/skills/atomic-*`, AGENTS.md 블록, 하네스별 어댑터
      (cursor: .cursor/agents / opencode: .opencode/commands, .opencode/agents / pi: .pi/prompts / claude: .claude/* + CLAUDE.md의 @AGENTS.md).
 

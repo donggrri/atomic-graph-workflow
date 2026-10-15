@@ -28,22 +28,22 @@ import {
 
 const workStatusCli = fileURLToPath(new URL("../scripts/work-status.mjs", import.meta.url));
 
-test("getWorkflowRoot respects CURSOR_ATOMIC_WORKFLOW_HOME and defaults to ~/.cursor-atomic-workflow", () => {
-  const orig = process.env.CURSOR_ATOMIC_WORKFLOW_HOME;
+test("getWorkflowRoot respects ATOMIC_WORKFLOW_HOME and defaults to ~/.atomic-workflow", () => {
+  const orig = process.env.ATOMIC_WORKFLOW_HOME;
   try {
-    process.env.CURSOR_ATOMIC_WORKFLOW_HOME = "/custom/workflow/root";
+    process.env.ATOMIC_WORKFLOW_HOME = "/custom/workflow/root";
     assert.equal(getWorkflowRoot(), "/custom/workflow/root");
 
-    delete process.env.CURSOR_ATOMIC_WORKFLOW_HOME;
+    delete process.env.ATOMIC_WORKFLOW_HOME;
     assert.match(
       getWorkflowRoot(process.env, { configPath: join(tmpdir(), "no-atomic-config.json") }),
-      /\.cursor-atomic-workflow$/
+      /\.atomic-workflow$/
     );
   } finally {
     if (orig !== undefined) {
-      process.env.CURSOR_ATOMIC_WORKFLOW_HOME = orig;
+      process.env.ATOMIC_WORKFLOW_HOME = orig;
     } else {
-      delete process.env.CURSOR_ATOMIC_WORKFLOW_HOME;
+      delete process.env.ATOMIC_WORKFLOW_HOME;
     }
   }
 });
@@ -57,7 +57,7 @@ test("getWorkflowRoot reads config.json home after env, and ignores invalid JSON
     assert.equal(expandHomePath("~/runs", "/home/test"), join("/home/test", "runs"));
     assert.equal(
       workflowConfigPath({ XDG_CONFIG_HOME: "/xdg" }, "/home/test"),
-      join("/xdg", "cursor-atomic-workflow", "config.json")
+      join("/xdg", "atomic-workflow", "config.json")
     );
 
     writeFileSync(configPath, JSON.stringify({ home: "~/wf-data" }));
@@ -69,17 +69,17 @@ test("getWorkflowRoot reads config.json home after env, and ignores invalid JSON
     writeFileSync(configPath, "{");
     assert.equal(
       getWorkflowRoot(absentEnv, { homeDir, configPath }),
-      join(homeDir, ".cursor-atomic-workflow")
+      join(homeDir, ".atomic-workflow")
     );
 
     writeFileSync(configPath, JSON.stringify({ home: "  " }));
     assert.equal(
       getWorkflowRoot(absentEnv, { homeDir, configPath }),
-      join(homeDir, ".cursor-atomic-workflow")
+      join(homeDir, ".atomic-workflow")
     );
 
     assert.equal(
-      getWorkflowRoot({ CURSOR_ATOMIC_WORKFLOW_HOME: "/from-env" }, { homeDir, configPath }),
+      getWorkflowRoot({ ATOMIC_WORKFLOW_HOME: "/from-env" }, { homeDir, configPath }),
       "/from-env"
     );
   } finally {
@@ -101,9 +101,9 @@ test("getShortRepo normalizes repo basename to kebab-case and caps at 24 chars",
 test("ensureDocsDir creates slug folder under workflow home", () => {
   const tmpRoot = mkdtempSync(join(tmpdir(), "wf-test-"));
   const repo = mkdtempSync(join(tmpdir(), "wf-repo-"));
-  const orig = process.env.CURSOR_ATOMIC_WORKFLOW_HOME;
+  const orig = process.env.ATOMIC_WORKFLOW_HOME;
   try {
-    process.env.CURSOR_ATOMIC_WORKFLOW_HOME = tmpRoot;
+    process.env.ATOMIC_WORKFLOW_HOME = tmpRoot;
     const slug = "path-slug";
     const docsDir = ensureDocsDir(repo, slug);
     const expected = join(tmpRoot, "docs", getShortRepo(repo), slug);
@@ -112,30 +112,30 @@ test("ensureDocsDir creates slug folder under workflow home", () => {
   } finally {
     rmSync(tmpRoot, { recursive: true, force: true });
     rmSync(repo, { recursive: true, force: true });
-    if (orig !== undefined) process.env.CURSOR_ATOMIC_WORKFLOW_HOME = orig;
-    else delete process.env.CURSOR_ATOMIC_WORKFLOW_HOME;
+    if (orig !== undefined) process.env.ATOMIC_WORKFLOW_HOME = orig;
+    else delete process.env.ATOMIC_WORKFLOW_HOME;
   }
 });
 
 test("path CLI prints absolute docsDir and honors --repo", () => {
   const tmpRoot = mkdtempSync(join(tmpdir(), "wf-test-"));
   const repo = mkdtempSync(join(tmpdir(), "wf-repo-"));
-  const orig = process.env.CURSOR_ATOMIC_WORKFLOW_HOME;
+  const orig = process.env.ATOMIC_WORKFLOW_HOME;
   try {
-    process.env.CURSOR_ATOMIC_WORKFLOW_HOME = tmpRoot;
+    process.env.ATOMIC_WORKFLOW_HOME = tmpRoot;
     const slug = "cli-path";
     const out = execFileSync(
       process.execPath,
       [workStatusCli, "path", slug, "--repo", repo],
-      { encoding: "utf8", env: { ...process.env, CURSOR_ATOMIC_WORKFLOW_HOME: tmpRoot } }
+      { encoding: "utf8", env: { ...process.env, ATOMIC_WORKFLOW_HOME: tmpRoot } }
     ).trim();
     assert.equal(out, join(tmpRoot, "docs", getShortRepo(repo), slug));
     assert.equal(existsSync(out), true);
   } finally {
     rmSync(tmpRoot, { recursive: true, force: true });
     rmSync(repo, { recursive: true, force: true });
-    if (orig !== undefined) process.env.CURSOR_ATOMIC_WORKFLOW_HOME = orig;
-    else delete process.env.CURSOR_ATOMIC_WORKFLOW_HOME;
+    if (orig !== undefined) process.env.ATOMIC_WORKFLOW_HOME = orig;
+    else delete process.env.ATOMIC_WORKFLOW_HOME;
   }
 });
 
@@ -147,9 +147,9 @@ test("parseRepoArg strips --repo and resolves path", () => {
 
 test("getWorkflowPaths returns docs, runs, evidence, and statusJson paths", () => {
   const tmpRoot = mkdtempSync(join(tmpdir(), "wf-test-"));
-  const orig = process.env.CURSOR_ATOMIC_WORKFLOW_HOME;
+  const orig = process.env.ATOMIC_WORKFLOW_HOME;
   try {
-    process.env.CURSOR_ATOMIC_WORKFLOW_HOME = tmpRoot;
+    process.env.ATOMIC_WORKFLOW_HOME = tmpRoot;
     const paths = getWorkflowPaths("/fake/my-repo", "sample-slug");
     assert.equal(paths.shortRepo, "my-repo");
     assert.equal(paths.slug, "sample-slug");
@@ -158,16 +158,16 @@ test("getWorkflowPaths returns docs, runs, evidence, and statusJson paths", () =
     assert.equal(paths.statusJson, join(tmpRoot, "docs", "my-repo", "sample-slug", "STATUS.json"));
   } finally {
     rmSync(tmpRoot, { recursive: true, force: true });
-    if (orig !== undefined) process.env.CURSOR_ATOMIC_WORKFLOW_HOME = orig;
-    else delete process.env.CURSOR_ATOMIC_WORKFLOW_HOME;
+    if (orig !== undefined) process.env.ATOMIC_WORKFLOW_HOME = orig;
+    else delete process.env.ATOMIC_WORKFLOW_HOME;
   }
 });
 
 test("writeStatus and readStatus perform atomic write and read", async () => {
   const tmpRoot = mkdtempSync(join(tmpdir(), "wf-test-"));
-  const orig = process.env.CURSOR_ATOMIC_WORKFLOW_HOME;
+  const orig = process.env.ATOMIC_WORKFLOW_HOME;
   try {
-    process.env.CURSOR_ATOMIC_WORKFLOW_HOME = tmpRoot;
+    process.env.ATOMIC_WORKFLOW_HOME = tmpRoot;
     const repo = "/fake/my-repo";
     const slug = "test-atomic";
 
@@ -199,16 +199,16 @@ test("writeStatus and readStatus perform atomic write and read", async () => {
     assert.equal(updated.tasks.done, 2);
   } finally {
     rmSync(tmpRoot, { recursive: true, force: true });
-    if (orig !== undefined) process.env.CURSOR_ATOMIC_WORKFLOW_HOME = orig;
-    else delete process.env.CURSOR_ATOMIC_WORKFLOW_HOME;
+    if (orig !== undefined) process.env.ATOMIC_WORKFLOW_HOME = orig;
+    else delete process.env.ATOMIC_WORKFLOW_HOME;
   }
 });
 
 test("writeStatus detects cross-repo collision and rejects overwrite", async () => {
   const tmpRoot = mkdtempSync(join(tmpdir(), "wf-test-"));
-  const orig = process.env.CURSOR_ATOMIC_WORKFLOW_HOME;
+  const orig = process.env.ATOMIC_WORKFLOW_HOME;
   try {
-    process.env.CURSOR_ATOMIC_WORKFLOW_HOME = tmpRoot;
+    process.env.ATOMIC_WORKFLOW_HOME = tmpRoot;
     const repoA = "/fake/repo-one/my-repo";
     const repoB = "/different/path/my-repo";
     const slug = "same-slug";
@@ -231,16 +231,16 @@ test("writeStatus detects cross-repo collision and rejects overwrite", async () 
     );
   } finally {
     rmSync(tmpRoot, { recursive: true, force: true });
-    if (orig !== undefined) process.env.CURSOR_ATOMIC_WORKFLOW_HOME = orig;
-    else delete process.env.CURSOR_ATOMIC_WORKFLOW_HOME;
+    if (orig !== undefined) process.env.ATOMIC_WORKFLOW_HOME = orig;
+    else delete process.env.ATOMIC_WORKFLOW_HOME;
   }
 });
 
 test("syncFromFiles parses TASKS file checkmarks and blockage", async () => {
   const tmpRoot = mkdtempSync(join(tmpdir(), "wf-test-"));
-  const orig = process.env.CURSOR_ATOMIC_WORKFLOW_HOME;
+  const orig = process.env.ATOMIC_WORKFLOW_HOME;
   try {
-    process.env.CURSOR_ATOMIC_WORKFLOW_HOME = tmpRoot;
+    process.env.ATOMIC_WORKFLOW_HOME = tmpRoot;
     const repo = "/fake/my-repo";
     const slug = "sync-slug";
 
@@ -262,16 +262,16 @@ test("syncFromFiles parses TASKS file checkmarks and blockage", async () => {
     assert.match(synced.tasks.blockedReason, /build failure/);
   } finally {
     rmSync(tmpRoot, { recursive: true, force: true });
-    if (orig !== undefined) process.env.CURSOR_ATOMIC_WORKFLOW_HOME = orig;
-    else delete process.env.CURSOR_ATOMIC_WORKFLOW_HOME;
+    if (orig !== undefined) process.env.ATOMIC_WORKFLOW_HOME = orig;
+    else delete process.env.ATOMIC_WORKFLOW_HOME;
   }
 });
 
 test("listAllStatuses returns all recorded statuses across repos", async () => {
   const tmpRoot = mkdtempSync(join(tmpdir(), "wf-test-"));
-  const orig = process.env.CURSOR_ATOMIC_WORKFLOW_HOME;
+  const orig = process.env.ATOMIC_WORKFLOW_HOME;
   try {
-    process.env.CURSOR_ATOMIC_WORKFLOW_HOME = tmpRoot;
+    process.env.ATOMIC_WORKFLOW_HOME = tmpRoot;
     await writeStatus("/fake/repo-a", "slug-1", { phase: "explore" });
     await writeStatus("/fake/repo-b", "slug-2", { phase: "execute" });
 
@@ -281,8 +281,8 @@ test("listAllStatuses returns all recorded statuses across repos", async () => {
     assert.deepEqual(slugs, ["slug-1", "slug-2"]);
   } finally {
     rmSync(tmpRoot, { recursive: true, force: true });
-    if (orig !== undefined) process.env.CURSOR_ATOMIC_WORKFLOW_HOME = orig;
-    else delete process.env.CURSOR_ATOMIC_WORKFLOW_HOME;
+    if (orig !== undefined) process.env.ATOMIC_WORKFLOW_HOME = orig;
+    else delete process.env.ATOMIC_WORKFLOW_HOME;
   }
 });
 
@@ -308,9 +308,9 @@ test("inferPhase derives phase from artifacts and task progress", () => {
 test("syncSlug writes STATUS.json from slug-folder artifacts", async () => {
   const tmpRoot = mkdtempSync(join(tmpdir(), "wf-test-"));
   const repo = mkdtempSync(join(tmpdir(), "repo-"));
-  const orig = process.env.CURSOR_ATOMIC_WORKFLOW_HOME;
+  const orig = process.env.ATOMIC_WORKFLOW_HOME;
   try {
-    process.env.CURSOR_ATOMIC_WORKFLOW_HOME = tmpRoot;
+    process.env.ATOMIC_WORKFLOW_HOME = tmpRoot;
     const slug = "auto-sync";
     const paths = getWorkflowPaths(repo, slug);
     mkdirSync(paths.docsDir, { recursive: true });
@@ -334,17 +334,17 @@ test("syncSlug writes STATUS.json from slug-folder artifacts", async () => {
   } finally {
     rmSync(tmpRoot, { recursive: true, force: true });
     rmSync(repo, { recursive: true, force: true });
-    if (orig !== undefined) process.env.CURSOR_ATOMIC_WORKFLOW_HOME = orig;
-    else delete process.env.CURSOR_ATOMIC_WORKFLOW_HOME;
+    if (orig !== undefined) process.env.ATOMIC_WORKFLOW_HOME = orig;
+    else delete process.env.ATOMIC_WORKFLOW_HOME;
   }
 });
 
 test("syncSlug preserves complete phase unless phase is explicit", async () => {
   const tmpRoot = mkdtempSync(join(tmpdir(), "wf-test-"));
   const repo = "/fake/my-repo";
-  const orig = process.env.CURSOR_ATOMIC_WORKFLOW_HOME;
+  const orig = process.env.ATOMIC_WORKFLOW_HOME;
   try {
-    process.env.CURSOR_ATOMIC_WORKFLOW_HOME = tmpRoot;
+    process.env.ATOMIC_WORKFLOW_HOME = tmpRoot;
     const slug = "done-slug";
     await writeStatus(repo, slug, { phase: "complete" });
     const paths = getWorkflowPaths(repo, slug);
@@ -358,8 +358,8 @@ test("syncSlug preserves complete phase unless phase is explicit", async () => {
     assert.equal(forced.phase, "commit");
   } finally {
     rmSync(tmpRoot, { recursive: true, force: true });
-    if (orig !== undefined) process.env.CURSOR_ATOMIC_WORKFLOW_HOME = orig;
-    else delete process.env.CURSOR_ATOMIC_WORKFLOW_HOME;
+    if (orig !== undefined) process.env.ATOMIC_WORKFLOW_HOME = orig;
+    else delete process.env.ATOMIC_WORKFLOW_HOME;
   }
 });
 
@@ -387,10 +387,10 @@ test("resolveSessionId prefers override, then Cursor env, then stored id", () =>
 
 test("writeStatus records Cursor sessionId from CURSOR_CONVERSATION_ID", async () => {
   const tmpRoot = mkdtempSync(join(tmpdir(), "wf-test-"));
-  const origHome = process.env.CURSOR_ATOMIC_WORKFLOW_HOME;
+  const origHome = process.env.ATOMIC_WORKFLOW_HOME;
   const origSession = process.env.CURSOR_CONVERSATION_ID;
   try {
-    process.env.CURSOR_ATOMIC_WORKFLOW_HOME = tmpRoot;
+    process.env.ATOMIC_WORKFLOW_HOME = tmpRoot;
     process.env.CURSOR_CONVERSATION_ID = "bc-test-session-id";
     const saved = await writeStatus("/fake/my-repo", "session-slug", { phase: "plan" });
     assert.equal(saved.sessionId, "bc-test-session-id");
@@ -406,8 +406,8 @@ test("writeStatus records Cursor sessionId from CURSOR_CONVERSATION_ID", async (
     assert.equal(overridden.sessionId, "bc-override");
   } finally {
     rmSync(tmpRoot, { recursive: true, force: true });
-    if (origHome !== undefined) process.env.CURSOR_ATOMIC_WORKFLOW_HOME = origHome;
-    else delete process.env.CURSOR_ATOMIC_WORKFLOW_HOME;
+    if (origHome !== undefined) process.env.ATOMIC_WORKFLOW_HOME = origHome;
+    else delete process.env.ATOMIC_WORKFLOW_HOME;
     if (origSession !== undefined) process.env.CURSOR_CONVERSATION_ID = origSession;
     else delete process.env.CURSOR_CONVERSATION_ID;
   }
@@ -416,10 +416,10 @@ test("writeStatus records Cursor sessionId from CURSOR_CONVERSATION_ID", async (
 test("syncSlug refreshes sessionId when Cursor conversation changes", async () => {
   const tmpRoot = mkdtempSync(join(tmpdir(), "wf-test-"));
   const repo = mkdtempSync(join(tmpdir(), "repo-"));
-  const origHome = process.env.CURSOR_ATOMIC_WORKFLOW_HOME;
+  const origHome = process.env.ATOMIC_WORKFLOW_HOME;
   const origSession = process.env.CURSOR_CONVERSATION_ID;
   try {
-    process.env.CURSOR_ATOMIC_WORKFLOW_HOME = tmpRoot;
+    process.env.ATOMIC_WORKFLOW_HOME = tmpRoot;
     process.env.CURSOR_CONVERSATION_ID = "bc-first";
     const slug = "session-sync";
     const paths = getWorkflowPaths(repo, slug);
@@ -435,8 +435,8 @@ test("syncSlug refreshes sessionId when Cursor conversation changes", async () =
   } finally {
     rmSync(tmpRoot, { recursive: true, force: true });
     rmSync(repo, { recursive: true, force: true });
-    if (origHome !== undefined) process.env.CURSOR_ATOMIC_WORKFLOW_HOME = origHome;
-    else delete process.env.CURSOR_ATOMIC_WORKFLOW_HOME;
+    if (origHome !== undefined) process.env.ATOMIC_WORKFLOW_HOME = origHome;
+    else delete process.env.ATOMIC_WORKFLOW_HOME;
     if (origSession !== undefined) process.env.CURSOR_CONVERSATION_ID = origSession;
     else delete process.env.CURSOR_CONVERSATION_ID;
   }
@@ -454,9 +454,9 @@ test("bundled skill work-status.mjs matches scripts/work-status.mjs", () => {
 test("importDocs copies .docs slugs into global home and records origin paths", async () => {
   const tmpRoot = mkdtempSync(join(tmpdir(), "wf-test-"));
   const repo = mkdtempSync(join(tmpdir(), "repo-"));
-  const orig = process.env.CURSOR_ATOMIC_WORKFLOW_HOME;
+  const orig = process.env.ATOMIC_WORKFLOW_HOME;
   try {
-    process.env.CURSOR_ATOMIC_WORKFLOW_HOME = tmpRoot;
+    process.env.ATOMIC_WORKFLOW_HOME = tmpRoot;
     const slugDir = join(repo, ".docs", "legacy-slug");
     mkdirSync(slugDir, { recursive: true });
     writeFileSync(join(slugDir, "PLAN-legacy-slug.md"), "# PLAN\n", "utf8");
@@ -475,7 +475,7 @@ test("importDocs copies .docs slugs into global home and records origin paths", 
   } finally {
     rmSync(tmpRoot, { recursive: true, force: true });
     rmSync(repo, { recursive: true, force: true });
-    if (orig !== undefined) process.env.CURSOR_ATOMIC_WORKFLOW_HOME = orig;
-    else delete process.env.CURSOR_ATOMIC_WORKFLOW_HOME;
+    if (orig !== undefined) process.env.ATOMIC_WORKFLOW_HOME = orig;
+    else delete process.env.ATOMIC_WORKFLOW_HOME;
   }
 });

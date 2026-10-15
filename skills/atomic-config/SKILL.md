@@ -13,9 +13,9 @@ description: "atomic-workflow 설정(작업 홈)을 조회하고 변경한다. �
 
 적용 우선순위:
 
-1. 환경 변수 `CURSOR_ATOMIC_WORKFLOW_HOME`
+1. 환경 변수 `ATOMIC_WORKFLOW_HOME`
 2. `${XDG_CONFIG_HOME:-~/.config}/atomic-workflow/config.json`의 `home`
-3. 기본값 `~/.cursor-atomic-workflow`
+3. 기본값 `~/.atomic-workflow`
 
 `home` 값의 선행 `~`는 사용자 홈으로 확장한다.
 

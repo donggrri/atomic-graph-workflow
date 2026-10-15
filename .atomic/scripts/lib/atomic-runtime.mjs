@@ -20,7 +20,7 @@ export async function listRuntimeScriptRelPaths(scriptsRoot) {
         continue;
       }
       const rel = relative(scriptsRoot, full);
-      if (rel.startsWith("lib/") || rel.endsWith(".mjs") || rel.endsWith(".sh") || rel.endsWith(".ps1")) {
+      if (rel.startsWith("lib/") || rel.endsWith(".mjs") || rel.endsWith(".sh")) {
         if (!PACKAGE_ONLY_SCRIPTS.has(name)) {
           out.push(rel);
         }
@@ -65,27 +65,6 @@ export async function installAtomicRuntime(packageRoot, targetRoot, options = {}
       copied.push(graphDest);
     } else {
       skipped.push(graphDest);
-    }
-  }
-
-  const profilesSrc = join(packageRoot, "profiles");
-  const profilesDest = join(targetRoot, ".atomic", "profiles");
-  if (existsSync(profilesSrc)) {
-    for (const name of await readdir(profilesSrc)) {
-      if (!name.endsWith(".json") && !name.endsWith(".example.json")) continue;
-      const src = join(profilesSrc, name);
-      const dest = join(profilesDest, name);
-      if (resolve(src) === resolve(dest)) {
-        skipped.push(dest);
-        continue;
-      }
-      if (existsSync(dest) && !force) {
-        skipped.push(dest);
-        continue;
-      }
-      await mkdir(profilesDest, { recursive: true });
-      await cp(src, dest, { force: true });
-      copied.push(dest);
     }
   }
 

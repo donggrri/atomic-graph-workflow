@@ -27,7 +27,7 @@ description: >-
 
 **PLAN 위치 규칙** (템플릿 필드는 양쪽 동일. `PREFIX-<slug>.md` 파일명은 유지):
 
-- **`docsDir`**: `node .atomic/scripts/work-status.mjs path <slug> [--repo <dir>]` (기본 홈 `CURSOR_ATOMIC_WORKFLOW_HOME`, 없으면 `~/.cursor-atomic-workflow`). 서브에이전트 브리프에 `docsDir: <absolute>` 필수.
+- **`docsDir`**: `node .atomic/scripts/work-status.mjs path <slug> [--repo <dir>]` (기본 홈 `ATOMIC_WORKFLOW_HOME`, 없으면 `~/.atomic-workflow`). 서브에이전트 브리프에 `docsDir: <absolute>` 필수.
 - **단일 전역 홈**: 모든 작업은 `<docsDir>/PLAN-<slug>.md` 등에 쓴다 (`STATUS.json`, EXPLORE/TASKS/REVIEW 동일 폴더). 홈·스킬·제품 `docs/` 혼용 금지.
 - `shortRepo`: `path.basename(repoRoot)` 기반 소문자 kebab-case 정규화 (최대 24자).
 - **레거시 호환**: 기존 저장소 `.docs/<slug>/` 및 하네스 `docs/<slug>/`는 상태 조회 시 읽기 전용 fallback으로만 지원하며, 신규 쓰기는 하지 않는다.
@@ -145,7 +145,7 @@ PLAN이 있고 막힌 질문(보안·범위·데이터 손실)이 없으면 부�
 저장소에 `docs/README.md`가 있으면 그 표를 따른다. 없으면 `README.md`를 본다.
 
 - 자격 증명·실토큰은 문서·커밋에 넣지 않는다.
-- 워크플로 설정(`~/.cursor/...`, `~/.cursor-atomic-workflow/...`, `~/.agents/...`)만 고친 세션에서는 제품 문서에 기능 상태를 적지 않는다.
+- 워크플로 설정(`~/.cursor/...`, `~/.atomic-workflow/...`, `~/.agents/...`)만 고친 세션에서는 제품 문서에 기능 상태를 적지 않는다.
 
 ## Phase 0 — Explore
 
@@ -201,7 +201,7 @@ PLAN이 있고 막힌 질문(보안·범위·데이터 손실)이 없으면 부�
 외부 CLI (TASKS `worker:` opt-in): `agy` · `opencode` · `codex` · `claude`.
 
 1. 사용자가 워커를 지목했거나 TASKS에 `worker:`가 있으면 [workers.md](workers.md)를 읽는다. 기본 구현 워커는 Task `worker`.
-2. TASKS `worker:`가 `agy|opencode|codex|claude`이면 Task `cli-delegate`로 위임한다. `cli-delegate`는 `invoke-worker.sh`(bash) 또는 `invoke-worker.ps1`(Windows)만 실행한다. 부모는 bare `agy`를 직접 실행하지 않는다.
+2. TASKS `worker:`가 `agy|opencode|codex|claude`이면 Task `cli-delegate`로 위임한다. `cli-delegate`는 `invoke-worker.sh`(bash) 또는 `invoke-worker.sh`(Windows)만 실행한다. 부모는 bare `agy`를 직접 실행하지 않는다.
 3. TASKS가 아닌 사용자 요청(계획·코드 생성)을 agy 헤드리스로 넘길 때는 `/atomic-agy`(`plan` | `implement`)를 쓴다. `/atomic-agy 다음 진행해`는 상태를 읽은 뒤 다음 한 단계만 위임할지 묻고, 예일 때만 그 단계를 같은 `cli-delegate` + `invoke-worker --worker agy` 경로로 넘긴다. `--auto`가 아닌 러너는 계획·구현·리뷰 앞에서 종료코드 20으로 「이 단계를 agy로 실행할까요?」를 묻는다. 예이면 그 단계만 agy이고, 아니오이면 기존 SDK 역할이다. 처리 방법은 [references/routing.md](references/routing.md) 「agy 단계 질문」.
 4. 브리프 첫 줄에 강제 스킬 경로. 비밀·토큰·`.env` 금지.
 5. 워커가 끝나면 오케스트레이터가 `git diff`와 테스트를 직접 확인한다. 「완료」로그를 믿지 않는다.

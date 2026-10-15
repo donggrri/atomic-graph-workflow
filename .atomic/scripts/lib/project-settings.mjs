@@ -1,6 +1,6 @@
 import { readFileSync, writeFileSync, existsSync, mkdirSync, copyFileSync } from "node:fs";
 import { join } from "node:path";
-import { PROJECT_SETTINGS_FILE } from "./profiles.mjs";
+import { projectSettingsWritePath, resolveProjectSettingsReadPath } from "./legacy-paths.mjs";
 
 const HARNESS_IDS = ["cursor", "opencode", "codex", "pi", "agy", "claude"];
 
@@ -10,13 +10,13 @@ const HARNESS_IDS = ["cursor", "opencode", "codex", "pi", "agy", "claude"];
  * @returns {Record<string, unknown>}
  */
 export function readProjectSettings(repoRoot, options = {}) {
-  const path = join(repoRoot, PROJECT_SETTINGS_FILE);
+  const path = resolveProjectSettingsReadPath(repoRoot);
   if (!existsSync(path)) return {};
   try {
     const raw = JSON.parse(readFileSync(path, "utf8"));
     if (raw && typeof raw === "object" && !Array.isArray(raw)) return raw;
     if (options.strict) {
-      throw new Error(`${PROJECT_SETTINGS_FILE}: root must be a JSON object`);
+      throw new Error(`.atomic-workflow.json: root must be a JSON object`);
     }
   } catch (err) {
     if (options.strict) {
@@ -32,7 +32,7 @@ export function readProjectSettings(repoRoot, options = {}) {
  * @param {{ dropKeys?: string[] }} [options] keys to remove from the stored settings
  */
 export function writeProjectSettings(repoRoot, patch, options = {}) {
-  const path = join(repoRoot, PROJECT_SETTINGS_FILE);
+  const path = projectSettingsWritePath(repoRoot);
   let prior = {};
   if (existsSync(path)) {
     try {
@@ -46,7 +46,7 @@ export function writeProjectSettings(repoRoot, patch, options = {}) {
       const backup = `${path}.invalid-${Date.now()}.bak`;
       copyFileSync(path, backup);
       throw new Error(
-        `${PROJECT_SETTINGS_FILE}: invalid JSON (backup: ${backup}): ${err instanceof Error ? err.message : String(err)}`,
+        `.atomic-workflow.json: invalid JSON (backup: ${backup}): ${err instanceof Error ? err.message : String(err)}`,
       );
     }
   }

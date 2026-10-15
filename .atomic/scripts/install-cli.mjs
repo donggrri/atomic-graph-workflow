@@ -115,7 +115,7 @@ async function runInteractiveInstall(opts) {
   if (legacy.length && !opts.migrate) {
     console.log("│  레거시 스킬:");
     for (const p of legacy) console.log(`│    ${p}`);
-    opts.migrate = await confirm("◆  레거시 .cursor/skills/cursor-atomic-* 를 제거할까요? (백업 후 삭제)", {
+    opts.migrate = await confirm("◆  레거시 cursor-atomic-* 별칭을 제거할까요? (백업 후 삭제)", {
       default: false,
     });
   }

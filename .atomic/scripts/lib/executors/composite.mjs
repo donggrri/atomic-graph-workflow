@@ -13,6 +13,7 @@ import { applyStagePolicy } from "./delegation-policy.mjs";
 import { runPiCli } from "./pi-cli.mjs";
 import { EXECUTOR_WORKER } from "./constants.mjs";
 import { resolveExecutorTimeoutMin } from "../effective-settings.mjs";
+import { readEnv } from "../legacy-paths.mjs";
 
 /**
  * @param {{
@@ -100,7 +101,7 @@ export function createCompositeRoleRunner(options) {
         repoRoot: options.repoRoot,
         prompt: base.prompt,
         timeoutMin,
-        skipTrust: process.env.CURSOR_ATOMIC_TRUST_COMMANDS === "1",
+        skipTrust: readEnv(process.env, "TRUST_COMMANDS") === "1",
         settings: options.settings,
       });
     }
@@ -113,7 +114,7 @@ export function createCompositeRoleRunner(options) {
         runsDir: options.runsDir,
         role: base.role,
         timeoutMin,
-        skipTrust: process.env.CURSOR_ATOMIC_TRUST_COMMANDS === "1",
+        skipTrust: readEnv(process.env, "TRUST_COMMANDS") === "1",
         settings: options.settings,
       });
     }

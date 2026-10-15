@@ -3,7 +3,7 @@ node_modules/
 # Cursor dogfood: node scripts/install-cursor.mjs --target . 로 설치한 스킬은 로컬 전용
 /.agents/
 
-# cursor-atomic-workflow 로컬 산출물 (커밋하지 않는다)
+# atomic-workflow 로컬 산출물 (커밋하지 않는다)
 # 제품 기능 산출물은 .docs/<slug>/ 아래. 제품 docs/ 는 무시하지 말 것.
 .docs/
 PLAN-*.md

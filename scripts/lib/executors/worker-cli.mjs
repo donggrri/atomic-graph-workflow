@@ -5,39 +5,9 @@ import { EXECUTOR_WORKER } from "./constants.mjs";
 import { ensureCommandTrusted } from "../command-trust.mjs";
 import { isInteractiveTTY } from "../prompt.mjs";
 import { firstExecutable, spawnCli } from "../exec-cross.mjs";
+import { readEnv } from "../legacy-paths.mjs";
 
 const scriptsDir = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
-
-/**
- * @param {{
- *   worker: string,
- *   repoRoot: string,
- *   promptFile: string,
- *   logFile: string,
- *   timeoutMin: number,
- * }} params
- * @returns {string[]}
- */
-export function buildWindowsInvokeWorkerArgv(params) {
-  const argv = [
-    "-NoProfile",
-    "-ExecutionPolicy",
-    "Bypass",
-    "-File",
-    join(scriptsDir, "invoke-worker.ps1"),
-    "-Worker",
-    params.worker,
-    "-Workspace",
-    params.repoRoot,
-    "-PromptFile",
-    params.promptFile,
-    "-LogFile",
-    params.logFile,
-    "-TimeoutMin",
-    String(params.timeoutMin),
-  ];
-  return argv;
-}
 
 /**
  * @param {{
@@ -60,7 +30,7 @@ export async function runWorkerExecutor(params) {
   const trustedBySetting = params.settings?.trustedExecutors?.[params.executorId];
   if (
     !params.skipTrust &&
-    process.env.CURSOR_ATOMIC_TRUST_COMMANDS !== "1" &&
+    readEnv(process.env, "TRUST_COMMANDS") !== "1" &&
     !trustedBySetting
   ) {
     const trusted = await ensureCommandTrusted(`invoke-worker:${worker}`, {
@@ -78,10 +48,7 @@ export async function runWorkerExecutor(params) {
   const logFile = join(params.runsDir, `executor-${params.role}.log`);
   await writeFile(promptFile, params.prompt, "utf8");
 
-  const isWin = process.platform === "win32";
-  const script = isWin
-    ? join(scriptsDir, "invoke-worker.ps1")
-    : join(scriptsDir, "invoke-worker.sh");
+  const script = join(scriptsDir, "invoke-worker.sh");
   const timeoutMin = params.timeoutMin ?? 45;
   const timeoutMs = timeoutMin * 60 * 1000;
 
@@ -98,30 +65,15 @@ export async function runWorkerExecutor(params) {
     String(timeoutMin),
   ];
 
-  let child;
-  if (isWin) {
-    const psArgv = buildWindowsInvokeWorkerArgv({
-      worker,
-      repoRoot: params.repoRoot,
-      promptFile,
-      logFile,
-      timeoutMin,
-    });
-    child = spawnCli(firstExecutable(["powershell", "pwsh"]) ?? "powershell", psArgv, {
-      cwd: params.repoRoot,
-      env: process.env,
-    });
-  } else {
-    const bash = firstExecutable(["bash", "sh"]);
-    if (!bash) {
-      return {
-        ok: false,
-        kind: "startup",
-        message: "bash not on PATH (required for invoke-worker.sh on Unix)",
-      };
-    }
-    child = spawnCli(bash, [script, ...baseArgs], { cwd: params.repoRoot, env: process.env });
+  const bash = firstExecutable(["bash", "sh"]);
+  if (!bash) {
+    return {
+      ok: false,
+      kind: "startup",
+      message: "bash not on PATH (required for invoke-worker.sh on Unix)",
+    };
   }
+  const child = spawnCli(bash, [script, ...baseArgs], { cwd: params.repoRoot, env: process.env });
 
   const out = await new Promise((resolve, reject) => {
     let stdout = "";

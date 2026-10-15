@@ -1,40 +1,29 @@
 # Default atomic workflow graph (installed to .atomic/graph.yaml)
-version: 1
+version: 2
+defaults: { executor: cursor-subagent, timeout: 900, max_visits: 3 }
+limits: { max_steps: 30 }
+entry: { default: router }
 nodes:
-  router:
-    next: [lite, explore]
-  lite:
-    skill: atomic-lite
-    executor: cursor-subagent
-  explore:
-    skill: atomic-explore
-    executor: cursor-subagent
-    agent: explorer
-  plan:
-    skill: atomic-plan
-    executor: cursor-subagent
-    agent: planner
-  plan-review:
-    skill: atomic-plan
-    executor: cursor-subagent
-    agent: plan-reviewer
-  task:
-    skill: atomic-task
-    executor: cursor-subagent
-    agent: tasker
-  execute:
-    skill: atomic-execute
-    executor: cursor-subagent
-    agent: worker
-  review:
-    skill: atomic-review
-    executor: cursor-subagent
-    agent: atomic-reviewer
-  wrapup:
-    skill: atomic-wrapup
-    executor: cursor-subagent
-    agent: tester
-  memory:
-    skill: atomic-workflow
-    executor: cursor-subagent
-    agent: memory-curator
+  router: { skill: atomic-router }
+  lite: { skill: atomic-lite, executor: cursor-subagent }
+  explore: { skill: atomic-explore, agent: explorer, executor: cursor-subagent }
+  plan: { skill: atomic-plan, agent: planner, executor: cursor-subagent }
+  plan-review: { skill: atomic-plan, agent: plan-reviewer, executor: cursor-subagent }
+  task: { skill: atomic-task, agent: tasker, executor: cursor-subagent }
+  execute: { skill: atomic-execute, agent: worker, executor: cursor-subagent }
+  review: { skill: atomic-review, agent: atomic-reviewer, executor: cursor-subagent }
+  wrapup: { skill: atomic-wrapup, agent: tester, executor: cursor-subagent }
+  memory: { skill: atomic-workflow, agent: memory-curator, executor: cursor-subagent }
+edges:
+  - { from: router, to: [lite, explore], on: route }
+  - { from: explore, to: plan, on: pass }
+  - { from: plan, to: plan-review, on: pass }
+  - { from: plan-review, to: task, on: pass }
+  - { from: plan-review, to: plan, on: fail }
+  - { from: task, to: execute, on: pass }
+  - { from: execute, to: review, on: pass }
+  - { from: review, to: wrapup, on: pass }
+  - { from: review, to: execute, on: fail }
+  - { from: wrapup, to: memory, on: pass }
+  - { from: memory, to: "$end", on: pass }
+  - { from: lite, to: "$end", on: pass }

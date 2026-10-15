@@ -158,11 +158,11 @@ test("resolveProfileId prefers cli, then project, then global, then atomic", () 
     });
     writeJson(join(home, "settings.json"), { profile: "bsp" });
     assert.equal(resolveProfileId(base).id, "bsp");
-    writeJson(join(repo, ".cursor-atomic-workflow.json"), { profile: "atomic" });
+    writeJson(join(repo, ".atomic-workflow.json"), { profile: "atomic" });
     assert.equal(resolveProfileId(base).id, "atomic");
     assert.equal(resolveProfileId(base).source, "project");
     writeFileSync(join(home, "settings.json"), "{", "utf8");
-    writeFileSync(join(repo, ".cursor-atomic-workflow.json"), "", "utf8");
+    writeFileSync(join(repo, ".atomic-workflow.json"), "", "utf8");
     assert.equal(resolveProfileId(base).ok, false);
   } finally {
     rmSync(root, { recursive: true, force: true });

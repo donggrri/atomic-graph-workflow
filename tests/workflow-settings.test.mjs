@@ -29,7 +29,7 @@ test("loadWorkflowSettings merges global and project agy", () => {
       "utf8",
     );
     writeFileSync(
-      join(repo, ".cursor-atomic-workflow.json"),
+      join(repo, ".atomic-workflow.json"),
       JSON.stringify({ profile: "atomic", agy: { plan: "agy" } }),
       "utf8",
     );
@@ -49,7 +49,7 @@ test("loadWorkflowSettings ignores legacy agyModel and warns", () => {
   try {
     writeFileSync(join(home, "settings.json"), JSON.stringify({ agyModel: "global-model" }), "utf8");
     writeFileSync(
-      join(repo, ".cursor-atomic-workflow.json"),
+      join(repo, ".atomic-workflow.json"),
       JSON.stringify({ agyModel: "gemini-3.8-flash", testDone: "pnpm test" }),
       "utf8",
     );
@@ -69,7 +69,7 @@ test("loadWorkflowSettings keeps executor ids and drops per-stage models with a 
   const repo = mkdtempSync(join(tmpdir(), "caw-repo2-"));
   try {
     writeFileSync(
-      join(repo, ".cursor-atomic-workflow.json"),
+      join(repo, ".atomic-workflow.json"),
       JSON.stringify({ executors: { review: { executor: "agy", model: "x" }, plan: "cursor-agent" } }),
       "utf8",
     );

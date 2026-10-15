@@ -65,9 +65,9 @@ async function runStageViaAgy(stage, role) {
   const runs = join(repo, "runs");
   mkdirSync(runs, { recursive: true });
   const prevPath = process.env.PATH;
-  const prevTrust = process.env.CURSOR_ATOMIC_TRUST_COMMANDS;
+  const prevTrust = process.env.ATOMIC_TRUST_COMMANDS;
   process.env.PATH = `${bin}${delimiter}${prevPath}`;
-  process.env.CURSOR_ATOMIC_TRUST_COMMANDS = "1";
+  process.env.ATOMIC_TRUST_COMMANDS = "1";
   try {
     const runner = createCompositeRoleRunner({
       adapter: null,
@@ -82,8 +82,8 @@ async function runStageViaAgy(stage, role) {
     return { result, prompt: readFileSync(join(out, "prompt.txt"), "utf8") };
   } finally {
     process.env.PATH = prevPath;
-    if (prevTrust === undefined) delete process.env.CURSOR_ATOMIC_TRUST_COMMANDS;
-    else process.env.CURSOR_ATOMIC_TRUST_COMMANDS = prevTrust;
+    if (prevTrust === undefined) delete process.env.ATOMIC_TRUST_COMMANDS;
+    else process.env.ATOMIC_TRUST_COMMANDS = prevTrust;
     for (const dir of [bin, out, repo]) rmSync(dir, { recursive: true, force: true });
   }
 }
@@ -110,9 +110,9 @@ async function runStageViaCursorAgent(stage, role, settings = {}) {
   const runs = join(repo, "runs");
   mkdirSync(runs, { recursive: true });
   const prevPath = process.env.PATH;
-  const prevTrust = process.env.CURSOR_ATOMIC_TRUST_COMMANDS;
+  const prevTrust = process.env.ATOMIC_TRUST_COMMANDS;
   process.env.PATH = `${bin}${delimiter}${prevPath}`;
-  delete process.env.CURSOR_ATOMIC_TRUST_COMMANDS;
+  delete process.env.ATOMIC_TRUST_COMMANDS;
   try {
     const runner = createCompositeRoleRunner({
       adapter: null,
@@ -133,8 +133,8 @@ async function runStageViaCursorAgent(stage, role, settings = {}) {
     return { result, prompt };
   } finally {
     process.env.PATH = prevPath;
-    if (prevTrust === undefined) delete process.env.CURSOR_ATOMIC_TRUST_COMMANDS;
-    else process.env.CURSOR_ATOMIC_TRUST_COMMANDS = prevTrust;
+    if (prevTrust === undefined) delete process.env.ATOMIC_TRUST_COMMANDS;
+    else process.env.ATOMIC_TRUST_COMMANDS = prevTrust;
     for (const dir of [bin, out, repo]) rmSync(dir, { recursive: true, force: true });
   }
 }

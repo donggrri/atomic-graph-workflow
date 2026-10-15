@@ -14,6 +14,13 @@ import {
 } from "node:fs";
 import { execSync } from "node:child_process";
 import { docsRootFromLegacyArtifacts } from "./lib/artifacts.mjs";
+import {
+  ensureWorkflowHomeDir,
+  PROJECT_SETTINGS_FILE,
+  readEnv,
+  resolveProjectSettingsReadPath,
+  workflowConfigPath,
+} from "./lib/legacy-paths.mjs";
 
 /**
  * Expands a leading ~ to home. Other paths are unchanged.
@@ -31,23 +38,19 @@ export function expandHomePath(value, home = homedir()) {
  * @param {NodeJS.ProcessEnv} [env]
  * @param {string} [home]
  */
-export function workflowConfigPath(env = process.env, home = homedir()) {
-  const xdg = typeof env.XDG_CONFIG_HOME === "string" ? env.XDG_CONFIG_HOME.trim() : "";
-  const base = xdg ? resolve(expandHomePath(xdg, home)) : join(home, ".config");
-  return join(base, "cursor-atomic-workflow", "config.json");
-}
+export { workflowConfigPath } from "./lib/legacy-paths.mjs";
 
 /**
  * Returns the global workflow root directory.
- * Priority: CURSOR_ATOMIC_WORKFLOW_HOME, then config.json `home`, then ~/.cursor-atomic-workflow.
+ * Priority: ATOMIC_WORKFLOW_HOME, then config.json `home`, then ~/.atomic-workflow.
  * @param {NodeJS.ProcessEnv} [env]
  * @param {{ homeDir?: string, configPath?: string, readFileSync?: typeof readFileSync, existsSync?: typeof existsSync }} [options]
  */
 export function getWorkflowRoot(env = process.env, options = {}) {
   const home = options.homeDir ?? homedir();
-  const custom = env.CURSOR_ATOMIC_WORKFLOW_HOME;
-  if (typeof custom === "string" && custom.trim()) {
-    return resolve(expandHomePath(custom.trim(), home));
+  const custom = readEnv(env, "WORKFLOW_HOME");
+  if (custom) {
+    return resolve(expandHomePath(custom, home));
   }
   const configPath = options.configPath ?? workflowConfigPath(env, home);
   const exists = options.existsSync ?? existsSync;
@@ -61,7 +64,7 @@ export function getWorkflowRoot(env = process.env, options = {}) {
       // Invalid JSON falls through to the default home.
     }
   }
-  return join(home, ".cursor-atomic-workflow");
+  return ensureWorkflowHomeDir({ homeDir: home, existsSync: exists, renameSync: renameSync });
 }
 
 /**
@@ -106,13 +109,13 @@ export function getShortRepo(repoRoot) {
  * Computes all canonical directories and paths for a given repo and slug.
  *
  * docsDir resolution (configuration hierarchy):
- * 1. project `.cursor-atomic-workflow.json` `docsRoot` (repo-local, e.g. "work-docs")
+ * 1. project `.atomic-workflow.json` `docsRoot` (repo-local, e.g. "work-docs")
  * 2. global workflow home `<root>/docs/<shortRepo>/<slug>` (fallback, backward compatible)
  *
  * runsDir/evidenceDir always stay under the global workflow home to avoid
  * polluting the repository with large volatile logs.
  */
-export const PROJECT_SETTINGS_FILENAME = ".cursor-atomic-workflow.json";
+export const PROJECT_SETTINGS_FILENAME = PROJECT_SETTINGS_FILE;
 
 /**
  * Warning emitted when the project settings file carries an absolute (or
@@ -155,7 +158,7 @@ export function readDocsRootSetting(repoRoot) {
   if (!repoRoot || typeof repoRoot !== "string") return null;
   let settingsPath;
   try {
-    settingsPath = join(resolve(repoRoot), PROJECT_SETTINGS_FILENAME);
+    settingsPath = resolveProjectSettingsReadPath(repoRoot);
   } catch {
     return null;
   }
@@ -189,7 +192,7 @@ export function readEffectiveDocsRoot(repoRoot) {
   if (!repoRoot || typeof repoRoot !== "string") return { docsRoot: null, warning: null };
   let settingsPath;
   try {
-    settingsPath = join(resolve(repoRoot), PROJECT_SETTINGS_FILENAME);
+    settingsPath = resolveProjectSettingsReadPath(repoRoot);
   } catch {
     return { docsRoot: null, warning: null };
   }

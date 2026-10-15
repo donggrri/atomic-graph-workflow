@@ -105,8 +105,8 @@ bash "<worktree>/.atomic/scripts/invoke-worker.sh" \
 
 ### PowerShell (Windows)
 
-- `.atomic/scripts/ensure-workers.ps1` — 없으면 설치
-- `.atomic/scripts/invoke-worker.ps1` — 비대화형 실행 (`-Skills` 동일 계약)
+- `.atomic/scripts/ensure-workers.sh` — 없으면 설치
+- `.atomic/scripts/invoke-worker.sh` — 비대화형 실행 (`-Skills` 동일 계약)
 
 | 워커 | CLI | 비대화형 |
 |---|---|---|
@@ -122,7 +122,7 @@ bash "<worktree>/.atomic/scripts/invoke-worker.sh" \
 설치:
 
 ```powershell
-& "<worktree>\.atomic\scripts\ensure-workers.ps1" -Workers agy,codex
+& "<worktree>\.atomic\scripts\ensure-workers.sh" -Workers agy,codex
 ```
 
 없는 것만 설치한다.
@@ -144,7 +144,7 @@ $docs = node .atomic/scripts/work-status.mjs path <slug> --repo "<worktree>"
 $runs = $docs -replace [regex]::Escape('\docs\'), '\runs\'
 New-Item -ItemType Directory -Force -Path $runs | Out-Null
 
-& "<worktree>\.atomic\scripts\invoke-worker.ps1" `
+& "<worktree>\.atomic\scripts\invoke-worker.sh" `
   -Worker agy `
   -Workspace "<worktree>" `
   -PromptFile "$runs\T1.brief.md" `

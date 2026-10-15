@@ -16,13 +16,7 @@ import { getWorkflowRoot } from "./work-status.mjs";
 import { writeInstalledHarnesses, writeProjectSettings } from "./lib/project-settings.mjs";
 import { installOpencodeConfig, OPENCODE_CONFIG_FILE } from "./lib/opencode-config.mjs";
 import { rewriteGraphExecutors } from "./lib/graph.mjs";
-import {
-  CANONICAL_WORKFLOW_SKILL,
-  LEGACY_NAME_MAP,
-  legacyCommandContent,
-  legacySkillAliases,
-  legacySkillContent,
-} from "./lib/legacy-aliases.mjs";
+import { LEGACY_INSTALLED_ALIAS_PREFIX } from "./lib/legacy-paths.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -42,8 +36,6 @@ export const DEFAULT_SKILLS_DIR = AGENTS_SKILLS_DIR;
 const CURSOR_AGENT_FILE = {
   reviewer: "atomic-reviewer",
 };
-
-export const LEGACY_SKILL_NAMES = Object.keys(LEGACY_NAME_MAP);
 
 export function parseInstallArgs(args) {
   const opts = {
@@ -104,7 +96,7 @@ Options:
   --harness <list>     auto|cursor|opencode|codex|pi|agy|claude|all (쉼표 구분)
   --with-claude        auto/all에 Claude Code 포함
   --artifacts <spec>   docsRoot 별칭: home|repo[:dir]|custom:/abs (docsRoot만 저장)
-  --migrate            레거시 .cursor/skills/cursor-atomic-* 제거 (백업 권장)
+  --migrate            레거시 cursor-atomic-* 스킬·커맨드·에이전트 별칭 제거 (백업 권장)
   --force              기존 생성 파일을 소스로 다시 생성 (모델 핀 없음)
   --yes, -y            비대화형 기본값으로 진행
   --dry-run            생성·갱신될 경로만 출력
@@ -203,24 +195,56 @@ async function installSkills(root, target, skillsDest, force, record) {
   }
 }
 
-async function installLegacySkillAliases(target, skillsDest, replaceExisting, record) {
-  for (const [legacy, canonical] of legacySkillAliases()) {
-    const dest = join(target, skillsDest, legacy);
-    const existed = existsSync(dest);
-    if (existed && !replaceExisting) {
-      record.skipped.push(dest + "/");
-      continue;
-    }
-    if (existed) await rm(dest, { recursive: true, force: true });
-    await mkdir(dest, { recursive: true });
-    await writeFile(join(dest, "SKILL.md"), legacySkillContent(legacy, canonical), "utf8");
-    record[existed ? "overwritten" : "copied"].push(dest + "/");
+/**
+ * @param {string} skillMd
+ * @returns {string | null}
+ */
+function descriptionFromSkillMd(skillMd) {
+  const m = skillMd.match(/^---\r?\n([\s\S]*?)\r?\n---/);
+  if (!m) return null;
+  const block = m[1];
+  const folded = block.match(/^description:\s*>-?\s*\n((?:[ \t].*\n?)+)/m);
+  if (folded) {
+    return folded[1]
+      .split(/\n/)
+      .map((line) => line.replace(/^[ \t]+/, ""))
+      .join(" ")
+      .trim();
   }
+  const inline = block.match(/^description:\s*(.+)$/m);
+  if (!inline) return null;
+  const raw = inline[1].trim();
+  if ((raw.startsWith('"') && raw.endsWith('"')) || (raw.startsWith("'") && raw.endsWith("'"))) {
+    try {
+      return JSON.parse(raw.startsWith('"') ? raw : `"${raw.slice(1, -1).replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`);
+    } catch {
+      return raw.slice(1, -1);
+    }
+  }
+  return raw;
 }
 
-async function installCommandShims(root, target, relDir, force, record) {
+/**
+ * @param {string} root package root
+ * @param {string} commandFile e.g. atomic-plan.md
+ * @param {string} body command body without frontmatter
+ */
+async function claudeCommandWithFrontmatter(root, commandFile, body) {
+  const skillName = commandFile.replace(/\.md$/, "");
+  const skillPath = join(root, "skills", skillName, "SKILL.md");
+  let description = `Atomic workflow /${skillName}`;
+  if (existsSync(skillPath)) {
+    const skillMd = await readFile(skillPath, "utf8");
+    const fromSkill = descriptionFromSkillMd(skillMd);
+    if (fromSkill) description = fromSkill;
+  }
+  return `---\ndescription: ${JSON.stringify(description)}\n---\n${body}`;
+}
+
+async function installCommandShims(root, target, relDir, force, record, options = {}) {
   const srcDir = join(root, "commands");
   if (!existsSync(srcDir)) return;
+  const claude = !!options.claudeFrontmatter;
   for (const file of await readdir(srcDir)) {
     if (!file.endsWith(".md")) continue;
     const dest = join(target, relDir, file);
@@ -230,19 +254,66 @@ async function installCommandShims(root, target, relDir, force, record) {
       continue;
     }
     await mkdir(dirname(dest), { recursive: true });
-    await cp(join(srcDir, file), dest, { force: true });
+    let content = await readFile(join(srcDir, file), "utf8");
+    if (claude && !content.startsWith("---")) {
+      const body = content;
+      content = await claudeCommandWithFrontmatter(root, file, body);
+    } else if (claude) {
+      content = await readFile(join(srcDir, file), "utf8");
+    }
+    await writeFile(dest, content, "utf8");
     record[existed ? "overwritten" : "copied"].push(dest);
   }
-  for (const [legacy, canonical] of legacySkillAliases()) {
-    const dest = join(target, relDir, `${legacy}.md`);
-    const existed = existsSync(dest);
-    if (existed && !force) {
-      record.skipped.push(dest);
-      continue;
+}
+
+/** Remove installed cursor-atomic-* alias files/dirs from harness paths we manage. */
+export async function removeInstalledLegacyAliases(target, record) {
+  const prefix = LEGACY_INSTALLED_ALIAS_PREFIX;
+  const skillRoots = [
+    join(target, AGENTS_SKILLS_DIR),
+    join(target, ".claude", "skills"),
+    join(target, LEGACY_CURSOR_SKILLS),
+  ];
+  for (const root of skillRoots) {
+    if (!existsSync(root)) continue;
+    for (const entry of await readdir(root)) {
+      if (!entry.startsWith(prefix)) continue;
+      const path = join(root, entry);
+      await rm(path, { recursive: true, force: true });
+      record.removed.push(path + "/");
     }
-    await mkdir(dirname(dest), { recursive: true });
-    await writeFile(dest, legacyCommandContent(legacy, canonical), "utf8");
-    record[existed ? "overwritten" : "copied"].push(dest);
+  }
+  const commandDirs = [
+    join(target, LEGACY_CURSOR_COMMANDS_DIR),
+    join(target, ".claude", "commands"),
+    join(target, ".opencode", "commands"),
+    join(target, ".pi", "prompts"),
+  ];
+  for (const dir of commandDirs) {
+    if (!existsSync(dir)) continue;
+    for (const file of await readdir(dir)) {
+      if (!file.startsWith(prefix) || !file.endsWith(".md")) continue;
+      const path = join(dir, file);
+      await rm(path, { force: true });
+      record.removed.push(path);
+    }
+  }
+  const agentDirs = [
+    join(target, ".cursor", "agents"),
+    join(target, ".claude", "agents"),
+    join(target, ".opencode", "agents"),
+    join(target, ".codex", "agents"),
+    join(target, ".pi", "agents"),
+    join(target, ".atomic", "agents"),
+  ];
+  for (const dir of agentDirs) {
+    if (!existsSync(dir)) continue;
+    for (const file of await readdir(dir)) {
+      if (!file.startsWith(prefix) || !file.endsWith(".md")) continue;
+      const path = join(dir, file);
+      await rm(path, { force: true });
+      record.removed.push(path);
+    }
   }
 }
 
@@ -384,7 +455,6 @@ export async function install(options = {}) {
   if (dryRun) {
     record.copied.push(join(target, ".atomic/"));
     record.copied.push(join(target, AGENTS_SKILLS_DIR, "/"));
-    record.copied.push(join(target, ".atomic/profiles/"));
     record.copied.push(join(target, ".atomic/VERSION"));
     if (harnesses.has("cursor")) record.copied.push(join(target, ".cursor/agents/"));
     if (harnesses.has("opencode")) record.copied.push(join(target, OPENCODE_CONFIG_FILE));
@@ -415,6 +485,8 @@ export async function install(options = {}) {
   }
 
   await ensureMemoryVault();
+
+  await removeInstalledLegacyAliases(target, record);
 
   const runtime = await installAtomicRuntime(root, target, { force });
   const graphDest = join(target, ".atomic", "graph.yaml");
@@ -452,7 +524,6 @@ export async function install(options = {}) {
 
   for (const skillsDir of skillsTargets) {
     await installSkills(root, target, skillsDir, force, record);
-    await installLegacySkillAliases(target, skillsDir, force || !!options.migrate, record);
   }
 
   if (harnesses.has("cursor")) {
@@ -491,7 +562,9 @@ export async function install(options = {}) {
 
   if (harnesses.has("claude")) {
     await copyAgentsFlat(neutralAgents, join(target, ".claude", "agents"), force, record);
-    await installCommandShims(root, target, join(".claude", "commands"), force, record);
+    await installCommandShims(root, target, join(".claude", "commands"), force, record, {
+      claudeFrontmatter: true,
+    });
     await installClaudeMd(target, record);
   }
 

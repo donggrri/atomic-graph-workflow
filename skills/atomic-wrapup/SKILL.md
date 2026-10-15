@@ -9,7 +9,7 @@ description: "atomic-workflow Phase 5 wrapup. 커밋하고 전역 상태를 갱�
 
 `atomic-workflow` 스킬을 읽고 Phase 5를 수행한다. 스크립트 경로는 `references/harness.md`를 따른다.
 
-`docsDir` = `node .atomic/scripts/work-status.mjs path <slug> [--repo <dir>]`. `workflowHome` = 전역 홈(`CURSOR_ATOMIC_WORKFLOW_HOME` 또는 `~/.cursor-atomic-workflow`). `docsDir`이 전역 홈 아래 `docs/<shortRepo>/<slug>`일 때만 세 단계 상위가 `workflowHome`과 일치하고, repo-local `docsRoot`일 때는 일치하지 않으므로 하드코딩된 상위 탐색을 쓰지 마라.
+`docsDir` = `node .atomic/scripts/work-status.mjs path <slug> [--repo <dir>]`. `workflowHome` = 전역 홈(`ATOMIC_WORKFLOW_HOME` 또는 `~/.atomic-workflow`). `docsDir`이 전역 홈 아래 `docs/<shortRepo>/<slug>`일 때만 세 단계 상위가 `workflowHome`과 일치하고, repo-local `docsRoot`일 때는 일치하지 않으므로 하드코딩된 상위 탐색을 쓰지 마라.
 
 이 단계는 서브에이전트에 넘기지 마라. 이 세션이 직접 커밋한다.
 

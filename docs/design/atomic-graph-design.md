@@ -55,7 +55,7 @@ nodes:
 노드 설정에는 모델을 넣지 않는다. 각 executor와 부모 세션이 선택한 하네스 기본 모델을 사용한다. agy 호출은 반드시 `invoke-worker --worker agy --timeout-min ...` 경유(bare agy 금지 규칙 유지). `cli`는 codex/claude/opencode.
 
 ## 4. 동적 AGY 라우팅 규칙
-1. 정책 게이트: `.cursor-atomic-workflow.json`의 `agy.{plan,implement,review}` = `never|ask|auto` 우선.
+1. 정책 게이트: `.atomic-workflow.json`의 `agy.{plan,implement,review}` = `never|ask|auto` 우선.
 2. 작업 유형: UI·대량 보일러플레이트·문서 → agy gemini-3.1-pro / 정교한 리팩토링·리뷰 → claude-sonnet-4-6 / DB·auth·보안 → cursor-subagent(composer-2.5) 고정.
 3. 비용·크기: 파일 수·예상 토큰 임계치 초과 시 저가 모델 우선, 예산 상한 시 Cursor로.
 4. 실패 기반: timeout/비정상 종료/테스트 실패 → fallback 체인 다음 단계, 같은 모델 실패 2회면 그 run에서 블랙리스트. 결과는 memory에 `executor-stats`로 누적해 다음 선택에 가중치.

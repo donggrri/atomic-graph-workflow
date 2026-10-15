@@ -20,7 +20,7 @@
  *   now,            // optional ISO string for timestamps (overrides clock when writing state)
  * }) -> Promise<{ exitCode: number, state: object }>
  *
- * Fixture layout (workflowHome = CURSOR_ATOMIC_WORKFLOW_HOME or docsHome/../):
+ * Fixture layout (workflowHome = ATOMIC_WORKFLOW_HOME or docsHome/../):
  *   docsHome/<shortRepo>/<slug>/PLAN-<slug>.md
  *   docsHome/<shortRepo>/<slug>/TASKS-<slug>.md
  *   docsHome/<shortRepo>/<slug>/REVIEW-<slug>.md
@@ -159,14 +159,14 @@ function taskLineChecked(tasksText, taskId) {
 
 async function withHome(fn) {
   const home = mkdtempSync(join(tmpdir(), "pipeline-wf-"));
-  const orig = process.env.CURSOR_ATOMIC_WORKFLOW_HOME;
-  process.env.CURSOR_ATOMIC_WORKFLOW_HOME = home;
+  const orig = process.env.ATOMIC_WORKFLOW_HOME;
+  process.env.ATOMIC_WORKFLOW_HOME = home;
   try {
     await fn(home);
   } finally {
     rmSync(home, { recursive: true, force: true });
-    if (orig !== undefined) process.env.CURSOR_ATOMIC_WORKFLOW_HOME = orig;
-    else delete process.env.CURSOR_ATOMIC_WORKFLOW_HOME;
+    if (orig !== undefined) process.env.ATOMIC_WORKFLOW_HOME = orig;
+    else delete process.env.ATOMIC_WORKFLOW_HOME;
   }
 }
 

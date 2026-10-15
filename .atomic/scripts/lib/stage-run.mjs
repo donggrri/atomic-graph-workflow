@@ -4,7 +4,6 @@ import { loadWorkflowSettings } from "./workflow-settings.mjs";
 import { applyEffectiveExecutorSettings } from "./effective-settings.mjs";
 import { createCompositeRoleRunner } from "./executors/composite.mjs";
 import { ROLES, AUXILIARY_ROLES } from "./roles.mjs";
-import { canonicalName } from "./legacy-aliases.mjs";
 import { getWorkflowPaths } from "../work-status.mjs";
 
 export const READONLY_ROLE_KEY = ROLES["reviewer"] ? "reviewer" : "worker";
@@ -15,7 +14,6 @@ export const READONLY_ROLE_KEY = ROLES["reviewer"] ? "reviewer" : "worker";
  */
 export function graphAgentToRoleKey(agent) {
   if (!agent || typeof agent !== "string") return null;
-  agent = canonicalName(agent);
   if (agent === "atomic-reviewer") return "reviewer";
   if (ROLES[agent] || AUXILIARY_ROLES[agent]) return agent;
   return agent;

@@ -66,7 +66,7 @@ npx github:donggrri/atomic-graph-workflow --target /path/to/project --harness au
 |---|---|
 | `--target <dir>` | 설치 대상 (기본: cwd) |
 | `--harness <목록>` | `auto`, `cursor`, `opencode`, `codex`, `pi`, `agy`, `claude`, `all` (쉼표 구분). `auto`/`all`은 `--with-claude` 없으면 Claude 제외 |
-| `--migrate` | 기존 `.agents/skills/cursor-atomic-*` 설치를 얇은 별칭으로 교체하고 `.cursor/skills/cursor-atomic-*`는 백업 후 제거 |
+| `--migrate` | 기존 `.agents/skills/atomic-*` 설치를 얇은 별칭으로 교체하고 `.cursor/skills/atomic-*`는 백업 후 제거 |
 | `--force` | 기존 생성 파일을 패키지 소스로 다시 생성 (에이전트 파일에 모델 핀 없음) |
 | `--with-claude` | Claude Code (`.claude/*`, `CLAUDE.md`의 `@AGENTS.md`) |
 | `--yes`, `-y` | 비대화형 기본값 (TTY에서는 체크박스 설치기) |
@@ -74,7 +74,7 @@ npx github:donggrri/atomic-graph-workflow --target /path/to/project --harness au
 | `--skip-doctor` | 설치 후 doctor 생략 |
 | `-h, --help` | 도움말 |
 
-설치 후 에이전트에서 **`/atomic-setup`** 으로 `.cursor-atomic-workflow.json`을 만든다 (AGY 정책, `executors`, `executorTimeouts`, `testDone` 등).
+설치 후 에이전트에서 **`/atomic-setup`** 으로 `.atomic-workflow.json`을 만든다 (AGY 정책, `executors`, `executorTimeouts`, `testDone` 등).
 
 `run-pipeline.mjs`와 `run-stage.mjs`는 `.atomic/graph.yaml`의 단계별 `executor`를 읽고, 프로젝트 `executors`가 graph를 덮어쓴다. 기본 executor는 모델 중립적인 `cursor-subagent`다. 지원 executor: `cursor-subagent`, `cursor-agent`, `cursor-sdk`(명시적 opt-in 및 SDK 모델 필요), `agy`, `codex`, `opencode`, `pi` (비대화형 `pi -p`), `claude`. CLI·SDK가 없으면 런타임 fallback(`run-stage`는 stderr에 로그), doctor가 경고한다. 외부 CLI는 `trustedExecutors` 또는 TTY 신뢰(저장소별 해시)로 승인한다. `executorTimeouts`는 단계 id → 분(기본 45).
 
@@ -98,9 +98,9 @@ node scripts/sync-bundled.mjs --check
 
 ## 3. 사용법
 
-### 이름 변경과 호환성
+### `cursor-atomic-*`에서 이전 (v0.2+)
 
-공개 정본 이름은 이제 `atomic-*`이다(예: `/atomic-plan`). 기존 `cursor-atomic-*` 이름은 정본 스킬을 가리키는 얇은 설치 별칭으로 계속 동작한다. 예전 이름으로 전체 스킬 복사본이 설치된 프로젝트는 `--migrate`로 재설치하면 별칭으로 교체된다. 작업 홈(`~/.cursor-atomic-workflow`), 프로젝트 설정 파일(`.cursor-atomic-workflow.json`), `CURSOR_ATOMIC_*` 환경변수는 기존 작업 기록과의 호환성을 위해 그대로 유지한다.
+공개 이름은 `atomic-*`만 사용한다(예: `/atomic-plan`). 재설치 시 `cursor-atomic-*` 스킬·커맨드·에이전트 별칭을 제거한다. 작업 홈은 `~/.atomic-workflow`(`~/.cursor-atomic-workflow`는 한 번 자동 이전). 프로젝트 설정은 `.atomic-workflow.json`(없을 때만 `.cursor-atomic-workflow.json` 읽기). 환경 변수는 `ATOMIC_*`(`CURSOR_ATOMIC_*`는 읽기 전용 폴백). `CHANGELOG.md` 참고.
 
 ### Lite vs 전체 워크플로
 
@@ -120,14 +120,14 @@ lite에서 **파일 5개 이상**, **DB/스키마**, **인증·보안**, 계획�
 
 | 커맨드 | 역할 | 산출물 |
 |---|---|---|
-| `/atomic-lite` | 단일 세션: 짧은 PLAN → 구현 → 메모리 → 테스트 마무리 (서브에이전트 없음) | `~/.cursor-atomic-workflow/docs/{shortRepo}/{slug}/PLAN-<slug>.md` |
-| `/atomic-explore` | Phase 0: 코드베이스 및 기술 사전 탐색 (선택) | `~/.cursor-atomic-workflow/docs/{shortRepo}/{slug}/EXPLORE-<slug>.md` (레거시: `.docs/<slug>/`) |
-| `/atomic-plan` | Phase 1 후 기본 파이프라인 | `~/.cursor-atomic-workflow/docs/{shortRepo}/{slug}/PLAN-<slug>.md` + 자동으로 TASKS/코드/REVIEW |
-| `/atomic-task` | Phase 2만 강제하거나 이어서 자동 | `~/.cursor-atomic-workflow/docs/{shortRepo}/{slug}/TASKS-<slug>.md` |
+| `/atomic-lite` | 단일 세션: 짧은 PLAN → 구현 → 메모리 → 테스트 마무리 (서브에이전트 없음) | `~/.atomic-workflow/docs/{shortRepo}/{slug}/PLAN-<slug>.md` |
+| `/atomic-explore` | Phase 0: 코드베이스 및 기술 사전 탐색 (선택) | `~/.atomic-workflow/docs/{shortRepo}/{slug}/EXPLORE-<slug>.md` (레거시: `.docs/<slug>/`) |
+| `/atomic-plan` | Phase 1 후 기본 파이프라인 | `~/.atomic-workflow/docs/{shortRepo}/{slug}/PLAN-<slug>.md` + 자동으로 TASKS/코드/REVIEW |
+| `/atomic-task` | Phase 2만 강제하거나 이어서 자동 | `~/.atomic-workflow/docs/{shortRepo}/{slug}/TASKS-<slug>.md` |
 | `/atomic-execute` | Phase 3만 강제하거나 이어서 자동 | 코드 변경 + 체크된 TASKS |
 | `/atomic-delegate` | Phase 3: 특정 워커에 위임 | 같음 |
 | `/atomic-agy` | 사용자 요청을 agy 헤드리스로 위임 (plan: 계획 문서만, implement: 코드 생성) | .cursor/plans/ 계획 파일 또는 코드 변경 |
-| `/atomic-review` | Phase 4 | `~/.cursor-atomic-workflow/docs/{shortRepo}/{slug}/REVIEW-<slug>.md` |
+| `/atomic-review` | Phase 4 | `~/.atomic-workflow/docs/{shortRepo}/{slug}/REVIEW-<slug>.md` |
 | `/atomic-wrapup` | Phase 5: 마무리 (커밋, 푸시 없음) | git commit + STATUS |
 | `/atomic-run` | 명시적 파이프라인 진입: 트리아지를 건너뛰고 explore부터 실행 | plan과 같음 |
 | `/atomic-status` | 진행 상황 보고 (`npm run status` / `STATUS.json`) | 텍스트 요약 / 테이블 |
@@ -135,9 +135,9 @@ lite에서 **파일 5개 이상**, **DB/스키마**, **인증·보안**, 계획�
 | `/atomic-models` | 모델 설정 안내 (읽기 전용) | 텍스트 안내 |
 | `/atomic-doctor` | 스킬 충돌, YAML frontmatter 문법 진단 및 자동 교정(Auto-fix) | 진단 리포트 / 자동 교정 |
 
-산출물은 `~/.cursor-atomic-workflow/docs/{shortRepo}/{slug}/` 아래에 쌓인다 (`CURSOR_ATOMIC_WORKFLOW_HOME`으로 홈을 바꿀 수 있다).
+산출물은 `~/.atomic-workflow/docs/{shortRepo}/{slug}/` 아래에 쌓인다 (`ATOMIC_WORKFLOW_HOME`으로 홈을 바꿀 수 있다).
 
-문서 위치 (`docsRoot`, `.cursor-atomic-workflow.json`): `home`(기본 전역 홈) 또는 저장소 기준 상대 경로(예: `specs`). 프로젝트 파일은 저장소 안에 있어야 한다: `..` 포함 경로는 거부되고, 절대 경로(또는 `~` 시작)는 경고와 함께 무시된다 — 절대 경로는 전역 설정(`~/.cursor-atomic-workflow/settings.json`의 `docsRoot`)에 둔다. `runs/`·`memory/`·`evidence/`는 항상 워크플로 홈에 남는다. artifacts: specs/ is inside the repo; commit it with your code (do not add it to .gitignore).
+문서 위치 (`docsRoot`, `.atomic-workflow.json`): `home`(기본 전역 홈) 또는 저장소 기준 상대 경로(예: `specs`). 프로젝트 파일은 저장소 안에 있어야 한다: `..` 포함 경로는 거부되고, 절대 경로(또는 `~` 시작)는 경고와 함께 무시된다 — 절대 경로는 전역 설정(`~/.atomic-workflow/settings.json`의 `docsRoot`)에 둔다. `runs/`·`memory/`·`evidence/`는 항상 워크플로 홈에 남는다. artifacts: specs/ is inside the repo; commit it with your code (do not add it to .gitignore).
 
 PLAN에 막힌 질문(보안·범위·데이터 손실)이 있으면 거기서 멈춘다. 계획만 쓰려면 `/atomic-plan 계획만`.
 
@@ -151,10 +151,10 @@ PLAN에 막힌 질문(보안·범위·데이터 손실)이 있으면 거기서 �
 node scripts/run-pipeline.mjs <slug> [--auto] [--resume] [--adapter sdk|task-card] [--profile <id>] [--repo <dir>] [--dry-run]
 ```
 
-- 기본 adapter는 모델 중립적인 `task-card`이며 부모 세션이 실행할 `next-card.json`을 남긴 뒤 `--resume`한다. `--adapter sdk`는 `@cursor/sdk`를 명시적으로 선택할 때만 사용하며 호출자가 SDK 모델을 제공해야 한다(워크플로가 모델을 고르지 않는다). cost-gate 뒤 **plan-review**가 `plan-reviewer`를 실행해 `PLAN-REVIEW-<slug>.md`를 쓰고, 차단 결함은 planner 1회 자동 수정·재검토 후에도 남으면 종료코드 `20`으로 멈춘다. **Review** 진입(초기·재작업 후)마다 종료코드 `10`이 **`kind: "bugbot"`** 선행 검토 카드일 수 있다. 부모가 Cursor `bugbot`을 실행하고 `~/.cursor-atomic-workflow/runs/{shortRepo}/{slug}/bugbot-findings.md`에 결과를 저장(실패 시 `# BUGBOT_FAILED` 마커)한 뒤 `--resume`하고 reviewer가 이어진다.
-- 로그는 `~/.cursor-atomic-workflow/runs/{shortRepo}/{slug}/pipeline.log`에 쌓이고, 단계별 커맨드 로그 옆에는 `.done.json` 요약이 생긴다. SDK 어댑터는 역할마다 `▶ [phase] role started` / `■ [phase] role done · N s`와 하위 서브에이전트·상태 줄을 남긴다(`tail -f pipeline.log`로 진행 확인). `ATOMIC_PROGRESS=tools`를 주면 툴 호출도 남긴다.
+- 기본 adapter는 모델 중립적인 `task-card`이며 부모 세션이 실행할 `next-card.json`을 남긴 뒤 `--resume`한다. `--adapter sdk`는 `@cursor/sdk`를 명시적으로 선택할 때만 사용하며 호출자가 SDK 모델을 제공해야 한다(워크플로가 모델을 고르지 않는다). cost-gate 뒤 **plan-review**가 `plan-reviewer`를 실행해 `PLAN-REVIEW-<slug>.md`를 쓰고, 차단 결함은 planner 1회 자동 수정·재검토 후에도 남으면 종료코드 `20`으로 멈춘다. **Review** 진입(초기·재작업 후)마다 종료코드 `10`이 **`kind: "bugbot"`** 선행 검토 카드일 수 있다. 부모가 Cursor `bugbot`을 실행하고 `~/.atomic-workflow/runs/{shortRepo}/{slug}/bugbot-findings.md`에 결과를 저장(실패 시 `# BUGBOT_FAILED` 마커)한 뒤 `--resume`하고 reviewer가 이어진다.
+- 로그는 `~/.atomic-workflow/runs/{shortRepo}/{slug}/pipeline.log`에 쌓이고, 단계별 커맨드 로그 옆에는 `.done.json` 요약이 생긴다. SDK 어댑터는 역할마다 `▶ [phase] role started` / `■ [phase] role done · N s`와 하위 서브에이전트·상태 줄을 남긴다(`tail -f pipeline.log`로 진행 확인). `ATOMIC_PROGRESS=tools`를 주면 툴 호출도 남긴다.
 - `--resume`은 실패한 항목만 재시도한다(이미 체크된 항목은 유지).
-- `--profile <id>`는 plan·test 지침만 바꾼다. 생략하면 프로젝트 `.cursor-atomic-workflow.json`의 `profile`, 그다음 `~/.cursor-atomic-workflow/settings.json`의 `profile`, 없으면 `atomic`이다. PLAN·TASKS·REVIEW는 그대로 `~/.cursor-atomic-workflow/docs/{shortRepo}/{slug}/`에 둔다. 프로필 JSON은 패키지 `profiles/<id>.json`, `~/.cursor-atomic-workflow/profiles/<id>.json`, 저장소 `profiles/<id>.json` 순으로 찾고 나중 위치가 이긴다. JSON에 시크릿을 넣지 않는다. `profiles/bsp.json.example`은 자리 표시 경로만 있는 템플릿이다. `profiles/<id>.json` 또는 `~/.cursor-atomic-workflow/profiles/<id>.json`으로 복사한 뒤 `command`를 자신의 파일로 바꾼다. `.example.json`이나 `.json.example`로 끝나는 이름은 불러오지 않는다.
+- `--profile <id>`는 plan·test 지침만 바꾼다. 생략하면 프로젝트 `.atomic-workflow.json`의 `profile`, 그다음 `~/.atomic-workflow/settings.json`의 `profile`, 없으면 `atomic`이다. PLAN·TASKS·REVIEW는 그대로 `~/.atomic-workflow/docs/{shortRepo}/{slug}/`에 둔다. 프로필 JSON은 패키지 `profiles/<id>.json`, `~/.atomic-workflow/profiles/<id>.json`, 저장소 `profiles/<id>.json` 순으로 찾고 나중 위치가 이긴다. JSON에 시크릿을 넣지 않는다. `profiles/bsp.json.example`은 자리 표시 경로만 있는 템플릿이다. `profiles/<id>.json` 또는 `~/.atomic-workflow/profiles/<id>.json`으로 복사한 뒤 `command`를 자신의 파일로 바꾼다. `.example.json`이나 `.json.example`로 끝나는 이름은 불러오지 않는다.
 
 종료 코드:
 
@@ -186,7 +186,7 @@ node scripts/run-pipeline.mjs <slug> [--auto] [--resume] [--adapter sdk|task-car
 
 ### 헤드리스 위임 (`cursor-agent`, `agy`)
 
-코드를 수정하는 단계(`lite`, `execute`)는 CLI를 전체 권한 플래그(`cursor-agent --force --trust`, `agy --dangerously-skip-permissions`)로 실행한다. 나머지 단계(explore, plan, plan-review, task, review, wrapup, memory)도 같은 방식으로 실행하되, 프롬프트 맨 앞에 **FORBID 블록**을 붙여 제품 파일 수정, git 상태 변경, 설치·빌드를 금지하고 쓰기를 단계 산출물로 제한한다. 이것은 샌드박스가 아니라 프롬프트 규칙이다. `cursor-agent`도 이제 다른 CLI처럼 저장소별 신뢰 확인(`trustedExecutors`, `CURSOR_ATOMIC_TRUST_COMMANDS=1`)을 거친다.
+코드를 수정하는 단계(`lite`, `execute`)는 CLI를 전체 권한 플래그(`cursor-agent --force --trust`, `agy --dangerously-skip-permissions`)로 실행한다. 나머지 단계(explore, plan, plan-review, task, review, wrapup, memory)도 같은 방식으로 실행하되, 프롬프트 맨 앞에 **FORBID 블록**을 붙여 제품 파일 수정, git 상태 변경, 설치·빌드를 금지하고 쓰기를 단계 산출물로 제한한다. 이것은 샌드박스가 아니라 프롬프트 규칙이다. `cursor-agent`도 이제 다른 CLI처럼 저장소별 신뢰 확인(`trustedExecutors`, `ATOMIC_TRUST_COMMANDS=1`)을 거친다.
 
 **AGY** — 계획·구현·리뷰 *정책*(`agy.plan` / `agy.implement` / `agy.review`)마다 러너가 AGY 위임을 물 수 있다. 값은 `ask`(기본, exit 20), `sdk`(Cursor 역할), `agy`(부모가 `/atomic-agy` 또는 `invoke-worker --worker agy`). 정책 `agy`는 위 표와 같이 graph 단계 executor를 `agy`로 채운다(명시 `executors` 제외). TASKS `worker: agy`는 구현 항목 위임(exit 10). `--auto`는 AGY 질문을 모두 `sdk`로 처리한다. `memory-sweep.mjs`의 curator는 graph `memory` 단계 설정 executor를 사용한다.
 

@@ -11,11 +11,6 @@ import { loadWorkflowSettings } from "./lib/workflow-settings.mjs";
 import { isExecutorAvailable, probeCursorSdkAvailable } from "./lib/executors/availability.mjs";
 import { loadGraph } from "./lib/graph.mjs";
 import { listRuntimeScriptRelPaths } from "./lib/atomic-runtime.mjs";
-import {
-  CANONICAL_WORKFLOW_SKILL,
-  LEGACY_NAME_MAP,
-  legacySkillAliases,
-} from "./lib/legacy-aliases.mjs";
 
 export const BUNDLED_SKILLS = [
   "code-review",
@@ -42,6 +37,7 @@ export function parseDoctorArgs(argv) {
     else if (a === "--with-claude") opts.withClaude = true;
     else if (a === "--target" && argv[i + 1]) opts.cwd = resolve(argv[++i]);
     else if (a === "--harness" && argv[i + 1]) opts.harness = argv[++i];
+    else if (a === "--node-version" && argv[i + 1]) opts.nodeVersion = argv[++i];
     else if (a === "--help" || a === "-h") opts.help = true;
   }
   return opts;
@@ -90,19 +86,10 @@ export async function checkSingleHarness(harness, cwd, root = PACKAGE_ROOT) {
   }
 
   const commandSkills = [];
-  const legacyAliases = [];
   if (workflowOk) {
     for (const name of commandNames) {
       if (existsSync(join(skillsRoot, name, "SKILL.md"))) commandSkills.push(name);
       else problems.push(`missing command skill ${name}`);
-    }
-    for (const [legacy, canonical] of legacySkillAliases()) {
-      const aliasPath = join(skillsRoot, legacy, "SKILL.md");
-      if (!existsSync(aliasPath)) {
-        problems.push(`missing legacy alias ${legacy} for ${canonical}`);
-      } else {
-        legacyAliases.push({ legacy, canonical, path: aliasPath });
-      }
     }
   }
 
@@ -148,7 +135,6 @@ export async function checkSingleHarness(harness, cwd, root = PACKAGE_ROOT) {
     commandSkillsExpected: commandNames.length,
     legacyCursorCommands: await findLegacyCursorCommands(cwd),
     legacyCursorSkills: [],
-    legacyAliases,
   };
 
   const legacySkillRoot = join(cwd, ".cursor", "skills");
@@ -201,10 +187,6 @@ export async function checkSingleHarness(harness, cwd, root = PACKAGE_ROOT) {
       const text = await readFile(claudeMd, "utf8");
       if (!text.includes("@AGENTS.md")) problems.push("CLAUDE.md must reference @AGENTS.md");
     }
-  }
-
-  if (detail.legacyAliases.length !== Object.keys(LEGACY_NAME_MAP).length - 1) {
-    problems.push(`legacy alias count mismatch: expected ${Object.keys(LEGACY_NAME_MAP).length - 1}`);
   }
 
   if (detail.legacyCursorCommands.length) {
@@ -500,6 +482,7 @@ if (process.argv[1] && process.argv[1].endsWith("doctor.mjs")) {
     harness: opts.harness,
     fix: opts.fix,
     withClaude: opts.withClaude,
+    nodeVersion: opts.nodeVersion,
   })
     .then((res) => {
       if (opts.json) {

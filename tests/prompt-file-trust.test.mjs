@@ -49,8 +49,8 @@ test("--prompt-file accepts an outside absolute path (trusted CLI arg)", () => {
 
 test("stage-run does not read node.prompt escaping the repo through a symlink", async () => {
   const home = mkdtempSync(join(tmpdir(), "atomic-home-"));
-  const prevHome = process.env.CURSOR_ATOMIC_WORKFLOW_HOME;
-  process.env.CURSOR_ATOMIC_WORKFLOW_HOME = home;
+  const prevHome = process.env.ATOMIC_WORKFLOW_HOME;
+  process.env.ATOMIC_WORKFLOW_HOME = home;
   const repo = mkdtempSync(join(tmpdir(), "stage-sym-"));
   const outside = mkdtempSync(join(tmpdir(), "stage-out-"));
   try {
@@ -88,7 +88,7 @@ edges:
     rmSync(repo, { recursive: true, force: true });
     rmSync(home, { recursive: true, force: true });
     rmSync(outside, { recursive: true, force: true });
-    if (prevHome === undefined) delete process.env.CURSOR_ATOMIC_WORKFLOW_HOME;
-    else process.env.CURSOR_ATOMIC_WORKFLOW_HOME = prevHome;
+    if (prevHome === undefined) delete process.env.ATOMIC_WORKFLOW_HOME;
+    else process.env.ATOMIC_WORKFLOW_HOME = prevHome;
   }
 });

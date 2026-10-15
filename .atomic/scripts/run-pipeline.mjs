@@ -7,6 +7,7 @@ import { syncSlug, getWorkflowPaths } from "./work-status.mjs";
 import { runDone } from "./run-done.mjs";
 import { createTaskCardAdapter } from "./lib/adapters/task-card.mjs";
 import { createSdkAdapter, loadSdk } from "./lib/adapters/sdk.mjs";
+import { readEnv } from "./lib/legacy-paths.mjs";
 
 export const SDK_INSTALL_HINT =
   "task-card selected: @cursor/sdk is not installed; run npm install to use the SDK adapter. Using task-card.";
@@ -223,7 +224,7 @@ async function main() {
         command,
         logPath,
         timeoutMs,
-        skipTrust: flags.trustCommands || process.env.CURSOR_ATOMIC_TRUST_COMMANDS === "1",
+        skipTrust: flags.trustCommands || readEnv(process.env, "TRUST_COMMANDS") === "1",
       });
       return {
         ok: result.ok,

@@ -66,7 +66,7 @@ npx github:donggrri/atomic-graph-workflow --target /path/to/project --harness au
 |---|---|
 | `--target <dir>` | Target project (default: current directory) |
 | `--harness <list>` | `auto`, `cursor`, `opencode`, `codex`, `pi`, `agy`, `claude`, `all` (comma-separated). `auto`/`all` omit Claude unless `--with-claude` |
-| `--migrate` | Replace old `.agents/skills/cursor-atomic-*` installs with thin aliases (backup legacy `.cursor/skills/cursor-atomic-*`) |
+| `--migrate` | Replace old `.agents/skills/atomic-*` installs with thin aliases (backup legacy `.cursor/skills/atomic-*`) |
 | `--force` | Regenerate existing generated files from the package source (agent files carry no model pin) |
 | `--with-claude` | Include Claude Code (`.claude/*`, `CLAUDE.md` with `@AGENTS.md`) |
 | `--yes`, `-y` | Non-interactive defaults (TTY without `--yes` opens the checkbox installer) |
@@ -74,9 +74,9 @@ npx github:donggrri/atomic-graph-workflow --target /path/to/project --harness au
 | `--skip-doctor` | Skip post-install doctor |
 | `-h, --help` | Help |
 
-After install, run **`/atomic-setup`** in your agent to write `.cursor-atomic-workflow.json` (AGY stages, `testDone`, per-stage `executors`, gitignore policy).
+After install, run **`/atomic-setup`** in your agent to write `.atomic-workflow.json` (AGY stages, `testDone`, per-stage `executors`, gitignore policy).
 
-`run-pipeline.mjs` and `run-stage.mjs` read `.atomic/graph.yaml` for each stage’s default `executor`. Project `executors` in `.cursor-atomic-workflow.json` override the graph. Supported executors: `cursor-subagent`, `cursor-agent`, `cursor-sdk` (explicit opt-in only; it requires a configured SDK model), `agy`, `codex`, `opencode`, `pi` (headless `pi -p`), `claude`. The model-neutral default is `cursor-subagent`; missing CLIs/SDK fall back at runtime (`run-stage` logs to stderr); doctor warns. External CLIs can be pre-approved via `trustedExecutors` or interactive trust (per-repo hash). Optional `executorTimeouts` maps stage ids (`lite`, `explore`, `plan`, …) to timeout minutes (default 45).
+`run-pipeline.mjs` and `run-stage.mjs` read `.atomic/graph.yaml` for each stage’s default `executor`. Project `executors` in `.atomic-workflow.json` override the graph. Supported executors: `cursor-subagent`, `cursor-agent`, `cursor-sdk` (explicit opt-in only; it requires a configured SDK model), `agy`, `codex`, `opencode`, `pi` (headless `pi -p`), `claude`. The model-neutral default is `cursor-subagent`; missing CLIs/SDK fall back at runtime (`run-stage` logs to stderr); doctor warns. External CLIs can be pre-approved via `trustedExecutors` or interactive trust (per-repo hash). Optional `executorTimeouts` maps stage ids (`lite`, `explore`, `plan`, …) to timeout minutes (default 45).
 
 **AGY policy vs per-stage executors:** `agy.plan` / `agy.implement` / `agy.review` control whether the pipeline *asks* to delegate to AGY (`ask`), runs Cursor SDK roles (`sdk`), or stops for parent `/atomic-agy` (`agy`). When a policy is `agy` and you have **not** set an explicit `executors.<stage>`, the runner fills matching graph stages with executor `agy` (`plan` → `explore`, `plan`, `plan-review`; `implement` → `task`, `execute`; `review` → `review`, `wrapup`). Explicit `executors` always win. Headless stage runs: `node .atomic/scripts/run-stage.mjs <stage> --repo . --slug <slug> --prompt-file <brief.md>` (explore, plan, lite, memory, …).
 
@@ -98,9 +98,9 @@ node scripts/sync-bundled.mjs --check   # maintainer: scripts/ vs .atomic/script
 
 ## 3. Usage
 
-### Name change and compatibility
+### Migration from `cursor-atomic-*` (v0.2+)
 
-The canonical public names are now `atomic-*` (for example, `/atomic-plan`). Existing `cursor-atomic-*` names remain available as thin installed aliases that point to the canonical skills. Reinstall with `--migrate` when replacing a legacy full-copy installation. The workflow home (`~/.cursor-atomic-workflow`), project settings file (`.cursor-atomic-workflow.json`), and `CURSOR_ATOMIC_*` environment variables intentionally keep their historical names.
+Public names are `atomic-*` only (for example `/atomic-plan`). Reinstall removes installed `cursor-atomic-*` skill, command, and agent aliases. Workflow home is `~/.atomic-workflow` (one-time migrate from `~/.cursor-atomic-workflow`). Project settings use `.atomic-workflow.json` (read-only fallback to `.cursor-atomic-workflow.json`). Environment variables use `ATOMIC_*`; `CURSOR_ATOMIC_*` is read as fallback only. See `CHANGELOG.md`.
 
 ### Lite vs full workflow
 
@@ -120,14 +120,14 @@ Default full path: once **PLAN is confirmed**, the pipeline runner runs **plan-r
 
 | Command | Role | Output |
 |---|---|---|
-| `/atomic-lite` | Single-session plan → implement → memory → test wrapup (no subagents) | `~/.cursor-atomic-workflow/docs/{shortRepo}/{slug}/PLAN-<slug>.md` |
-| `/atomic-explore` | Phase 0: explore the codebase and tech in advance (optional) | `~/.cursor-atomic-workflow/docs/{shortRepo}/{slug}/EXPLORE-<slug>.md` (legacy: `.docs/<slug>/`) |
-| `/atomic-plan` | Default pipeline after Phase 1 | `~/.cursor-atomic-workflow/docs/{shortRepo}/{slug}/PLAN-<slug>.md` + TASKS/code/REVIEW automatically |
-| `/atomic-task` | Force Phase 2 only, or continue automatically | `~/.cursor-atomic-workflow/docs/{shortRepo}/{slug}/TASKS-<slug>.md` |
+| `/atomic-lite` | Single-session plan → implement → memory → test wrapup (no subagents) | `~/.atomic-workflow/docs/{shortRepo}/{slug}/PLAN-<slug>.md` |
+| `/atomic-explore` | Phase 0: explore the codebase and tech in advance (optional) | `~/.atomic-workflow/docs/{shortRepo}/{slug}/EXPLORE-<slug>.md` (legacy: `.docs/<slug>/`) |
+| `/atomic-plan` | Default pipeline after Phase 1 | `~/.atomic-workflow/docs/{shortRepo}/{slug}/PLAN-<slug>.md` + TASKS/code/REVIEW automatically |
+| `/atomic-task` | Force Phase 2 only, or continue automatically | `~/.atomic-workflow/docs/{shortRepo}/{slug}/TASKS-<slug>.md` |
 | `/atomic-execute` | Force Phase 3 only, or continue automatically | code changes + checked-off TASKS |
 | `/atomic-delegate` | Phase 3: delegate to a specific worker | same |
 | `/atomic-agy` | Delegate a user request to agy headless (plan: plan doc only, implement: code) | plan file under .cursor/plans/ or code changes |
-| `/atomic-review` | Phase 4 | `~/.cursor-atomic-workflow/docs/{shortRepo}/{slug}/REVIEW-<slug>.md` |
+| `/atomic-review` | Phase 4 | `~/.atomic-workflow/docs/{shortRepo}/{slug}/REVIEW-<slug>.md` |
 | `/atomic-wrapup` | Phase 5: wrapup (commit, no push) | git commit + STATUS |
 | `/atomic-run` | Explicit pipeline entry: skip triage and run the workflow from explore | same as plan |
 | `/atomic-status` | Progress report (`npm run status` / `STATUS.json`) | text summary / table |
@@ -135,9 +135,9 @@ Default full path: once **PLAN is confirmed**, the pipeline runner runs **plan-r
 | `/atomic-models` | Stage roles and model policy guide (read-only) | text guide |
 | `/atomic-doctor` | Diagnose skill collisions, YAML frontmatter syntax, and apply auto-fix | text report / auto-fix |
 
-Artifacts live under `~/.cursor-atomic-workflow/docs/{shortRepo}/{slug}/` (override the home with `CURSOR_ATOMIC_WORKFLOW_HOME`).
+Artifacts live under `~/.atomic-workflow/docs/{shortRepo}/{slug}/` (override the home with `ATOMIC_WORKFLOW_HOME`).
 
-Docs location (`docsRoot` in `.cursor-atomic-workflow.json`): `home` (default global home) or a repo-relative path (e.g. `specs`). The project file must stay inside the repository: values with a `..` segment are rejected, and absolute (or `~`-leading) values are ignored with a warning — put an absolute path in global settings (`~/.cursor-atomic-workflow/settings.json` `docsRoot`) instead. `runs/`, `memory/`, and `evidence/` always stay in the workflow home. artifacts: specs/ is inside the repo; commit it with your code (do not add it to .gitignore).
+Docs location (`docsRoot` in `.atomic-workflow.json`): `home` (default global home) or a repo-relative path (e.g. `specs`). The project file must stay inside the repository: values with a `..` segment are rejected, and absolute (or `~`-leading) values are ignored with a warning — put an absolute path in global settings (`~/.atomic-workflow/settings.json` `docsRoot`) instead. `runs/`, `memory/`, and `evidence/` always stay in the workflow home. artifacts: specs/ is inside the repo; commit it with your code (do not add it to .gitignore).
 
 If PLAN has blocking questions (security, scope, data loss), it stops there. To write a plan only, use `/atomic-plan 계획만`.
 
@@ -151,10 +151,10 @@ If PLAN has blocking questions (security, scope, data loss), it stops there. To 
 node scripts/run-pipeline.mjs <slug> [--auto] [--resume] [--adapter sdk|task-card] [--profile <id>] [--repo <dir>] [--dry-run]
 ```
 
-- The default adapter is model-neutral `task-card`; it leaves `next-card.json` for the parent session to execute and `--resume`. `--adapter sdk` is an explicit opt-in for `@cursor/sdk` and requires an SDK model supplied by the caller; it does not select a model. After the cost gate, **plan-review** runs `plan-reviewer` (writes `PLAN-REVIEW-<slug>.md`); blocking defects trigger one planner auto-revision and re-review, then exit `20` if defects remain. On **Review** entry (initial and after rework), exit `10` may be a **`kind: "bugbot"`** card first: the parent runs Cursor `bugbot`, saves output to `~/.cursor-atomic-workflow/runs/{shortRepo}/{slug}/bugbot-findings.md` (or a `# BUGBOT_FAILED` marker on failure), then `--resume` before the reviewer runs.
-- The log lives at `~/.cursor-atomic-workflow/runs/{shortRepo}/{slug}/pipeline.log`; per-step command logs get a `.done.json` summary next to them. Every role logs `▶ [phase] role started` and `■ [phase] role done · Ns`, plus nested subagent/status lines (`tail -f pipeline.log` to follow). Set `ATOMIC_PROGRESS=tools` to also log each tool call.
+- The default adapter is model-neutral `task-card`; it leaves `next-card.json` for the parent session to execute and `--resume`. `--adapter sdk` is an explicit opt-in for `@cursor/sdk` and requires an SDK model supplied by the caller; it does not select a model. After the cost gate, **plan-review** runs `plan-reviewer` (writes `PLAN-REVIEW-<slug>.md`); blocking defects trigger one planner auto-revision and re-review, then exit `20` if defects remain. On **Review** entry (initial and after rework), exit `10` may be a **`kind: "bugbot"`** card first: the parent runs Cursor `bugbot`, saves output to `~/.atomic-workflow/runs/{shortRepo}/{slug}/bugbot-findings.md` (or a `# BUGBOT_FAILED` marker on failure), then `--resume` before the reviewer runs.
+- The log lives at `~/.atomic-workflow/runs/{shortRepo}/{slug}/pipeline.log`; per-step command logs get a `.done.json` summary next to them. Every role logs `▶ [phase] role started` and `■ [phase] role done · Ns`, plus nested subagent/status lines (`tail -f pipeline.log` to follow). Set `ATOMIC_PROGRESS=tools` to also log each tool call.
 - `--resume` retries failed items (already checked items stay done).
-- `--profile <id>` swaps only the plan and test instructions. Omit it and the runner uses the project file `.cursor-atomic-workflow.json`, then `~/.cursor-atomic-workflow/settings.json`, then `atomic`. PLAN, TASKS, and REVIEW stay under `~/.cursor-atomic-workflow/docs/{shortRepo}/{slug}/`. A profile JSON lives in `profiles/<id>.json` (package), `~/.cursor-atomic-workflow/profiles/<id>.json`, or the repo `profiles/<id>.json`. Later locations win. Do not put secrets in that JSON. `profiles/bsp.json.example` is a template with placeholder paths: copy it to `profiles/<id>.json` or `~/.cursor-atomic-workflow/profiles/<id>.json` and point `command` at your own files. Names ending in `.example.json` or `.json.example` are not loaded.
+- `--profile <id>` swaps only the plan and test instructions. Omit it and the runner uses the project file `.atomic-workflow.json`, then `~/.atomic-workflow/settings.json`, then `atomic`. PLAN, TASKS, and REVIEW stay under `~/.atomic-workflow/docs/{shortRepo}/{slug}/`. A profile JSON lives in `profiles/<id>.json` (package), `~/.atomic-workflow/profiles/<id>.json`, or the repo `profiles/<id>.json`. Later locations win. Do not put secrets in that JSON. `profiles/bsp.json.example` is a template with placeholder paths: copy it to `profiles/<id>.json` or `~/.atomic-workflow/profiles/<id>.json` and point `command` at your own files. Names ending in `.example.json` or `.json.example` are not loaded.
 
 Exit codes:
 
@@ -186,7 +186,7 @@ Every stage runs on **one generic subagent** of the active harness. The role (`e
 
 ### Headless delegation (`cursor-agent`, `agy`)
 
-Stages that edit code (`lite`, `execute`) run the CLI with its full-permission flags (`cursor-agent --force --trust`, `agy --dangerously-skip-permissions`). Every other stage (explore, plan, plan-review, task, review, wrapup, memory) runs the same CLI the same way, but its prompt starts with a **FORBID block** that bans edits to product files, git state changes, installs and builds, and limits writes to the stage deliverable. This is a prompt rule, not a sandbox. `cursor-agent` now asks for the same per-repo trust confirmation as the other CLIs (`trustedExecutors`, `CURSOR_ATOMIC_TRUST_COMMANDS=1`).
+Stages that edit code (`lite`, `execute`) run the CLI with its full-permission flags (`cursor-agent --force --trust`, `agy --dangerously-skip-permissions`). Every other stage (explore, plan, plan-review, task, review, wrapup, memory) runs the same CLI the same way, but its prompt starts with a **FORBID block** that bans edits to product files, git state changes, installs and builds, and limits writes to the stage deliverable. This is a prompt rule, not a sandbox. `cursor-agent` now asks for the same per-repo trust confirmation as the other CLIs (`trustedExecutors`, `ATOMIC_TRUST_COMMANDS=1`).
 
 ---
 

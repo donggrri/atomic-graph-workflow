@@ -3,7 +3,6 @@ import { join, resolve, dirname, relative, isAbsolute, sep } from "node:path";
 import { parseYamlLite } from "./yaml-lite.mjs";
 import { validateGraphV2, normalizeV1, RESERVED_TARGETS } from "./graph-schema.mjs";
 import { EXECUTOR_IDS } from "./executors/constants.mjs";
-import { canonicalName } from "./legacy-aliases.mjs";
 
 /**
  * Resolves `targetPath` against `repoRoot` and requires the result to stay
@@ -291,8 +290,6 @@ export function loadGraph(repoRoot) {
   const text = readFileSync(path, "utf8");
   const parsed = parseGraphYaml(text);
   for (const node of Object.values(parsed.nodes)) {
-    if (typeof node.skill === "string") node.skill = canonicalName(node.skill);
-    if (typeof node.agent === "string") node.agent = canonicalName(node.agent);
   }
   // ensure all expected keys exist for both versions
   return {
@@ -893,12 +890,12 @@ export function rewriteGraphExecutors(text, harnesses = {}) {
 
   let replaced = 0;
   const pattern = new RegExp(
-    `^([ \\t]*)executor:[ \\t]*(?:${CURSOR_ONLY_EXECUTORS.join("|")})[ \\t\\r]*$`,
+    `executor:[ \\t]*(?:${CURSOR_ONLY_EXECUTORS.join("|")})(?=[ \\t\\r,}\\]#]|$)`,
     "gm",
   );
-  const next = source.replace(pattern, (_match, indent) => {
+  const next = source.replace(pattern, () => {
     replaced += 1;
-    return `${indent}executor: opencode`;
+    return "executor: opencode";
   });
   return { text: next, replaced };
 }

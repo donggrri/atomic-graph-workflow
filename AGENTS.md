@@ -28,13 +28,13 @@ node .atomic/scripts/memory.mjs context <shortRepo>   # 위 repo 출력값
 node .atomic/scripts/run-done.mjs "<done-command>" [logPath]
 node .atomic/scripts/memory.mjs propose --auto <docsDir>/memory-<slug>.json
 ```
-- 메모리 볼트는 `CURSOR_ATOMIC_WORKFLOW_HOME`(없으면 `~/.cursor-atomic-workflow`) 아래 `memory/`다. `propose` JSON은 `shortRepo`, `slug`, `items[]`(`target`: `human.md` | `projects|decisions|gotchas/<name>.md`, `text`: 한 줄·200자 이하) 형식이어야 한다. 승인 대기만 넣을 때는 `propose <file.json>`(without `--auto`); `list` | `approve <id>` | `reject <id>`도 지원한다.
-- 상태·문서는 기본 `CURSOR_ATOMIC_WORKFLOW_HOME`(기본 `~/.cursor-atomic-workflow`) 아래 `docs/<shortRepo>/<slug>/`에 기록한다. 프로젝트 `.cursor-atomic-workflow.json`에 `docsRoot`(예: `work-docs`)가 있으면 해당 저장소 기준 `<repo>/<docsRoot>/<slug>/`에 PLAN·TASKS·REVIEW·STATUS를 쓰고, 실행 로그(runs/evidence)는 전역 홈에 유지한다.
+- 메모리 볼트는 `ATOMIC_WORKFLOW_HOME`(없으면 `~/.atomic-workflow`) 아래 `memory/`다. `propose` JSON은 `shortRepo`, `slug`, `items[]`(`target`: `human.md` | `projects|decisions|gotchas/<name>.md`, `text`: 한 줄·200자 이하) 형식이어야 한다. 승인 대기만 넣을 때는 `propose <file.json>`(without `--auto`); `list` | `approve <id>` | `reject <id>`도 지원한다.
+- 상태·문서는 기본 `ATOMIC_WORKFLOW_HOME`(기본 `~/.atomic-workflow`) 아래 `docs/<shortRepo>/<slug>/`에 기록한다. 프로젝트 `.atomic-workflow.json`에 `docsRoot`(예: `work-docs`)가 있으면 해당 저장소 기준 `<repo>/<docsRoot>/<slug>/`에 PLAN·TASKS·REVIEW·STATUS를 쓰고, 실행 로그(runs/evidence)는 전역 홈에 유지한다.
 - `node`가 없으면 작업을 멈추고 사용자에게 알린다.
 
 ## 4. 역할과 실행기
 - 역할 정의는 `.atomic/agents/*.md`. 서브에이전트를 지원하는 하네스는 설치된 서브에이전트를 쓴다.
-- 외부 CLI 위임은 `bash .atomic/scripts/invoke-worker.sh ...` 또는 `pwsh -File .atomic/scripts/invoke-worker.ps1 ...`를 따른다.
+- 외부 CLI 위임은 `bash .atomic/scripts/invoke-worker.sh ...` 또는 `pwsh -File .atomic/scripts/invoke-worker.sh ...`를 따른다.
 
 ## 5. 완료 기준
 테스트를 실행해 PLAN의 done criteria와 대조한다. `node .atomic/scripts/doctor.mjs --harness auto --target .`가 실패하면 설치부터 고친다.
