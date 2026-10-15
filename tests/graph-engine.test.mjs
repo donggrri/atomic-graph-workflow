@@ -268,8 +268,8 @@ test("matchGates each gate via touches and requires_approval", () => {
   docReq.nodes = { ...docReq.nodes, review: { ...docReq.nodes.review, requires_approval: ["db"] } };
   assert.ok(matchGates(docReq, { node: "review", touches: [], gatesApproved: [] }).includes("db"));
 
-  // gatesApproved excludes
-  assert.deepEqual(mk("review", ["db/foo"], ["db"]), []);
+  // gatesApproved excludes (step-scoped objects only; legacy strings ignored)
+  assert.deepEqual(mk("review", ["db/foo"], [{ gate: "db", step: 1 }]), []);
 });
 
 test("matchGates defaults when doc.gates missing", () => {
@@ -550,7 +550,7 @@ test("transition to $end allowed at steps == max_steps", () => {
     ],
   };
   // $end is exempt from max_steps but still needs the merge gate: approve first.
-  const preApproved = baseState("a", { steps: 30, gatesApproved: ["merge"] });
+  const preApproved = baseState("a", { steps: 30, gatesApproved: [{ gate: "merge", step: 31 }] });
   const rEnd = nextStep(preApproved, doc, okResult("a", "pass", { touches: [] }));
   assert.equal(rEnd.decision.kind, "end");
   assert.equal(rEnd.decision.target, "$end");
@@ -683,7 +683,8 @@ test("property: 200 random results stay in allowed ∪ reserved and terminate", 
       }
       // keep walking on move/gate/ask_user/invalid
       if (decision.kind === "gate") {
-        state = { ...state, gatesApproved: [...state.gatesApproved, ...decision.gates] };
+        const step = state.steps + 1;
+        state = { ...state, gatesApproved: [...state.gatesApproved, ...decision.gates.map((g) => ({ gate: g, step }))] };
       }
       if (decision.kind === "ask_user") break; // user stop counts as termination for walk
     }
@@ -720,9 +721,13 @@ test("MAJOR: touches normalized before glob (./, a/../b, leading /)", () => {
   // a/../b collapsed via posix.normalize
   assert.deepEqual(mk(["x/../package.json"]), ["deps"]);
   assert.deepEqual(mk(["sub/../migrations/001.sql"]), ["db"]);
-  // leading / dropped
-  assert.deepEqual(mk(["/package.json"]), ["deps"]);
-  assert.deepEqual(mk(["/.github/workflows/ci.yml"]), ["ci"]);
+  // absolute paths touch every gate (conservative), not just the matching one
+  for (const abs of ["/package.json", "/.github/workflows/ci.yml"]) {
+    const got = mk([abs]);
+    for (const gid of ["db", "auth", "ci", "deps", "merge"]) {
+      assert.ok(got.includes(gid), `${abs} -> ${JSON.stringify(got)} should include ${gid}`);
+    }
+  }
 });
 
 test("MAJOR: escaping touches (../) conservatively touch every gate", () => {
@@ -805,10 +810,14 @@ test("MAJOR: approveGate scoped to {gate, step}; later same-gate asks again", ()
   assert.ok(r3.decision.gates.includes("db"), JSON.stringify(r3.decision));
 });
 
-test("MAJOR: legacy string gatesApproved accepted for current step", () => {
+test("MAJOR: legacy string gatesApproved ignored for step-scoped gates", () => {
   const doc = { version: 2, defaults: {}, limits: {}, gates: {}, entry: {}, nodes: { a: { skill: "x" } }, edges: [] };
-  assert.deepEqual(matchGates(doc, { node: "a", touches: ["db/foo"], gatesApproved: ["db"], step: 1 }), []);
-  assert.deepEqual(matchGates(doc, { node: "a", touches: ["db/foo"], gatesApproved: ["db"] }), []);
+  // legacy strings NEVER satisfy: gate stays pending
+  assert.ok(matchGates(doc, { node: "a", touches: ["migrations/1.sql"], gatesApproved: ["db"], step: 1 }).includes("db"));
+  assert.ok(matchGates(doc, { node: "a", touches: ["migrations/1.sql"], gatesApproved: ["db"] }).includes("db"));
+  // only {gate, step} with matching step satisfies
+  assert.deepEqual(matchGates(doc, { node: "a", touches: ["migrations/1.sql"], gatesApproved: [{ gate: "db", step: 1 }], step: 1 }), []);
+  assert.ok(matchGates(doc, { node: "a", touches: ["migrations/1.sql"], gatesApproved: [{ gate: "db", step: 2 }], step: 1 }).includes("db"));
 });
 
 // ---------- review findings: MINOR ----------
@@ -874,4 +883,112 @@ test("MINOR: step counter uses state.steps only; messages reflect >= vs >", () =
   assert.equal(decision.kind, "escalate");
   assert.ok(decision.reason.includes(">="), decision.reason);
   assert.ok(decision.reason.includes("(1 >= 1)"), decision.reason);
+});
+
+// ---------- ds5 review findings (one test each) ----------
+
+test("ds5 BLOCKER: nextStep gates on UNION of facts.touches and model touches", () => {
+  const doc = {
+    version: 2, defaults: {}, limits: {}, gates: {}, entry: {},
+    nodes: { a: { skill: "x" }, b: { skill: "x" } },
+    edges: [{ from: "a", to: "b", on: "pass" }],
+  };
+  // authoritative facts.touches alone triggers the gate (model omits files)
+  let r = nextStep(baseState("a"), doc, okResult("a", "pass", { touches: [] }), { touches: ["migrations/001.sql"] });
+  assert.equal(r.decision.kind, "gate");
+  assert.ok(r.decision.gates.includes("db"), JSON.stringify(r.decision));
+  // model cannot remove: facts require db even when model reports nothing
+  r = nextStep(baseState("a"), doc, okResult("a", "pass"), { touches: ["migrations/001.sql"] });
+  assert.equal(r.decision.kind, "gate");
+  assert.ok(r.decision.gates.includes("db"));
+  // model can only add: facts empty + model touch still gates
+  r = nextStep(baseState("a"), doc, okResult("a", "pass", { touches: ["migrations/001.sql"] }), { touches: [] });
+  assert.equal(r.decision.kind, "gate");
+  assert.ok(r.decision.gates.includes("db"));
+  // neither touches -> no gate
+  r = nextStep(baseState("a"), doc, okResult("a", "pass", { touches: [] }), { touches: [] });
+  assert.equal(r.decision.kind, "move");
+});
+
+test("ds5 MAJOR: legacy string gatesApproved never satisfies step-scoped gates", () => {
+  const doc = { version: 2, defaults: {}, limits: {}, gates: {}, entry: {}, nodes: { a: { skill: "x" } }, edges: [] };
+  assert.ok(matchGates(doc, { node: "a", touches: ["migrations/1.sql"], gatesApproved: ["db", "merge"], step: 1 }).includes("db"));
+  assert.deepEqual(matchGates(doc, { node: "a", touches: ["migrations/1.sql"], gatesApproved: [{ gate: "db", step: 1 }], step: 1 }), []);
+});
+
+test("ds5 MAJOR: merge.always forced true despite doc.gates overrides", () => {
+  const mkDoc = (mergeDef) => ({
+    version: 2, defaults: {}, limits: {}, entry: {},
+    gates: mergeDef === undefined ? {} : { merge: mergeDef },
+    nodes: { a: { skill: "x" } },
+    edges: [{ from: "a", to: "$end", on: "pass" }],
+  });
+  for (const mergeDef of [null, { match: ["only-here/**"] }, { always: false }, { always: false, match: [] }]) {
+    const doc = mkDoc(mergeDef);
+    const r = nextStep(baseState("a"), doc, okResult("a", "pass", { touches: [] }), { touches: [] });
+    assert.equal(r.decision.kind, "gate", JSON.stringify({ mergeDef, decision: r.decision }));
+    assert.ok(r.decision.gates.includes("merge"), JSON.stringify({ mergeDef, decision: r.decision }));
+  }
+  // doc may still add match patterns to merge: they fire on touches too
+  const docMatch = mkDoc({ match: ["deploy/**"] });
+  assert.ok(matchGates(docMatch, { node: "a", touches: ["deploy/x"] }).includes("merge"));
+  assert.ok(matchGates(docMatch, { node: "a", touches: ["deploy/x"], target: "$end" }).includes("merge"));
+});
+
+test("ds5 MAJOR: evalWhen error in allowedTransitions skips edge with warnings", () => {
+  const doc = {
+    version: 2, defaults: {}, limits: {}, gates: {}, entry: {},
+    nodes: { a: { skill: "x" }, b: { skill: "x" }, c: { skill: "x" } },
+    edges: [
+      { from: "a", to: "b", on: "pass", when: "(((bad" },
+      { from: "a", to: "c", on: "pass" },
+    ],
+  };
+  // direct call: bad edge not taken, good edge taken, no throw
+  const warnings = [];
+  const got = allowedTransitions(doc, "a", "pass", {}, warnings);
+  assert.deepEqual(got.map((x) => x.target), ["c"]);
+  assert.equal(warnings.length, 1);
+  assert.ok(warnings[0].startsWith("when: "), warnings[0]);
+  // all edges bad -> no candidates -> halt with warnings, no throw
+  const docBad = {
+    version: 2, defaults: {}, limits: {}, gates: {}, entry: {},
+    nodes: { a: { skill: "x" } },
+    edges: [{ from: "a", to: "b", on: "pass", when: "a ==" }],
+  };
+  const r = nextStep(baseState("a"), docBad, okResult("a", "pass", { touches: [] }), { touches: [] });
+  assert.equal(r.decision.kind, "halt");
+  assert.ok(Array.isArray(r.decision.warnings) && r.decision.warnings.length === 1, JSON.stringify(r.decision));
+  assert.ok(r.decision.warnings[0].startsWith("when: "), JSON.stringify(r.decision));
+});
+
+test("ds5 MINOR: '!' binds tighter than ==/in", () => {
+  // (!0) == false -> true == false -> false; loose (!(0 == false)) would be true
+  assert.equal(evalWhen("!n == false", { n: 0 }), false);
+  assert.equal(evalWhen("!flag == 0", { flag: false }), false);
+  // (!true) in [true, false] -> true; loose (!(true in [..])) -> false
+  assert.equal(evalWhen("!a in [true, false]", { a: true }), true);
+  assert.equal(evalWhen("!a in [true, false]", { a: false }), true);
+  assert.equal(evalWhen("!a in [true]", { a: true }), false);
+  // parens preserve loose grouping explicitly
+  assert.equal(evalWhen("!(n == false)", { n: 0 }), true);
+});
+
+test("ds5 MINOR: backslash/absolute/escaping touches hit every gate", () => {
+  const doc = { version: 2, defaults: {}, limits: {}, gates: {}, entry: {}, nodes: { a: { skill: "x" } }, edges: [] };
+  const all = ["db", "auth", "ci", "deps", "merge"];
+  const expectAll = (touches) => {
+    const got = matchGates(doc, { node: "a", touches });
+    for (const gid of all) assert.ok(got.includes(gid), `${JSON.stringify(touches)} -> ${JSON.stringify(got)} missing ${gid}`);
+  };
+  // backslash normalization still matches the right gate
+  assert.deepEqual(matchGates(doc, { node: "a", touches: ["src\\auth\\x.ts"] }), ["auth"]);
+  assert.deepEqual(matchGates(doc, { node: "a", touches: ["migrations\\001.sql"] }), ["db"]);
+  // backslash escaping variants touch every gate
+  expectAll(["..\\migrations\\x.sql"]);
+  expectAll(["..\\..\\evil.ts"]);
+  // absolute POSIX / Windows paths touch every gate
+  expectAll(["/etc/passwd"]);
+  expectAll(["C:/migrations/001.sql"]);
+  expectAll(["C:\\Windows\\foo.ts"]);
 });

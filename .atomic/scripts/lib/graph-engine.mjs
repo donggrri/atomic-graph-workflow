@@ -1,7 +1,18 @@
 // Doc notes (kept as code comments to avoid a separate docs change):
-// - `touches` (file lists used for gate matching) will come from git diff
-//   in the engine-wiring PR, not from the model.
-// - Model-reported touches are advisory only and must not be trusted for gating.
+// - `touches` (file lists used for gate matching) come from the authoritative
+//   provider: `facts.touches` supplied from `git diff` by the wiring PR.
+// - `nextStep` gates on the UNION of `facts.touches` (authoritative) and the
+//   model-reported `result.touches` (advisory). The model can only ADD gates
+//   via extra touches, never remove gates required by authoritative touches.
+// - Legacy string `gatesApproved` entries are ignored for step-scoped matching;
+//   only `{gate, step}` entries with `entry.step === step` satisfy a gate.
+// - `merge.always` is forced to `true`: doc `gates.merge` may add `match`
+//   patterns but cannot disable the always-on `$end` merge gate.
+// - `evalWhen` errors inside `allowedTransitions` treat that edge as not taken
+//   and are surfaced via `decision.warnings` (no uncaught throw).
+// - `!` binds tighter than `==`/`!=`/`in` (applies to the unary operand only).
+// - Touched paths normalize `\` to `/`; absolute or repo-escaping touches are
+//   treated as touching every gate (conservative).
 import { posix as posixPath } from "node:path";
 import { KNOWN_OUTCOMES, RESERVED_TARGETS } from "./graph-schema.mjs";
 
@@ -191,36 +202,26 @@ export function evalWhen(expr, ctx = {}) {
   }
 
   function parseAnd() {
-    let left = parseUnary();
+    let left = parseComparison();
     for (;;) {
       const t = peek();
       if (t && t.type === "&&") {
         next();
-        const right = parseUnary();
+        const right = parseComparison();
         left = Boolean(left) && Boolean(right);
       } else return left;
     }
   }
 
-  function parseUnary() {
-    const t = peek();
-    if (t && t.type === "!") {
-      next();
-      const v = parseUnary();
-      return !v;
-    }
-    return parseComparison();
-  }
-
   function parseComparison() {
-    let left = parsePrimary();
+    let left = parseUnary();
     let compared = false;
     for (;;) {
       const t = peek();
       if (t && (t.type === "==" || t.type === "!=")) {
         if (compared) fail("chained comparison not allowed");
         next();
-        const right = parsePrimary();
+        const right = parseUnary();
         // strict equality; null and undefined compare equal to each other only
         const bothNullish =
           (left === null || left === undefined) && (right === null || right === undefined);
@@ -240,6 +241,18 @@ export function evalWhen(expr, ctx = {}) {
       }
       return left;
     }
+  }
+
+  // `!` binds tighter than `==`/`!=`/`in`: it applies to the unary operand
+  // only, so `!a == b` parses as `(!a) == b` and `!x in [...]` as `(!x) in [...]`.
+  function parseUnary() {
+    const t = peek();
+    if (t && t.type === "!") {
+      next();
+      const v = parseUnary();
+      return !v;
+    }
+    return parsePrimary();
   }
 
   function parsePrimary() {
@@ -296,8 +309,10 @@ export function evalWhen(expr, ctx = {}) {
  * @param {string} node
  * @param {string} outcome
  * @param {Record<string, unknown>} [ctx]
+ * @param {string[]} [warnings] optional out-param collecting `when` eval errors;
+ *   an edge whose `when` throws is treated as not taken (no throw).
  */
-export function allowedTransitions(doc, node, outcome, ctx = {}) {
+export function allowedTransitions(doc, node, outcome, ctx = {}, warnings) {
   const edges = Array.isArray(doc?.edges) ? doc.edges : [];
   const out = [];
   edges.forEach((e, edgeIndex) => {
@@ -307,7 +322,15 @@ export function allowedTransitions(doc, node, outcome, ctx = {}) {
     const on = Array.isArray(e.on) ? e.on : [e.on];
     if (!on.includes(outcome)) return;
     if (typeof e.when === "string" && e.when.trim() !== "") {
-      if (!evalWhen(e.when, ctx ?? {})) return;
+      let take = false;
+      try {
+        take = evalWhen(e.when, ctx ?? {});
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        if (Array.isArray(warnings)) warnings.push(msg);
+        return;
+      }
+      if (!take) return;
     }
     const priority = Number.isInteger(e.priority) ? e.priority : 0;
     const tos = Array.isArray(e.to) ? e.to : [e.to];
@@ -483,15 +506,17 @@ function globMatch(pattern, path) {
 
 /**
  * Normalize a touched path before glob matching.
+ * - convert backslashes to "/" (Windows-style separators)
  * - strip leading "./" segments
  * - collapse "a/../b" via path.posix.normalize
- * - drop leading "/" segments
+ * - drop leading "/" segments (for glob matching; absoluteness is checked
+ *   separately before normalization and treated as touching every gate)
  * @param {unknown} raw
  * @returns {string|null} normalized path, or null for non-strings
  */
 function normalizeTouchPath(raw) {
   if (typeof raw !== "string") return null;
-  let p = raw;
+  let p = raw.replace(/\\/g, "/");
   while (p.startsWith("./")) p = p.slice(2);
   try {
     p = posixPath.normalize(p);
@@ -511,6 +536,14 @@ function isEscapingTouch(normalized) {
   return normalized === ".." || normalized.startsWith("../");
 }
 
+/**
+ * @param {string} slashPath path with backslashes already converted to "/"
+ * @returns {boolean} true for absolute paths (POSIX "/" or Windows "C:/")
+ */
+function isAbsoluteTouch(slashPath) {
+  return slashPath.startsWith("/") || /^[A-Za-z]:\//.test(slashPath);
+}
+
 // ---------- matchGates ----------
 
 /**
@@ -519,24 +552,49 @@ function isEscapingTouch(normalized) {
  * @param {{ node?: string, touches?: string[], gatesApproved?: Array<string|{gate:string,step:number}>, target?: string, step?: number }} [opts]
  * @returns {string[]}
  *
- * NOTE on `touches`: the authoritative source will be `git diff` in the
- * engine-wiring PR, not the model. Model-reported `touches` are advisory
- * only and must not be trusted for gating decisions.
+ * NOTE on `touches`: the authoritative source is `facts.touches` supplied
+ * from `git diff` by the wiring PR (see `nextStep`, which gates on the UNION
+ * of `facts.touches` and model-reported `result.touches`). Passed-in touches
+ * here are already that union; the model can only ADD gates, never remove
+ * gates required by authoritative touches.
+ * Legacy string `gatesApproved` entries are IGNORED for step-scoped matching;
+ * only `{gate, step}` entries with `entry.step === step` satisfy a gate.
+ * `merge.always` is forced to `true`: doc `gates.merge` may add `match`
+ * patterns but cannot disable the always-on `$end` merge gate.
  */
 export function matchGates(doc, { node, touches = [], gatesApproved = [], target, step } = {}) {
   const nodeDef = doc?.nodes?.[node] ?? {};
   const requires = Array.isArray(nodeDef.requires_approval) ? nodeDef.requires_approval : [];
   const rawGates = doc?.gates;
   const hasGates = rawGates != null && typeof rawGates === "object" && !Array.isArray(rawGates);
-  const gates = hasGates ? { ...DEFAULT_GATE_DEFS, ...rawGates } : DEFAULT_GATE_DEFS;
+  // Per-gate merge over defaults; doc may add gates or extend `match` lists,
+  // but `merge.always` is forced true (doc cannot disable the $end merge gate).
+  const gates = { ...DEFAULT_GATE_DEFS };
+  if (hasGates) {
+    for (const [gid, gdef] of Object.entries(rawGates)) {
+      if (gid === "merge") {
+        if (gdef != null && typeof gdef === "object" && !Array.isArray(gdef)) {
+          gates.merge = { ...gdef, always: true };
+        } else {
+          // `merge: null` (or non-object) cannot disable the gate; keep default.
+          gates.merge = { ...DEFAULT_GATE_DEFS.merge, always: true };
+        }
+        continue;
+      }
+      gates[gid] = gdef;
+    }
+  }
+  // Belt-and-braces: merge is always on even when doc.gates is missing.
+  if (gates.merge != null && typeof gates.merge === "object" && !Array.isArray(gates.merge)) {
+    gates.merge.always = true;
+  } else {
+    gates.merge = { ...DEFAULT_GATE_DEFS.merge, always: true };
+  }
   const approvedList = Array.isArray(gatesApproved) ? gatesApproved : [];
   const isApproved = (gid) => {
     for (const entry of approvedList) {
-      if (typeof entry === "string") {
-        // Legacy string entries: accept as approval for the current step.
-        if (entry === gid) return true;
-        continue;
-      }
+      // Legacy string entries NEVER satisfy step-scoped gates; ignore them.
+      if (typeof entry === "string") continue;
       if (entry != null && typeof entry === "object" && !Array.isArray(entry)) {
         if (entry.gate !== gid) continue;
         if (step === undefined) return true;
@@ -558,6 +616,13 @@ export function matchGates(doc, { node, touches = [], gatesApproved = [], target
   let escaping = false;
   for (const raw of touchList) {
     if (typeof raw !== "string") continue;
+    // Absolute paths ("/...", "C:/...") or backslash variants are conservative:
+    // they touch every gate. Check before normalization strips the leading "/".
+    const slash = raw.replace(/\\/g, "/");
+    if (isAbsoluteTouch(slash)) {
+      escaping = true;
+      break;
+    }
     const n = normalizeTouchPath(raw);
     if (n == null) continue;
     if (isEscapingTouch(n)) {
@@ -567,14 +632,17 @@ export function matchGates(doc, { node, touches = [], gatesApproved = [], target
     normalizedTouches.push(n);
   }
   if (escaping) {
-    // Conservative: an escaping path ("../...") is treated as touching every gate.
+    // Conservative: an absolute or escaping path ("../...", "/etc/...",
+    // "C:/...", "..\\...") is treated as touching every gate.
     for (const gid of Object.keys(gates)) push(gid);
     return pending;
   }
   for (const [gid, gdef] of Object.entries(gates)) {
     if (isApproved(gid)) continue;
     if (gdef == null || typeof gdef !== "object" || Array.isArray(gdef)) continue;
-    if (gdef.always === true) continue;
+    // NOTE: `always:true` gates are NOT skipped here so a doc-added `match`
+    // list on `merge` still fires on touches; the `$end` block below keeps the
+    // always-on guarantee regardless of matches.
     const patterns = Array.isArray(gdef.match) ? gdef.match : [];
     for (const pat of patterns) {
       if (typeof pat !== "string") continue;
@@ -674,7 +742,11 @@ function normalizeState(state) {
  * @param {Record<string, any>} state
  * @param {Record<string, any>} doc
  * @param {unknown} rawResult
- * @param {{ testsExitCode?: unknown, acStatus?: unknown }} [facts]
+ * @param {{ testsExitCode?: unknown, acStatus?: unknown, touches?: unknown }} [facts]
+ *   `facts.touches` is the authoritative touched-path list supplied from
+ *   `git diff` by the wiring PR. Gate matching uses the UNION of
+ *   `facts.touches` and model-reported `result.touches`: the model can only
+ *   ADD gates via extra touches, never remove gates required by `facts.touches`.
  */
 export function nextStep(state, doc, rawResult, facts = {}) {
   const s = normalizeState(cloneDeep(state));
@@ -741,7 +813,11 @@ export function nextStep(state, doc, rawResult, facts = {}) {
   const outcome = after.outcome;
   const reasonStr = typeof after.reason === "string" ? after.reason : "";
 
-  const candidates = allowedTransitions(doc, curNode, outcome, ctx);
+  // `when` eval errors must not crash the engine: a throwing edge is not taken
+  // and its error is surfaced via `decision.warnings`.
+  const whenWarnings = [];
+  const candidates = allowedTransitions(doc, curNode, outcome, ctx, whenWarnings);
+  const warnProp = whenWarnings.length > 0 ? { warnings: [...whenWarnings] } : {};
 
   let target;
   let accepted = false;
@@ -766,6 +842,7 @@ export function nextStep(state, doc, rawResult, facts = {}) {
         target,
         proposalAccepted: false,
         overridden,
+        ...warnProp,
       },
     };
   }
@@ -811,6 +888,7 @@ export function nextStep(state, doc, rawResult, facts = {}) {
         target: "$user",
         proposalAccepted: accepted,
         overridden,
+        ...warnProp,
       },
     };
   };
@@ -857,9 +935,13 @@ export function nextStep(state, doc, rawResult, facts = {}) {
   // Gate pauses do not commit history or loop counters (committed on move).
   {
     const gateNode = RESERVED_TARGETS.includes(target) ? curNode : target;
+    // UNION of authoritative `facts.touches` (git diff) and model-reported
+    // `result.touches`: the model can only ADD gates, never remove them.
+    const factTouches = Array.isArray(facts?.touches) ? facts.touches : [];
+    const modelTouches = Array.isArray(after.touches) ? after.touches : [];
     const pending = matchGates(doc, {
       node: gateNode,
-      touches: Array.isArray(after.touches) ? after.touches : [],
+      touches: [...factTouches, ...modelTouches],
       gatesApproved: s.gatesApproved,
       target,
       step: s.steps + 1,
@@ -874,12 +956,13 @@ export function nextStep(state, doc, rawResult, facts = {}) {
           target,
           proposalAccepted: accepted,
           overridden,
+          ...warnProp,
         },
       };
     }
   }
 
-  const baseDecision = { proposalAccepted: accepted, overridden };
+  const baseDecision = { proposalAccepted: accepted, overridden, ...warnProp };
 
   if (target === "$user") {
     const entry = {
@@ -948,7 +1031,8 @@ export function nextStep(state, doc, rawResult, facts = {}) {
  * Approve a gate for the pending decision step only.
  * Approvals are scoped to {gate, step} where step is the pending decision
  * step (state.steps + 1); a later transition needing the same gate must ask again.
- * Legacy string entries in gatesApproved are accepted as approval for the current step.
+ * Legacy string entries in gatesApproved are IGNORED by gate matching (they
+ * never satisfy a step-scoped gate).
  * @param {Record<string, any>} state
  * @param {string} gateId
  */
@@ -957,7 +1041,6 @@ export function approveGate(state, gateId) {
   const approved = Array.isArray(s.gatesApproved) ? [...s.gatesApproved] : [];
   const step = typeof s.steps === "number" ? s.steps + 1 : 1;
   const already = approved.some((e) => {
-    if (typeof e === "string") return e === gateId;
     if (e != null && typeof e === "object" && !Array.isArray(e)) {
       return e.gate === gateId && e.step === step;
     }
