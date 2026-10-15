@@ -57,7 +57,7 @@ test("invoke-worker.ps1 documents claude workers and skills", async () => {
   assert.doesNotMatch(text, /Resolve-PiPkg/);
 });
 
-test("invoke-worker.sh dry-run includes agy --model when requested", async () => {
+test("invoke-worker.sh passes no --model to agy and rejects --model", async () => {
   const { execFile } = await import("node:child_process");
   const { promisify } = await import("node:util");
   const execFileAsync = promisify(execFile);
@@ -66,24 +66,30 @@ test("invoke-worker.sh dry-run includes agy --model when requested", async () =>
   const brief = join(tmp, "brief.md");
   const log = join(tmp, "run.log");
   await writeFile(brief, "model brief", "utf8");
+  const base = [
+    script,
+    "--worker",
+    "agy",
+    "--workspace",
+    process.cwd(),
+    "--prompt-file",
+    brief,
+    "--log-file",
+    log,
+  ];
   try {
-    await execFileAsync("bash", [
-      script,
-      "--worker",
-      "agy",
-      "--workspace",
-      process.cwd(),
-      "--prompt-file",
-      brief,
-      "--log-file",
-      log,
-      "--model",
-      "gemini-3.8-flash",
-      "--dry-run",
-    ]);
+    await execFileAsync("bash", [...base, "--dry-run"], {
+      env: { ...process.env, CURSOR_ATOMIC_AGY_MODEL: "legacy-env-model" },
+    });
     const logText = await readFile(log, "utf8");
-    assert.match(logText, /--model gemini-3\.8-flash-high/);
+    assert.doesNotMatch(logText, /--model/);
+    assert.doesNotMatch(logText, /legacy-env-model/);
     assert.match(logText, /--print-timeout 45m0s/);
+
+    await assert.rejects(
+      execFileAsync("bash", [...base, "--model", "gemini-3.8-flash", "--dry-run"]),
+      (err) => /--model is no longer supported/.test(String(err.stderr)),
+    );
   } finally {
     await rm(tmp, { recursive: true, force: true });
   }

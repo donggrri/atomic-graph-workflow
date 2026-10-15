@@ -1,61 +1,18 @@
 import { readFile, writeFile, mkdir, readdir, cp } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
-import { agentFileName, roleNames } from "./roles.mjs";
 
-/** Maps CLI `--set-model` keys to agent file stems. */
-export const SET_MODEL_ALIASES = {
-  reviewer: "cursor-atomic-reviewer",
-};
+export const SET_MODEL_REMOVED_MESSAGE =
+  "--set-model is no longer supported: the workflow does not select models; configure the model in the harness itself";
 
 /**
- * @param {Record<string, string>} setModel
- * @returns {Record<string, string>} stem -> model
+ * The workflow never pins a model. Reject the removed option before anything is written.
+ * @param {Record<string, string> | undefined} setModel
  */
-export function normalizeSetModel(setModel) {
-  /** @type {Record<string, string>} */
-  const out = {};
-  for (const [key, model] of Object.entries(setModel ?? {})) {
-    const stem = SET_MODEL_ALIASES[key] ?? key;
-    out[stem] = model;
+export function rejectSetModel(setModel) {
+  if (setModel && Object.keys(setModel).length > 0) {
+    throw new Error(SET_MODEL_REMOVED_MESSAGE);
   }
-  return out;
-}
-
-/**
- * @param {Record<string, string>} setModel
- */
-export function validateSetModelKeys(setModel) {
-  const stems = new Set(
-    roleNames().map((role) => agentFileName(role).replace(/\.md$/, "")),
-  );
-  stems.add("memory-curator");
-  for (const key of Object.keys(setModel ?? {})) {
-    const stem = SET_MODEL_ALIASES[key] ?? key;
-    if (!stems.has(stem)) {
-      throw new Error(
-        `unknown --set-model agent "${key}" (use role name or file stem such as cursor-atomic-reviewer)`,
-      );
-    }
-  }
-}
-
-/**
- * @param {string} content
- * @param {string} [existingContent]
- */
-export function preserveExistingModel(content, existingContent) {
-  if (!existingContent) return content;
-  const line = existingContent.match(/^model:\s*(.+)$/m);
-  if (!line) return content;
-  return applyModelOverride(content, line[1].trim());
-}
-
-export function applyModelOverride(content, model) {
-  if (/^model:\s*.*$/m.test(content)) {
-    return content.replace(/^model:\s*.*$/m, `model: ${model}`);
-  }
-  return content.replace(/^---\r?\n/, `---\nmodel: ${model}\n`);
 }
 
 async function listMarkdown(dir) {
@@ -64,28 +21,20 @@ async function listMarkdown(dir) {
 }
 
 /**
+ * Copies the neutral agent files unchanged (they carry no model or harness-only fields).
+ * An existing file is kept unless `force` is set; `force` regenerates it from the source.
  * @param {string} srcDir neutral `agents/`
  * @param {string} destDir e.g. `.cursor/agents`
- * @param {Record<string, string>} setModel
  * @param {boolean} force
  */
-export async function copyAgentsFlat(srcDir, destDir, setModel, force, record) {
-  const models = normalizeSetModel(setModel);
+export async function copyAgentsFlat(srcDir, destDir, force, record) {
   for (const file of await listMarkdown(srcDir)) {
-    let content = await readFile(join(srcDir, file), "utf8");
-    const stem = file.replace(/\.md$/, "");
-    const model = models[stem] || models[file];
+    const content = await readFile(join(srcDir, file), "utf8");
     const dest = join(destDir, file);
     const existed = existsSync(dest);
     if (existed && !force) {
       record.skipped.push(dest);
       continue;
-    }
-    if (model) {
-      content = applyModelOverride(content, model);
-    } else if (existed && force) {
-      const existingContent = await readFile(dest, "utf8");
-      content = preserveExistingModel(content, existingContent);
     }
     await mkdir(destDir, { recursive: true });
     await writeFile(dest, content, "utf8");

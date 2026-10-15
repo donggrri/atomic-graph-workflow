@@ -41,7 +41,7 @@ test("runDone writes <id>.done.json for a .log path", async () => {
 
 test("CONTEXT.md documents the run-done evidence path", async () => {
   const context = await readFile(
-    "skills/cursor-atomic-workflow/CONTEXT.md",
+    "skills/atomic-workflow/CONTEXT.md",
     "utf8",
   );
   assert.match(context, new RegExp(EVIDENCE.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));

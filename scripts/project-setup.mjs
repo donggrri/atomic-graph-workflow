@@ -89,19 +89,48 @@ export async function runProjectSetup(repoRoot, options = {}) {
     patch.testDone = testDone;
   }
 
-  const priorModel =
-    typeof existing.agyModel === "string" ? existing.agyModel : "";
-  const agyModel = interactive
-    ? await text("AGY 모델 (비우면 agy 기본)", priorModel)
-    : priorModel;
+  // The workflow no longer selects models; drop a legacy value instead of carrying it forward.
+  const dropKeys = existing.agyModel != null ? ["agyModel"] : [];
+
+  const priorDocsRoot =
+    typeof existing.docsRoot === "string" && existing.docsRoot.trim()
+      ? existing.docsRoot.trim()
+      : null;
+  let docsRootChoice = priorDocsRoot;
   if (interactive) {
-    if (!agyModel.trim()) {
-      if (priorModel) patch.agyModel = null;
-    } else if (agyModel.trim() !== priorModel.trim()) {
-      patch.agyModel = agyModel.trim();
+    const defaultChoice = !priorDocsRoot
+      ? "global"
+      : priorDocsRoot === "work-docs"
+        ? "work-docs"
+        : "custom";
+    const choice = await select(
+      "문서 저장 위치 선택 (docsRoot)",
+      [
+        { value: "global", label: "전역 디렉터리 (기본값: ~/.cursor-atomic-workflow/docs/...)" },
+        { value: "work-docs", label: "저장소 내부 work-docs/ (추천: 팀 PR 리뷰 및 harness 호환)" },
+        { value: "custom", label: "사용자 정의 상대 경로" },
+      ],
+      defaultChoice,
+    );
+    if (choice === "global") {
+      docsRootChoice = null;
+    } else if (choice === "work-docs") {
+      docsRootChoice = "work-docs";
+    } else {
+      const customDefault = priorDocsRoot && priorDocsRoot !== "work-docs" ? priorDocsRoot : "work-docs";
+      const custom = await text("사용자 정의 docsRoot (저장소 기준 상대 경로)", customDefault);
+      const trimmed = custom.trim();
+      if (!trimmed) throw new Error("docsRoot: empty path");
+      if (trimmed.includes("\0")) throw new Error("docsRoot: must not contain null bytes");
+      docsRootChoice = trimmed;
     }
-  } else if (agyModel.trim()) {
-    patch.agyModel = agyModel.trim();
+    if (docsRootChoice !== priorDocsRoot) {
+      if (docsRootChoice == null) {
+        dropKeys.push("docsRoot");
+      } else {
+        patch.docsRoot = docsRootChoice;
+      }
+    }
   }
 
   if (!existing.profile) patch.profile = "atomic";
@@ -161,7 +190,7 @@ export async function runProjectSetup(repoRoot, options = {}) {
     if (hook) patch.memorySweepHook = true;
   }
 
-  writeProjectSettings(root, patch);
+  writeProjectSettings(root, patch, { dropKeys });
   const trust = await ensureCommandTrusted(
     typeof patch.testDone === "string" ? patch.testDone : priorTest,
     { repoRoot: root, nonInteractive: !interactive },

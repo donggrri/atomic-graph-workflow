@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { homedir } from "node:os";
-import { join, basename, resolve } from "node:path";
+import { join, basename, resolve, isAbsolute } from "node:path";
 import {
   readFileSync,
   writeFileSync,
@@ -103,11 +103,64 @@ export function getShortRepo(repoRoot) {
 
 /**
  * Computes all canonical directories and paths for a given repo and slug.
+ *
+ * docsDir resolution (configuration hierarchy):
+ * 1. project `.cursor-atomic-workflow.json` `docsRoot` (repo-local, e.g. "work-docs")
+ * 2. global workflow home `<root>/docs/<shortRepo>/<slug>` (fallback, backward compatible)
+ *
+ * runsDir/evidenceDir always stay under the global workflow home to avoid
+ * polluting the repository with large volatile logs.
  */
+export const PROJECT_SETTINGS_FILENAME = ".cursor-atomic-workflow.json";
+
+/**
+ * Reads the raw `docsRoot` value from a repo's project settings.
+ * Returns a trimmed non-empty string, or null when unset/invalid.
+ * Invalid JSON or non-object roots fall back to null (global path).
+ * @param {string} [repoRoot]
+ */
+export function readDocsRootSetting(repoRoot) {
+  if (!repoRoot || typeof repoRoot !== "string") return null;
+  let settingsPath;
+  try {
+    settingsPath = join(resolve(repoRoot), PROJECT_SETTINGS_FILENAME);
+  } catch {
+    return null;
+  }
+  let raw;
+  try {
+    raw = JSON.parse(readFileSync(settingsPath, "utf8"));
+  } catch {
+    return null;
+  }
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  const value = raw.docsRoot;
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  return trimmed ? trimmed : null;
+}
+
+/**
+ * Resolves the slug docs directory honoring an optional project docsRoot.
+ * Relative docsRoot resolves against repoRoot; absolute (or ~-leading) paths
+ * are used as-is as the docs base. Returns the docsDir and its source.
+ */
+export function resolveDocsDir(repoRoot, slug, root, shortRepo) {
+  const custom = readDocsRootSetting(repoRoot);
+  if (custom && repoRoot) {
+    const expanded = expandHomePath(custom);
+    const base = isAbsolute(expanded)
+      ? expanded
+      : resolve(repoRoot, expanded);
+    return { docsDir: join(base, slug), source: "project" };
+  }
+  return { docsDir: join(root, "docs", shortRepo, slug), source: "global" };
+}
+
 export function getWorkflowPaths(repoRoot, slug) {
   const root = getWorkflowRoot();
   const shortRepo = getShortRepo(repoRoot);
-  const docsDir = join(root, "docs", shortRepo, slug);
+  const { docsDir, source } = resolveDocsDir(repoRoot, slug, root, shortRepo);
   const runsDir = join(root, "runs", shortRepo, slug);
   const evidenceDir = join(root, "evidence", shortRepo);
   const statusJson = join(docsDir, "STATUS.json");
@@ -120,11 +173,12 @@ export function getWorkflowPaths(repoRoot, slug) {
     runsDir,
     evidenceDir,
     statusJson,
+    docsDirSource: source,
   };
 }
 
 /**
- * Absolute slug docs directory under the workflow home; creates it if missing.
+ * Absolute slug docs directory (global home or repo-local docsRoot); creates it if missing.
  * @param {string} repoRoot
  * @param {string} slug
  */
@@ -322,7 +376,8 @@ export async function syncSlug(startDir, slug, options = {}) {
   if (!slug) throw new Error("syncSlug requires a slug");
 
   const origin = detectOrigin(startDir);
-  const all = await listAllStatuses();
+  const lookupRepo = options.repo || origin.repo || origin.cwd;
+  const all = await listAllStatuses({ repoRoot: lookupRepo });
   const existing = all.find((s) => s.slug === slug);
   const targetRepo = options.repo || existing?.repo || origin.repo;
 
@@ -387,7 +442,8 @@ function detectOrigin(startDir) {
 }
 
 /**
- * Copy local `.docs/<slug>/` artifacts into the global workflow home and write STATUS.json.
+ * Copy local `.docs/<slug>/` artifacts into the configured docsDir
+ * (global home or repo-local docsRoot) and write STATUS.json.
  * Does not delete the source. Extra files (e.g. TEST-METHOD-*.md) are copied as-is.
  */
 export async function importDocs(repoRoot, srcDir) {
@@ -431,12 +487,35 @@ export async function importDocs(repoRoot, srcDir) {
 }
 
 /**
- * Lists all statuses found under ~/.cursor-atomic-workflow/docs/*\/*\/STATUS.json.
+ * Lists all statuses found under global `<root>/docs/*\/*\/STATUS.json`,
+ * plus an optional repo-local docsRoot (`<repo>/<docsRoot>/<slug>/STATUS.json`).
+ * Accepts an optional repoRoot string or `{ repoRoot }` object; defaults to
+ * global-only for backward compatibility.
+ * @param {string | { repoRoot?: string }} [options]
  */
-export async function listAllStatuses() {
+export async function listAllStatuses(options) {
+  const repoRoot =
+    typeof options === "string" ? options : options?.repoRoot ?? null;
   const root = getWorkflowRoot();
   const docsRoot = join(root, "docs");
   const results = [];
+  const seen = new Set();
+
+  function pushRecord(raw, statusFile) {
+    try {
+      const parsed = JSON.parse(raw);
+      const key = statusFile || `${parsed.repo || ""}::${parsed.slug || ""}`;
+      if (seen.has(key)) return;
+      seen.add(key);
+      results.push(parsed);
+    } catch {}
+  }
+
+  function readStatusFile(statusFile) {
+    try {
+      pushRecord(readFileSync(statusFile, "utf8"), statusFile);
+    } catch {}
+  }
 
   try {
     const repos = readdirSync(docsRoot);
@@ -446,15 +525,33 @@ export async function listAllStatuses() {
         if (!statSync(repoDir).isDirectory()) continue;
         const slugs = readdirSync(repoDir);
         for (const s of slugs) {
-          const statusFile = join(repoDir, s, "STATUS.json");
-          try {
-            const raw = readFileSync(statusFile, "utf8");
-            results.push(JSON.parse(raw));
-          } catch {}
+          readStatusFile(join(repoDir, s, "STATUS.json"));
         }
       } catch {}
     }
   } catch {}
+
+  // Repo-local docsRoot: layout is <docsRoot>/<slug>/STATUS.json (no shortRepo level).
+  if (repoRoot) {
+    const custom = readDocsRootSetting(repoRoot);
+    if (custom) {
+      const expanded = expandHomePath(custom);
+      const base = isAbsolute(expanded)
+        ? expanded
+        : resolve(repoRoot, expanded);
+      try {
+        const slugs = readdirSync(base);
+        for (const s of slugs) {
+          try {
+            if (!statSync(join(base, s)).isDirectory()) continue;
+          } catch {
+            continue;
+          }
+          readStatusFile(join(base, s, "STATUS.json"));
+        }
+      } catch {}
+    }
+  }
 
   return results.sort(
     (a, b) => new Date(b.updatedAt || 0) - new Date(a.updatedAt || 0)
@@ -487,7 +584,7 @@ if (process.argv[1] && process.argv[1].endsWith("work-status.mjs")) {
 
   (async () => {
     if (command === "list") {
-      const list = await listAllStatuses();
+      const list = await listAllStatuses({ repoRoot: cliRepo });
       if (list.length === 0) {
         console.log("No active workflow statuses found.");
         process.exit(0);
@@ -524,7 +621,7 @@ if (process.argv[1] && process.argv[1].endsWith("work-status.mjs")) {
         console.error("Usage: node scripts/work-status.mjs show <slug>");
         process.exit(1);
       }
-      const list = await listAllStatuses();
+      const list = await listAllStatuses({ repoRoot: cliRepo });
       const item = list.find((s) => s.slug === slug);
       if (!item) {
         console.error(`Status not found for slug: ${slug}`);

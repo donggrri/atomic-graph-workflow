@@ -7,18 +7,22 @@ import { upsertBlock } from "./lib/marker-block.mjs";
 import { installAtomicRuntime } from "./lib/atomic-runtime.mjs";
 import { parseHarnessSpec, resolveHarnesses } from "./lib/harnesses.mjs";
 import {
-  applyModelOverride,
   copyAgentsFlat,
   copyAgentsToAtomic,
-  normalizeSetModel,
   opencodeAgentContent,
-  preserveExistingModel,
-  validateSetModelKeys,
+  rejectSetModel,
 } from "./lib/install-agents.mjs";
 import { getWorkflowRoot } from "./work-status.mjs";
 import { writeInstalledHarnesses } from "./lib/project-settings.mjs";
 import { installOpencodeConfig, OPENCODE_CONFIG_FILE } from "./lib/opencode-config.mjs";
 import { rewriteGraphExecutors } from "./lib/graph.mjs";
+import {
+  CANONICAL_WORKFLOW_SKILL,
+  LEGACY_NAME_MAP,
+  legacyCommandContent,
+  legacySkillAliases,
+  legacySkillContent,
+} from "./lib/legacy-aliases.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -36,8 +40,10 @@ export const GENERATED_SKILL_HEADER =
 export const DEFAULT_SKILLS_DIR = AGENTS_SKILLS_DIR;
 
 const CURSOR_AGENT_FILE = {
-  reviewer: "cursor-atomic-reviewer",
+  reviewer: "atomic-reviewer",
 };
+
+export const LEGACY_SKILL_NAMES = Object.keys(LEGACY_NAME_MAP);
 
 export function parseInstallArgs(args) {
   const opts = {
@@ -67,11 +73,9 @@ export function parseInstallArgs(args) {
     else if (a === "--yes" || a === "-y") opts.yes = true;
     else if (a === "--dry-run") opts.dryRun = true;
     else if (a === "--skip-doctor") opts.skipDoctor = true;
-    else if (a === "--set-model" && args[i + 1]) {
-      const pair = args[++i];
-      const eq = pair.indexOf("=");
-      if (eq === -1) throw new Error(`--set-model 형식은 <agent>=<model> (입력: ${pair})`);
-      opts.setModel[pair.slice(0, eq)] = pair.slice(eq + 1);
+    else if (a === "--set-model") {
+      // Removed: fail before any file is written.
+      rejectSetModel({ [args[i + 1] ?? "?"]: "" });
     } else if (a === "--no-skills" || a === "--no-agents" || a === "--no-rules") {
       console.warn(`warning: ${a} is deprecated and ignored`);
     } else if (a.startsWith("-")) {
@@ -86,9 +90,6 @@ export function parseInstallArgs(args) {
       );
     }
   }
-  if (Object.keys(opts.setModel).length > 0 && !opts.force) {
-    console.warn("warning: --set-model without --force may not override existing agent models");
-  }
   return opts;
 }
 
@@ -101,16 +102,13 @@ Options:
   --harness <list>     auto|cursor|opencode|codex|pi|agy|claude|all (쉼표 구분)
   --with-claude        auto/all에 Claude Code 포함
   --migrate            레거시 .cursor/skills/cursor-atomic-* 제거 (백업 권장)
-  --force              기존 생성 파일 덮어쓰기 (에이전트 model은 유지)
-  --set-model <a>=<m>  에이전트 frontmatter model (reviewer 별칭 지원)
+  --force              기존 생성 파일을 소스로 다시 생성 (모델 핀 없음)
   --yes, -y            비대화형 기본값으로 진행
   --dry-run            생성·갱신될 경로만 출력
   --skip-doctor        설치 후 doctor 생략
   -h, --help
 `);
 }
-
-export { applyModelOverride };
 
 async function listMarkdown(dir) {
   if (!existsSync(dir)) return [];
@@ -123,8 +121,8 @@ export async function findLegacyCursorCommands(target) {
     .map((f) => join(target, LEGACY_CURSOR_COMMANDS_DIR, f));
 }
 
-export async function listLegacyCursorSkillDirs(target) {
-  const legacyRoot = join(target, LEGACY_CURSOR_SKILLS);
+export async function listLegacySkillDirs(target, skillsDest) {
+  const legacyRoot = join(target, skillsDest);
   if (!existsSync(legacyRoot)) return [];
   const out = [];
   for (const entry of await readdir(legacyRoot)) {
@@ -132,6 +130,10 @@ export async function listLegacyCursorSkillDirs(target) {
     out.push(join(legacyRoot, entry));
   }
   return out;
+}
+
+export async function listLegacyCursorSkillDirs(target) {
+  return listLegacySkillDirs(target, LEGACY_CURSOR_SKILLS);
 }
 
 /**
@@ -198,6 +200,21 @@ async function installSkills(root, target, skillsDest, force, record) {
   }
 }
 
+async function installLegacySkillAliases(target, skillsDest, replaceExisting, record) {
+  for (const [legacy, canonical] of legacySkillAliases()) {
+    const dest = join(target, skillsDest, legacy);
+    const existed = existsSync(dest);
+    if (existed && !replaceExisting) {
+      record.skipped.push(dest + "/");
+      continue;
+    }
+    if (existed) await rm(dest, { recursive: true, force: true });
+    await mkdir(dest, { recursive: true });
+    await writeFile(join(dest, "SKILL.md"), legacySkillContent(legacy, canonical), "utf8");
+    record[existed ? "overwritten" : "copied"].push(dest + "/");
+  }
+}
+
 async function installCommandShims(root, target, relDir, force, record) {
   const srcDir = join(root, "commands");
   if (!existsSync(srcDir)) return;
@@ -211,6 +228,17 @@ async function installCommandShims(root, target, relDir, force, record) {
     }
     await mkdir(dirname(dest), { recursive: true });
     await cp(join(srcDir, file), dest, { force: true });
+    record[existed ? "overwritten" : "copied"].push(dest);
+  }
+  for (const [legacy, canonical] of legacySkillAliases()) {
+    const dest = join(target, relDir, `${legacy}.md`);
+    const existed = existsSync(dest);
+    if (existed && !force) {
+      record.skipped.push(dest);
+      continue;
+    }
+    await mkdir(dirname(dest), { recursive: true });
+    await writeFile(dest, legacyCommandContent(legacy, canonical), "utf8");
     record[existed ? "overwritten" : "copied"].push(dest);
   }
 }
@@ -334,8 +362,7 @@ export async function install(options = {}) {
   const harnesses = resolveHarnesses(harnessParts, target, {
     withClaude: !!options.withClaude || harnessParts.includes("claude"),
   });
-  validateSetModelKeys(options.setModel || {});
-  const setModel = normalizeSetModel(options.setModel || {});
+  rejectSetModel(options.setModel);
   const version = await readPackageVersion(root);
   const record = { copied: [], overwritten: [], skipped: [], removed: [] };
 
@@ -358,7 +385,10 @@ export async function install(options = {}) {
   }
 
   if (options.migrate) {
-    const legacyDirs = await listLegacyCursorSkillDirs(target);
+    const legacyDirs = [
+      ...(await listLegacyCursorSkillDirs(target)),
+      ...(await listLegacySkillDirs(target, AGENTS_SKILLS_DIR)),
+    ];
     if (legacyDirs.length) {
       const backupRoot = await backupInstallPaths(legacyDirs, target);
       if (backupRoot) {
@@ -393,12 +423,25 @@ export async function install(options = {}) {
     skillsTargets.add(".claude/skills");
   }
 
+  if (force && !options.migrate) {
+    const legacyDirs = [];
+    for (const skillsDir of skillsTargets) {
+      legacyDirs.push(...(await listLegacySkillDirs(target, skillsDir)));
+    }
+    const backupRoot = await backupInstallPaths(legacyDirs, target);
+    if (backupRoot) {
+      record.copied.push(backupRoot);
+      console.log(`legacy skills backup: ${backupRoot}`);
+    }
+  }
+
   for (const skillsDir of skillsTargets) {
     await installSkills(root, target, skillsDir, force, record);
+    await installLegacySkillAliases(target, skillsDir, force || !!options.migrate, record);
   }
 
   if (harnesses.has("cursor")) {
-    await copyAgentsFlat(neutralAgents, join(target, ".cursor", "agents"), setModel, force, record);
+    await copyAgentsFlat(neutralAgents, join(target, ".cursor", "agents"), force, record);
     await installCursorRules(root, target, force, record);
   }
 
@@ -408,17 +451,11 @@ export async function install(options = {}) {
     for (const file of await listMarkdown(srcAgents)) {
       let content = await readFile(join(srcAgents, file), "utf8");
       content = opencodeAgentContent(content);
-      const stem = file.replace(/\.md$/, "");
-      const model = setModel[stem];
       const dest = join(destDir, file);
       const existed = existsSync(dest);
       if (existed && !force) {
         record.skipped.push(dest);
         continue;
-      }
-      if (model) content = applyModelOverride(content, model);
-      else if (existed && force) {
-        content = preserveExistingModel(content, await readFile(dest, "utf8"));
       }
       await mkdir(destDir, { recursive: true });
       await writeFile(dest, content, "utf8");
@@ -430,15 +467,15 @@ export async function install(options = {}) {
 
   if (harnesses.has("pi")) {
     await installCommandShims(root, target, join(".pi", "prompts"), force, record);
-    await copyAgentsFlat(neutralAgents, join(target, ".pi", "agents"), setModel, force, record);
+    await copyAgentsFlat(neutralAgents, join(target, ".pi", "agents"), force, record);
   }
 
   if (harnesses.has("codex")) {
-    await copyAgentsFlat(neutralAgents, join(target, ".codex", "agents"), setModel, force, record);
+    await copyAgentsFlat(neutralAgents, join(target, ".codex", "agents"), force, record);
   }
 
   if (harnesses.has("claude")) {
-    await copyAgentsFlat(neutralAgents, join(target, ".claude", "agents"), setModel, force, record);
+    await copyAgentsFlat(neutralAgents, join(target, ".claude", "agents"), force, record);
     await installCommandShims(root, target, join(".claude", "commands"), force, record);
     await installClaudeMd(target, record);
   }

@@ -1,9 +1,9 @@
 #Requires -Version 5.1
 <#
 .SYNOPSIS
-  cursor-atomic-workflow 항목을 agy / codex / claude / cursor / opencode CLI로 비대화형 실행한다.
+  atomic-workflow 항목을 agy / codex / claude / cursor / opencode CLI로 비대화형 실행한다.
 .EXAMPLE
-  ./invoke-worker.ps1 -Worker agy -Workspace C:\proj -PromptFile C:\brief.md -LogFile C:\run.log -Skills cursor-atomic-workflow,tdd
+  ./invoke-worker.ps1 -Worker agy -Workspace C:\proj -PromptFile C:\brief.md -LogFile C:\run.log -Skills atomic-workflow,tdd
 #>
 param(
   [Parameter(Mandatory)]
@@ -23,8 +23,6 @@ param(
   [string]$Skills,
 
   [string]$Model,
-
-  [string]$OpenCodeModel,
 
   [int]$TimeoutMin = 45
 )
@@ -100,6 +98,10 @@ if (-not (Test-Path -LiteralPath $PromptFile)) {
   throw "Prompt file not found: $PromptFile"
 }
 
+if (-not [string]::IsNullOrWhiteSpace($Model)) {
+  throw '-Model is no longer supported: the workflow does not select models; configure the model in the CLI itself'
+}
+
 $ws = (Resolve-Path -LiteralPath $Workspace).Path
 $promptPath = (Resolve-Path -LiteralPath $PromptFile).Path
 $prompt = Get-Content -LiteralPath $promptPath -Raw -Encoding UTF8
@@ -108,14 +110,14 @@ if ([string]::IsNullOrWhiteSpace($prompt)) {
 }
 
 if ([string]::IsNullOrWhiteSpace($Skills)) {
-  $Skills = 'cursor-atomic-workflow,tdd'
+  $Skills = 'atomic-workflow,tdd'
 }
 $skillsBlock = Build-SkillsBlock $ws $Skills
 if ($skillsBlock) { $prompt = $skillsBlock + $prompt }
 
 if (-not $LogFile) {
   $stamp = Get-Date -Format 'yyyyMMdd-HHmmss'
-  $LogFile = Join-Path $env:TEMP "cursor-atomic-workflow-$Worker-$stamp.log"
+  $LogFile = Join-Path $env:TEMP "atomic-workflow-$Worker-$stamp.log"
 }
 $effectivePromptFile = [System.IO.Path]::ChangeExtension($LogFile, '.effective-prompt.md')
 Set-Content -LiteralPath $effectivePromptFile -Value $prompt -Encoding UTF8 -NoNewline
@@ -128,46 +130,17 @@ if (-not $LastMessageFile) {
 }
 
 $agyTimeout = '{0}m0s' -f $TimeoutMin
-$agyModel = $Model
-if ([string]::IsNullOrWhiteSpace($agyModel) -and $env:CURSOR_ATOMIC_AGY_MODEL) {
-  $agyModel = $env:CURSOR_ATOMIC_AGY_MODEL
-}
-if (-not [string]::IsNullOrWhiteSpace($agyModel)) {
-  $resolveScript = Join-Path $PSScriptRoot 'resolve-agy-model.mjs'
-  if (Test-Path -LiteralPath $resolveScript) {
-    $agyModel = (& node $resolveScript $agyModel).Trim()
-  } elseif ($agyModel -eq 'gemini-3.8-flash' -or $agyModel -eq 'gemini-3.8-flash-medium') {
-    $agyModel = 'gemini-3.8-flash-high'
-  }
-}
-
-# opencode model is passed through verbatim (no agy alias resolution).
-$openCodeModel = $OpenCodeModel
-if ([string]::IsNullOrWhiteSpace($openCodeModel) -and -not [string]::IsNullOrWhiteSpace($env:CURSOR_ATOMIC_OPENCODE_MODEL)) {
-  $openCodeModel = $env:CURSOR_ATOMIC_OPENCODE_MODEL
-}
-# A whitespace-only model counts as unset so -m is never passed a blank value.
-if ([string]::IsNullOrWhiteSpace($openCodeModel)) {
-  $openCodeModel = ''
-}
 
 Push-Location -LiteralPath $ws
 $exitCode = 1
 try {
-  $agyNote = if ($agyModel) { $agyModel } else { 'default' }
-  $logHeader = "worker=$Worker workspace=$ws started=$(Get-Date -Format o) agy_model=$agyNote"
-  if ($Worker -eq 'opencode') {
-    $ocNote = if (-not [string]::IsNullOrWhiteSpace($openCodeModel)) { $openCodeModel } else { 'default' }
-    $logHeader += " opencode_model=$ocNote"
-  }
-  $logHeader | Set-Content -LiteralPath $LogFile -Encoding UTF8
+  "worker=$Worker workspace=$ws started=$(Get-Date -Format o)" | Set-Content -LiteralPath $LogFile -Encoding UTF8
 
   switch ($Worker) {
     'agy' {
       $bin = Resolve-Bin @('agy', 'agy.exe')
       if (-not $bin) { throw 'agy not on PATH. Run scripts/ensure-workers.ps1 -Workers agy' }
       $agyArgs = @('--output-format', 'text', '--mode', 'accept-edits', '--dangerously-skip-permissions', '--print-timeout', $agyTimeout)
-      if ($agyModel) { $agyArgs += @('--model', $agyModel) }
       foreach ($dir in (Get-SkillAddDirs $ws)) { $agyArgs += @('--add-dir', $dir) }
       $agyArgs += @('-p', (Get-ReadPromptFileInstruction $effectivePromptFile))
       & $bin @agyArgs 2>&1 | Tee-Object -FilePath $LogFile -Append
@@ -202,10 +175,7 @@ try {
       $bin = Resolve-Bin @('opencode.exe', 'opencode')
       if (-not $bin) { throw 'opencode not on PATH. Run scripts/ensure-workers.ps1 -Workers opencode' }
       $ocPrompt = Get-ReadPromptFileInstruction $effectivePromptFile
-      $ocArgs = @('run', '--dir', $ws, '--auto', '--title', 'cursor-atomic-workflow')
-      if (-not [string]::IsNullOrWhiteSpace($openCodeModel)) { $ocArgs += @('-m', $openCodeModel) }
-      $ocArgs += $ocPrompt
-      & $bin @ocArgs 2>&1 |
+      & $bin run --dir $ws --auto --title "atomic-workflow" $ocPrompt 2>&1 |
         Tee-Object -FilePath $LogFile -Append
       $exitCode = $LASTEXITCODE
     }

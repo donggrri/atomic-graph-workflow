@@ -43,3 +43,6 @@ spikes/
 # 파이프라인 런 로그
 output.log
 output.log.done.json
+
+# opencode가 만드는 로컬 프로필 (커밋하지 않는다)
+.atomic/profiles/

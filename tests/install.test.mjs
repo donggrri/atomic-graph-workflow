@@ -20,29 +20,28 @@ import {
 } from "../scripts/install.mjs";
 import { checkAgents } from "../scripts/check-agents.mjs";
 import { resolveHarnesses } from "../scripts/lib/harnesses.mjs";
-import { validateSetModelKeys } from "../scripts/lib/install-agents.mjs";
 import { ROUTER_DISPATCH_COMMANDS } from "./workflow-constants.mjs";
 
 const SKILLS = "skills";
-const WORKFLOW = "cursor-atomic-workflow";
+const WORKFLOW = "atomic-workflow";
 
 const COMMANDS = [
-  "cursor-atomic-agy",
-  "cursor-atomic-config",
-  "cursor-atomic-delegate",
-  "cursor-atomic-doctor",
-  "cursor-atomic-execute",
-  "cursor-atomic-explore",
-  "cursor-atomic-lite",
-  "cursor-atomic-models",
-  "cursor-atomic-plan",
-  "cursor-atomic-review",
-  "cursor-atomic-run",
-  "cursor-atomic-settings",
-  "cursor-atomic-setup",
-  "cursor-atomic-status",
-  "cursor-atomic-task",
-  "cursor-atomic-wrapup",
+  "atomic-agy",
+  "atomic-config",
+  "atomic-delegate",
+  "atomic-doctor",
+  "atomic-execute",
+  "atomic-explore",
+  "atomic-lite",
+  "atomic-models",
+  "atomic-plan",
+  "atomic-review",
+  "atomic-run",
+  "atomic-settings",
+  "atomic-setup",
+  "atomic-status",
+  "atomic-task",
+  "atomic-wrapup",
 ];
 
 const HARNESS_TARGETS = ["cursor", "opencode", "codex", "pi", "agy"];
@@ -72,7 +71,7 @@ test("command skills use minimal frontmatter and reference harness.md", async ()
     assert.doesNotMatch(text, /disable-model-invocation\s*:/, `${rel} must not use disable-model-invocation`);
     assert.equal(validateSkillFrontmatter(text, rel).valid, true, `${rel} frontmatter`);
     assert.match(text, /# \//, `${rel} must title the slash command`);
-    if (!["cursor-atomic-settings", "cursor-atomic-doctor"].includes(name)) {
+    if (!["atomic-settings", "atomic-doctor"].includes(name)) {
       assert.match(text, /harness\.md|references\/harness\.md/, `${name} must defer harness details`);
     }
     if (ROUTER_DISPATCH_COMMANDS.includes(name)) {
@@ -101,7 +100,7 @@ test("installer copies skills, atomic runtime, and cursor adapters", async () =>
     assert.ok(existsSync(join(target, AGENTS_SKILLS_DIR, WORKFLOW, "SKILL.md")));
     assert.ok(existsSync(join(target, ".atomic", "scripts", "work-status.mjs")));
     assert.ok(existsSync(join(target, ".cursor", "agents", "worker.md")));
-    assert.ok(existsSync(join(target, ".cursor", "agents", "cursor-atomic-reviewer.md")));
+    assert.ok(existsSync(join(target, ".cursor", "agents", "atomic-reviewer.md")));
     assert.ok(existsSync(join(target, RULES_DIR, ATOMIC_ROUTER_RULE)));
 
     const doctor = await checkSingleHarness("cursor", target, ".");
@@ -117,23 +116,33 @@ test("installer copies skills, atomic runtime, and cursor adapters", async () =>
 
     const migrated = await install({ root: ".", target, harness: "cursor", migrate: true, force: true });
     assert.ok(migrated.removed.some((p) => p.includes(".cursor/skills/cursor-atomic-")));
-    assert.equal(existsSync(join(target, ".cursor", "skills", WORKFLOW)), false);
+    assert.equal(existsSync(join(target, ".cursor", "skills", "cursor-atomic-plan")), false);
 
-    await install({ root: ".", target, harness: "cursor", force: true, setModel: { worker: "composer-2.5-fast" } });
-    assert.match(
-      await read(join(target, ".cursor", "agents", "worker.md")),
-      /^model: composer-2\.5-fast$/m,
-    );
+    const workerAgent = join(target, ".cursor", "agents", "worker.md");
+    assert.doesNotMatch(await read(workerAgent), /^(model|readonly|is_background):/m);
 
-    await install({ root: ".", target, harness: "cursor", force: true, setModel: { reviewer: "claude-sonnet-5-5-high" } });
-    assert.match(
-      await read(join(target, ".cursor", "agents", "cursor-atomic-reviewer.md")),
-      /^model: claude-sonnet-5-5-high$/m,
+    // A pinned model from an older install is dropped, not preserved, when --force regenerates it.
+    const pinned = (await read(workerAgent)).replace(/^---\n/, "---\nmodel: legacy-pin\n");
+    await writeFile(workerAgent, pinned, "utf8");
+    await install({ root: ".", target, harness: "cursor" });
+    assert.match(await read(workerAgent), /^model: legacy-pin$/m, "no --force keeps the user's file");
+    await install({ root: ".", target, harness: "cursor", force: true });
+    assert.doesNotMatch(await read(workerAgent), /^model:/m, "--force regenerates without a pin");
+
+    await assert.rejects(
+      install({ root: ".", target, harness: "cursor", force: true, setModel: { worker: "x" } }),
+      /--set-model is no longer supported/,
     );
-    assert.throws(() => validateSetModelKeys({ bogus: "x" }), /unknown --set-model/);
   } finally {
     await rm(target, { recursive: true, force: true });
   }
+});
+
+test("parseInstallArgs rejects the removed --set-model before anything is written", () => {
+  assert.throws(
+    () => parseInstallArgs(["--set-model", "worker=x", "--target", "/tmp/x"]),
+    /--set-model is no longer supported/,
+  );
 });
 
 test("parseInstallArgs accepts --harness and rejects unknown flags", () => {
@@ -162,7 +171,7 @@ test("doctor skips bundle sync check outside the package repo", async () => {
 
 test("all cursor-atomic command skill directories exist", async () => {
   const names = (await readdir(SKILLS))
-    .filter((n) => n.startsWith("cursor-atomic-") && n !== WORKFLOW)
+    .filter((n) => n.startsWith("atomic-") && n !== WORKFLOW)
     .sort();
   assert.deepEqual(names, COMMANDS);
 });

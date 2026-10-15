@@ -43,41 +43,42 @@ test("loadWorkflowSettings merges global and project agy", () => {
   }
 });
 
-test("loadWorkflowSettings project agyModel null overrides global", () => {
+test("loadWorkflowSettings ignores legacy agyModel and warns", () => {
   const home = mkdtempSync(join(tmpdir(), "caw-home-null-"));
   const repo = mkdtempSync(join(tmpdir(), "caw-repo-null-"));
   try {
-    writeFileSync(
-      join(home, "settings.json"),
-      JSON.stringify({ agyModel: "global-model" }),
-      "utf8",
-    );
+    writeFileSync(join(home, "settings.json"), JSON.stringify({ agyModel: "global-model" }), "utf8");
     writeFileSync(
       join(repo, ".cursor-atomic-workflow.json"),
-      JSON.stringify({ agyModel: null }),
+      JSON.stringify({ agyModel: "gemini-3.8-flash", testDone: "pnpm test" }),
       "utf8",
     );
     const loaded = loadWorkflowSettings({ repoRoot: repo, workflowHome: home });
     assert.equal(loaded.ok, true);
-    assert.equal(loaded.agyModel, null);
+    assert.equal(Object.hasOwn(loaded, "agyModel"), false);
+    assert.equal(loaded.testDone, "pnpm test");
+    assert.ok(loaded.warnings.some((w) => /project settings: agyModel is ignored/.test(w)));
+    assert.ok(loaded.warnings.some((w) => /global settings: agyModel is ignored/.test(w)));
   } finally {
     rmSync(home, { recursive: true, force: true });
     rmSync(repo, { recursive: true, force: true });
   }
 });
 
-test("loadWorkflowSettings reads agyModel and testDone from project", () => {
+test("loadWorkflowSettings keeps executor ids and drops per-stage models with a warning", () => {
   const repo = mkdtempSync(join(tmpdir(), "caw-repo2-"));
   try {
     writeFileSync(
       join(repo, ".cursor-atomic-workflow.json"),
-      JSON.stringify({ agyModel: "gemini-3.8-flash", testDone: "pnpm test" }),
+      JSON.stringify({ executors: { review: { executor: "agy", model: "x" }, plan: "cursor-agent" } }),
       "utf8",
     );
     const loaded = loadWorkflowSettings({ repoRoot: repo, workflowHome: repo });
     assert.equal(loaded.ok, true);
-    assert.equal(loaded.agyModel, "gemini-3.8-flash");
-    assert.equal(loaded.testDone, "pnpm test");
+    assert.equal(loaded.executors.review, "agy");
+    assert.equal(loaded.executors.plan, "cursor-agent");
+    assert.equal(Object.hasOwn(loaded, "executorModels"), false);
+    assert.ok(loaded.warnings.some((w) => /executors\.review\.model is ignored/.test(w)));
   } finally {
     rmSync(repo, { recursive: true, force: true });
   }

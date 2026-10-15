@@ -1,7 +1,6 @@
-import { createTaskCardAdapter, formatSkillPrompt } from "../adapters/task-card.mjs";
+import { createTaskCardAdapter, formatPrompt } from "../adapters/task-card.mjs";
 import { createSdkAdapter, loadSdk } from "../adapters/sdk.mjs";
-import { ROLES, AUXILIARY_ROLES } from "../roles.mjs";
-import { resolveExecutorForPhase, resolveExecutorModel } from "./resolve.mjs";
+import { resolveExecutorForPhase } from "./resolve.mjs";
 import {
   isExecutorAvailable,
   probeCursorSdkAvailable,
@@ -10,6 +9,7 @@ import {
 import { EXECUTOR_FALLBACK_CHAIN } from "./constants.mjs";
 import { runWorkerExecutor } from "./worker-cli.mjs";
 import { runCursorAgentCli } from "./cursor-agent-cli.mjs";
+import { applyStagePolicy } from "./delegation-policy.mjs";
 import { runPiCli } from "./pi-cli.mjs";
 import { EXECUTOR_WORKER } from "./constants.mjs";
 import { resolveExecutorTimeoutMin } from "../effective-settings.mjs";
@@ -20,8 +20,9 @@ import { resolveExecutorTimeoutMin } from "../effective-settings.mjs";
  *   repoRoot: string,
  *   slug: string,
  *   runsDir: string,
+ *   docsDir?: string,
  *   graph: { nodes: Record<string, Record<string, unknown>> },
- *   settings: { executors?: Record<string, string>, executorModels?: Record<string, string>, executorTimeouts?: Record<string, number>, trustedExecutors?: Record<string, boolean>, agyModel?: string | null },
+ *   settings: { executors?: Record<string, string>, executorTimeouts?: Record<string, number>, trustedExecutors?: Record<string, boolean> },
  *   log?: (...args: unknown[]) => void,
  *   loadSdkFn?: typeof loadSdk,
  *   createSdkAdapterFn?: typeof createSdkAdapter,
@@ -35,6 +36,7 @@ export function createCompositeRoleRunner(options) {
     runsDir: options.runsDir,
     slug: options.slug,
     repoRoot: options.repoRoot,
+    docsDir: options.docsDir,
   });
   let sdkAdapterPromise = null;
 
@@ -55,57 +57,33 @@ export function createCompositeRoleRunner(options) {
 
   async function dispatchExecutor(executor, stage, params, roleKey) {
     const timeoutMin = resolveExecutorTimeoutMin(options.settings?.executorTimeouts, stage);
-    const model = resolveExecutorModel({
+    const role = roleKey ?? params.role;
+    const rawPrompt = params.prompt ?? "";
+    const prompt = applyStagePolicy(
       stage,
-      graph: options.graph,
-      settings: options.settings,
-      roleModel: params.model ?? "",
-    });
-    const agyModel =
-      executor === "agy" && options.settings?.agyModel ? options.settings.agyModel : model;
-
+      formatPrompt(options.repoRoot, role, rawPrompt, {
+        docsDir: options.docsDir,
+        runsDir: options.runsDir,
+        skillNames: stage === "lite" ? ["atomic-lite", "atomic-workflow"] : undefined,
+      }),
+    );
     const base = {
-      role: roleKey ?? params.role,
-      prompt: params.prompt,
+      role,
+      prompt,
       cwd: params.cwd ?? options.repoRoot,
-      model,
       onProgress: params.onProgress,
     };
 
     if (executor === "cursor-sdk") {
-      if (typeof options.adapter?.runRole === "function" && options.adapter?.mode !== "task-card") {
+      if (options.adapter?.mode === "task-card") {
+        return taskCard.runRole(base);
+      }
+      if (typeof options.adapter?.runRole === "function") {
         return options.adapter.runRole(base);
       }
       const sdk = await getSdkAdapter();
       if (!sdk) {
         return { ok: false, kind: "startup", message: "@cursor/sdk not available" };
-      }
-      if (AUXILIARY_ROLES[base.role] && !ROLES[base.role]) {
-        const sdkModule = await (options.loadSdkFn ?? loadSdk)();
-        if (!sdkModule) {
-          return { ok: false, kind: "startup", message: "@cursor/sdk not available" };
-        }
-        const { Agent } = sdkModule;
-        const roleDef = AUXILIARY_ROLES[base.role];
-        let agent;
-        try {
-          agent = await Agent.create({
-            model: roleDef.sdk,
-            local: { cwd: options.repoRoot, settingSources: [] },
-          });
-          const run = await agent.send(base.prompt ?? "");
-          const result = await run.wait();
-          if (result.status === "error") {
-            return { ok: false, kind: "run", message: result.error?.message ?? "sdk error" };
-          }
-          return { ok: true, summary: `status=${result.status}` };
-        } catch (err) {
-          return { ok: false, kind: "run", message: err instanceof Error ? err.message : String(err) };
-        } finally {
-          if (agent && typeof agent[Symbol.asyncDispose] === "function") {
-            await agent[Symbol.asyncDispose]();
-          }
-        }
       }
       return sdk.runRole(base);
     }
@@ -120,8 +98,10 @@ export function createCompositeRoleRunner(options) {
     if (executor === "cursor-agent") {
       return runCursorAgentCli({
         repoRoot: options.repoRoot,
-        prompt: params.prompt ?? "",
+        prompt: base.prompt,
         timeoutMin,
+        skipTrust: process.env.CURSOR_ATOMIC_TRUST_COMMANDS === "1",
+        settings: options.settings,
       });
     }
 
@@ -129,10 +109,9 @@ export function createCompositeRoleRunner(options) {
       return runWorkerExecutor({
         executorId: executor,
         repoRoot: options.repoRoot,
-        prompt: params.prompt ?? "",
+        prompt: base.prompt,
         runsDir: options.runsDir,
-        role: roleKey ?? params.role,
-        model: agyModel,
+        role: base.role,
         timeoutMin,
         skipTrust: process.env.CURSOR_ATOMIC_TRUST_COMMANDS === "1",
         settings: options.settings,
@@ -142,9 +121,9 @@ export function createCompositeRoleRunner(options) {
     if (executor === "pi") {
       return runPiCli({
         repoRoot: options.repoRoot,
-        prompt: params.prompt ?? "",
+        prompt: base.prompt,
         timeoutMin,
-        agentStem: roleKey,
+        agentStem: base.role,
       });
     }
 
@@ -159,10 +138,7 @@ export function createCompositeRoleRunner(options) {
       settings: options.settings,
       adapter: options.adapter,
     });
-    let preferred = executorId;
-    if (phaseKey === "lite" && preferred === "cursor-subagent") {
-      preferred = "cursor-sdk";
-    }
+    const preferred = executorId;
     const allowPi = preferred === "pi";
     const { executor, fallbackFrom } = await resolveExecutorWithFallbackAsync(preferred, {
       allowPi,
@@ -199,23 +175,22 @@ export function createCompositeRoleRunner(options) {
 
   return {
     /**
-     * @param {{ role: string, prompt?: string, cwd?: string, model?: string, phaseKey?: string, onProgress?: (line: string) => void }} params
+     * @param {{ role: string, prompt?: string, cwd?: string, phaseKey?: string, onProgress?: (line: string) => void }} params
      */
     async runRole(params) {
       return resolveAndDispatch(params.phaseKey ?? params.role, params, params.role);
     },
 
     /**
-     * Lite stage: no Task subagent — prompt + cursor-atomic-lite skill paths only.
+     * Lite stage: no Task subagent — prompt + atomic-lite skill paths only.
      * @param {{ prompt?: string, phaseKey?: string, onProgress?: (line: string) => void }} params
      */
     async runLite(params) {
-      const prompt = formatSkillPrompt(
-        options.repoRoot,
-        ["cursor-atomic-lite", "cursor-atomic-workflow"],
-        params.prompt ?? "",
+      return resolveAndDispatch(
+        params.phaseKey ?? "lite",
+        { ...params, role: "worker" },
+        "worker",
       );
-      return resolveAndDispatch(params.phaseKey ?? "lite", { ...params, prompt, role: "worker" }, "worker");
     },
   };
 }

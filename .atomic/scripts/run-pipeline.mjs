@@ -98,6 +98,7 @@ async function resolveTaskCardAdapter(repo, slug) {
  *   slug: string,
  *   loadSdkFn?: typeof loadSdk,
  *   createSdkAdapterFn?: typeof createSdkAdapter,
+ *   sdkModel?: { id: string, params?: Array<{ id: string, value: string }> },
  *   logHint?: (message: string) => void,
  * }} options
  * @returns {Promise<{ adapter: object | null, used: "sdk" | "task-card" | null, unknownAdapter?: boolean }>}
@@ -124,56 +125,41 @@ export async function resolvePipelineAdapter({
     };
   }
 
+  if (adapterName !== "sdk") {
+    emitAdapterReason(
+      logHint,
+      repo,
+      slug,
+      "task-card selected: model-neutral default; use --adapter sdk only with an explicit SDK model configuration.",
+    );
+    return {
+      adapter: await resolveTaskCardAdapter(repo, slug),
+      used: "task-card",
+    };
+  }
+
   let importError = null;
   const sdkModule = await loadSdkFn(undefined, (err) => {
     importError = err;
   });
-
-  if (sdkModule) {
-    const sdkAdapter = await createSdkAdapterFn({ repoRoot: repo, sdk: sdkModule });
-    if (!sdkAdapter) {
-      emitAdapterReason(
-        logHint,
-        repo,
-        slug,
-        "@cursor/sdk import succeeded but the SDK adapter was not created.",
-      );
-      return { adapter: null, used: "sdk" };
-    }
-    return { adapter: sdkAdapter, used: "sdk" };
-  }
-
-  const detail =
-    importError instanceof Error
-      ? importError.message
-      : importError
-        ? String(importError)
-        : "";
-
-  if (adapterName === "sdk") {
+  if (!sdkModule) {
+    const detail = importError instanceof Error ? importError.message : String(importError ?? "");
     emitAdapterReason(
       logHint,
       repo,
       slug,
       detail
-        ? `@cursor/sdk import failed: ${detail}. --adapter sdk does not select task-card.`
-        : "@cursor/sdk import failed. --adapter sdk does not select task-card.",
+        ? `@cursor/sdk import failed: ${detail}. --adapter sdk requires an installed SDK.`
+        : "@cursor/sdk import failed. --adapter sdk requires an installed SDK.",
     );
     return { adapter: null, used: "sdk" };
   }
-
-  emitAdapterReason(
-    logHint,
-    repo,
-    slug,
-    detail
-      ? `task-card selected: @cursor/sdk import failed: ${detail}`
-      : SDK_INSTALL_HINT,
-  );
-  return {
-    adapter: await resolveTaskCardAdapter(repo, slug),
-    used: "task-card",
-  };
+  const sdkAdapter = await createSdkAdapterFn({ repoRoot: repo, sdk: sdkModule });
+  if (!sdkAdapter) {
+    emitAdapterReason(logHint, repo, slug, "@cursor/sdk adapter could not be created.");
+    return { adapter: null, used: "sdk" };
+  }
+  return { adapter: sdkAdapter, used: "sdk" };
 }
 
 async function main() {

@@ -40,7 +40,7 @@ export function buildBugbotCard({
   const prompt = [
     `Full Repository Path: ${repoRoot}`,
     "Diff: branch changes",
-    `Custom Instructions: cursor-atomic-workflow slug ${slug}, review pass ${pass}. Spec: PLAN ${planPath}, TASKS ${tasksPath}. Report only concrete bugs in the branch changes.`,
+    `Custom Instructions: atomic-workflow slug ${slug}, review pass ${pass}. Spec: PLAN ${planPath}, TASKS ${tasksPath}. Report only concrete bugs in the branch changes.`,
   ].join("\n");
 
   return {

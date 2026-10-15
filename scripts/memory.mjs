@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// cursor-atomic-workflow 메모리: 캡처, 역할 프롬프트 주입, 승인형 저장.
+// atomic-workflow 메모리: 캡처, 역할 프롬프트 주입, 승인형 저장.
 // 번들 스크립트다. 외부 의존은 work-status.mjs(getWorkflowRoot)뿐이다.
 //
 // 저장 위치: <workflowRoot>/memory (보통 볼트 cursor-workflow/memory 로 심볼릭 링크)

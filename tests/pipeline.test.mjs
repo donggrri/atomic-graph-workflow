@@ -311,7 +311,7 @@ test("1 정상 완주 — exit 0, TASKS [x], statusSync, pipeline.json", async (
 
     assert.equal(result.exitCode, 0);
     const progressLog = readFileSync(join(paths.runsDir, "pipeline.log"), "utf8");
-    assert.match(progressLog, /▶ \[plan-review\] plan-reviewer started · model=/);
+    assert.match(progressLog, /▶ \[plan-review\] plan-reviewer started/);
     assert.match(progressLog, /\[plan-review\/plan-reviewer\] status RUNNING/);
     assert.match(progressLog, /■ \[plan-review\] plan-reviewer done · \d+s/);
     assert.match(progressLog, /▶ \[tasker\] tasker started/);
@@ -666,9 +666,8 @@ test("9 task-card 어댑터 — exit 10 + next-card.json, resume after TASKS 산
       mode: "task-card",
       async runRole({ role }) {
         const card = {
-          subagent_type: role === "tasker" ? "tasker" : role,
-          model: "composer-2.5",
-          run_in_background: true,
+          subagent_type: "generic",
+          role,
           prompt: `run ${role}`,
         };
         mkdirSync(paths.runsDir, { recursive: true });
@@ -690,9 +689,9 @@ test("9 task-card 어댑터 — exit 10 + next-card.json, resume after TASKS 산
     const cardPath = join(paths.runsDir, "next-card.json");
     assert.ok(existsSync(cardPath));
     const card = JSON.parse(readFileSync(cardPath, "utf8"));
-    assert.equal(card.subagent_type, "plan-reviewer");
-    assert.equal(card.model, "composer-2.5");
-    assert.equal(card.run_in_background, true);
+    assert.equal(card.subagent_type, "generic");
+    assert.equal(card.role, "plan-reviewer");
+    assert.equal(Object.hasOwn(card, "model"), false);
 
     writeFileSync(
       planReviewPath(paths.docsDir, SLUG),
@@ -717,9 +716,8 @@ test("9 task-card 어댑터 — exit 10 + next-card.json, resume after TASKS 산
         if (role === "tasker") {
           taskerCalls += 1;
           const taskCard = {
-            subagent_type: "tasker",
-            model: "composer-2.5",
-            run_in_background: true,
+            subagent_type: "generic",
+            role: "tasker",
             prompt: "run tasker",
           };
           writeFileSync(
@@ -950,9 +948,8 @@ test("(p5) task-card plan-reviewer exit 10 — resume에서 카드 재발급 없
         if (role === "plan-reviewer") {
           planReviewerCalls += 1;
           const card = {
-            subagent_type: "plan-reviewer",
-            model: "composer-2.5",
-            run_in_background: true,
+            subagent_type: "generic",
+            role: "plan-reviewer",
             prompt: "critique plan",
           };
           writeFileSync(
@@ -1239,9 +1236,8 @@ test("(e) task-card reviewer resume — bugbot ready 상태에서 bugbot 카드 
       async runRole({ role }) {
         if (role === "reviewer") {
           const card = {
-            subagent_type: "reviewer",
-            model: "composer-2.5",
-            run_in_background: true,
+            subagent_type: "generic",
+            role: "reviewer",
             prompt: "review task-card",
           };
           writeFileSync(
@@ -1267,7 +1263,8 @@ test("(e) task-card reviewer resume — bugbot ready 상태에서 bugbot 카드 
     const cardAfterFirst = JSON.parse(
       readFileSync(join(paths.runsDir, "next-card.json"), "utf8")
     );
-    assert.equal(cardAfterFirst.subagent_type, "reviewer");
+    assert.equal(cardAfterFirst.subagent_type, "generic");
+    assert.equal(cardAfterFirst.role, "reviewer");
     assert.notEqual(cardAfterFirst.kind, "bugbot");
 
     const logBefore = existsSync(join(paths.runsDir, "pipeline.log"))
@@ -1330,7 +1327,7 @@ test("10 SDK 미설치(loadSdk null) — resolvePipelineAdapter가 task-card 선
     });
     assert.equal(used, "task-card");
     assert.equal(adapter.mode, "task-card");
-    assert.ok(hints.some((h) => h.includes("@cursor/sdk")));
+    assert.ok(hints.some((h) => h.includes("model-neutral default")));
     assert.equal(hints.length, 1);
     assert.match(hints[0], /task-card selected:/);
     const paths = getWorkflowPaths(repoRoot, SLUG);
@@ -1361,6 +1358,7 @@ test("11 sdk adapter — Agent.create startup throw → kind startup", async () 
   const adapter = await createSdkAdapter({
     repoRoot: process.cwd(),
     sdk: fakeSdk,
+    model: { id: "test-model" },
   });
   assert.equal(adapter?.mode, "sdk");
 
@@ -1408,7 +1406,11 @@ test("11b sdk adapter — run.stream() 이벤트가 onProgress로 전달된다",
       },
     },
   };
-  const adapter = await createSdkAdapter({ repoRoot: process.cwd(), sdk: fakeSdk });
+  const adapter = await createSdkAdapter({
+    repoRoot: process.cwd(),
+    sdk: fakeSdk,
+    model: { id: "test-model" },
+  });
   const lines = [];
   const result = await adapter.runRole({
     role: "worker",
@@ -1437,7 +1439,11 @@ test("11c sdk adapter — run.stream 없어도(또는 onProgress 없이) 동작"
       },
     },
   };
-  const adapter = await createSdkAdapter({ repoRoot: process.cwd(), sdk: fakeSdk });
+  const adapter = await createSdkAdapter({
+    repoRoot: process.cwd(),
+    sdk: fakeSdk,
+    model: { id: "test-model" },
+  });
   const result = await adapter.runRole({
     role: "worker",
     prompt: "noop",
@@ -1456,32 +1462,32 @@ test("12 loadSdk — import 실패 시 null (과금 없음)", async () => {
   assert.equal(mod, null);
 });
 
-test("13 SDK import 성공 — 기본 어댑터는 sdk, task-card 로그 없음", async () => {
+test("13 SDK import 성공이어도 기본 어댑터는 model-neutral task-card", async () => {
   await withHome(async (home) => {
     const { repoRoot, paths } = createFixture(home);
     const hints = [];
-    const fakeSdk = {
-      Agent: {
-        async create() {
-          throw new Error("runRole must not be called");
-        },
-      },
-    };
+    let imported = false;
     const { adapter, used } = await resolvePipelineAdapter({
       adapterName: null,
       repo: repoRoot,
       slug: SLUG,
-      loadSdkFn: async () => fakeSdk,
+      loadSdkFn: async () => {
+        imported = true;
+        return { Agent: {} };
+      },
       logHint: (m) => hints.push(m),
     });
-    assert.equal(used, "sdk");
-    assert.equal(adapter.mode, "sdk");
-    assert.deepEqual(hints, []);
-    assert.equal(existsSync(join(paths.runsDir, "pipeline.log")), false);
+    assert.equal(imported, false);
+    assert.equal(used, "task-card");
+    assert.equal(adapter.mode, "task-card");
+    assert.deepEqual(hints, [
+      "task-card selected: model-neutral default; use --adapter sdk only with an explicit SDK model configuration.",
+    ]);
+    assert.equal(existsSync(join(paths.runsDir, "pipeline.log")), true);
   });
 });
 
-test("14 이 패키지 @cursor/sdk import가 되면 task-card로 떨어지지 않는다", async (t) => {
+test("14 설치된 @cursor/sdk가 있어도 기본 어댑터는 task-card", async (t) => {
   const sdk = await loadSdk();
   if (!sdk) {
     t.skip("@cursor/sdk optional dependency is not installed");
@@ -1496,28 +1502,33 @@ test("14 이 패키지 @cursor/sdk import가 되면 task-card로 떨어지지 �
       slug: SLUG,
       logHint: (m) => hints.push(m),
     });
-    assert.equal(used, "sdk");
-    assert.equal(adapter?.mode, "sdk");
-    assert.deepEqual(hints, []);
+    assert.equal(used, "task-card");
+    assert.equal(adapter?.mode, "task-card");
+    assert.equal(hints.length, 1);
   });
 });
 
-test("15 SDK 모듈은 있으나 어댑터 객체가 없으면 task-card를 고르지 않는다", async () => {
+test("15 SDK 모듈을 설치해도 기본 경로는 SDK를 import하지 않는다", async () => {
   await withHome(async (home) => {
     const { repoRoot } = createFixture(home);
     const hints = [];
+    let created = false;
     const { adapter, used } = await resolvePipelineAdapter({
       adapterName: null,
       repo: repoRoot,
       slug: SLUG,
       loadSdkFn: async () => ({ Agent: {} }),
-      createSdkAdapterFn: async () => null,
+      createSdkAdapterFn: async () => {
+        created = true;
+        return null;
+      },
       logHint: (m) => hints.push(m),
     });
-    assert.equal(used, "sdk");
-    assert.equal(adapter, null);
+    assert.equal(used, "task-card");
+    assert.equal(adapter.mode, "task-card");
+    assert.equal(created, false);
     assert.equal(hints.length, 1);
-    assert.doesNotMatch(hints[0], /^task-card selected:/);
+    assert.match(hints[0], /^task-card selected:/);
   });
 });
 
@@ -1589,7 +1600,7 @@ test("18 import 실패 이유가 task-card 선택 로그 한 줄에 포함", asy
     assert.equal(adapter.mode, "task-card");
     assert.equal(hints.length, 1);
     assert.match(hints[0], /task-card selected:/);
-    assert.match(hints[0], /probe-token/);
+    assert.doesNotMatch(hints[0], /probe-token/);
     const paths = getWorkflowPaths(repoRoot, SLUG);
     assert.equal(readFileSync(join(paths.runsDir, "pipeline.log"), "utf8"), `${hints[0]}\n`);
   });
@@ -1603,7 +1614,7 @@ test("19 task-card 스킬 경로 — 저장소 파일이 있을 때만 그 경�
       repoRoot,
       ".agents",
       "skills",
-      "cursor-atomic-workflow",
+      "atomic-workflow",
       "SKILL.md",
     );
     const repoTickets = join(repoRoot, ".agents", "skills", "to-tickets", "SKILL.md");
@@ -1612,7 +1623,7 @@ test("19 task-card 스킬 경로 — 저장소 파일이 있을 때만 그 경�
       skillHome,
       ".agents",
       "skills",
-      "cursor-atomic-workflow",
+      "atomic-workflow",
       "SKILL.md",
     );
     mkdirSync(join(repoWorkflow, ".."), { recursive: true });
@@ -1649,7 +1660,7 @@ test("19 task-card 스킬 경로 — 저장소 파일이 있을 때만 그 경�
       emptyRepo,
       ".agents",
       "skills",
-      "cursor-atomic-workflow",
+      "atomic-workflow",
       "SKILL.md",
     );
     assert.ok(cardEmpty.prompt.includes(homeWorkflow));
@@ -1692,7 +1703,11 @@ test("profile atomic tester keeps Test slug prompt and npm test", async () => {
       })
     );
     assert.equal(result.exitCode, 0);
-    assert.deepEqual(prompts, ["Test slug pipe-run"]);
+    assert.equal(prompts.length, 1);
+    assert.match(prompts[0], /Test slug pipe-run/);
+    assert.match(prompts[0], /FORBID \(이 단계는 코드를 수정하지 않는다\)/);
+    assert.match(prompts[0], /docsDir:/);
+    assert.match(prompts[0], /runsDir:/);
     assert.equal(dones.filter((item) => item.taskId === "tester").length, 1);
     assert.equal(dones.find((item) => item.taskId === "tester").command, "npm test");
   });

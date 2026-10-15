@@ -1,4 +1,4 @@
-# cursor-atomic-workflow 그래프 엔지니어링 설계안
+# atomic-workflow 그래프 엔지니어링 설계안
 
 ## 1. 현재 구조 → 노드/엣지
 | 노드 | 입력 | 출력(아티팩트) | 현재 실행자 |
@@ -8,10 +8,10 @@
 | plan-review | PLAN | 승인/반려 | plan-reviewer |
 | task | PLAN | TASKS.md (worker 필드) | tasker |
 | execute | TASKS 항목 | 코드 diff, run-done 기록 | worker / cli-delegate(agy·codex·claude·opencode via invoke-worker) |
-| review | diff, PLAN | 승인/반려 | cursor-atomic-reviewer |
+| review | diff, PLAN | 승인/반려 | atomic-reviewer |
 | wrapup | 결과, 테스트 | memory 기록, 요약 | tester, memory-curator |
 
-엣지: 순차 + `plan-review→plan`, `review→execute` 반려 루프. 이미 `run-pipeline.mjs`, `run-done.mjs`, `work-status.mjs`, `invoke-worker.sh`, `resolve-agy-model.mjs`가 있음 → 그래프화 기반 충분. lite는 단일 노드, atomic-router는 진입 분기 노드.
+엣지: 순차 + `plan-review→plan`, `review→execute` 반려 루프. 이미 `run-pipeline.mjs`, `run-done.mjs`, `work-status.mjs`, `invoke-worker.sh`가 있음 → 그래프화 기반 충분. lite는 단일 노드, atomic-router는 진입 분기 노드.
 
 ```mermaid
 flowchart LR
@@ -26,7 +26,7 @@ flowchart LR
 
 ## 2. 옵션
 **A. 선언형 그래프(graph.yaml) + run-done/work-status 상태머신 (Cursor 내부)**
-- `.cursor-atomic-graph.yaml`에 노드·엣지·조건 정의, `runs/<slug>/state.json`에 현재 노드/시도횟수/결과.
+- `.atomic-graph.yaml`에 노드·엣지·조건 정의, `runs/<slug>/state.json`에 현재 노드/시도횟수/결과.
 - `work-status.mjs --next` 가 다음 노드와 executor를 계산, 에이전트는 그 지시만 따름.
 - 장점: 기존 스킬·설치 그대로, 의존성 없음. 단점: 진짜 병렬·강제 실행은 에이전트 준수에 의존.
 
@@ -39,22 +39,20 @@ flowchart LR
 nodes:
   execute:
     executor: agy            # cursor-subagent | agy | cli
-    model: gemini-3.1-pro
     when: "task.type in ['ui','boilerplate'] && task.files <= 4"
     timeout_min: 45
     retry: { max: 1, on: [timeout, nonzero_exit] }
     fallback:
-      - { executor: agy, model: claude-sonnet-4-6 }
-      - { executor: cursor-subagent, agent: worker, model: composer-2.5 }
+      - { executor: cursor-subagent }
+      - { executor: agy }
     parallel: per_task       # TASKS 독립 항목 병렬
     checkpoint: true
   review:
     executor: cursor-subagent
-    agent: cursor-atomic-reviewer
-    model: composer-2.5
-    fallback: [{ executor: agy, model: claude-sonnet-4-6, mode: plan }]
+    agent: atomic-reviewer
+    fallback: [{ executor: agy, mode: plan }]
 ```
-agy 호출은 반드시 `invoke-worker --worker agy --model ... --timeout-min ...` 경유(bare agy 금지 규칙 유지). `cli`는 codex/claude/opencode.
+노드 설정에는 모델을 넣지 않는다. 각 executor와 부모 세션이 선택한 하네스 기본 모델을 사용한다. agy 호출은 반드시 `invoke-worker --worker agy --timeout-min ...` 경유(bare agy 금지 규칙 유지). `cli`는 codex/claude/opencode.
 
 ## 4. 동적 AGY 라우팅 규칙
 1. 정책 게이트: `.cursor-atomic-workflow.json`의 `agy.{plan,implement,review}` = `never|ask|auto` 우선.

@@ -59,14 +59,14 @@ function parseAgyBlock(agyBlock, label) {
  * @param {string} label
  */
 function parseExecutorsBlock(block, label) {
-  if (block == null) return { ok: true, executors: {}, executorModels: {} };
+  if (block == null) return { ok: true, executors: {}, warnings: [] };
   if (typeof block !== "object" || Array.isArray(block)) {
     return { ok: false, reason: `${label}: executors must be an object` };
   }
   /** @type {Record<string, string>} */
   const executors = {};
-  /** @type {Record<string, string>} */
-  const executorModels = {};
+  /** @type {string[]} */
+  const warnings = [];
   for (const [key, value] of Object.entries(block)) {
     if (!GRAPH_STAGE_IDS.includes(key)) {
       return { ok: false, reason: `${label}: executors.${key} is not a valid stage` };
@@ -85,13 +85,13 @@ function parseExecutorsBlock(block, label) {
       }
       executors[key] = id;
       if (typeof value.model === "string" && value.model.trim()) {
-        executorModels[key] = value.model.trim();
+        warnings.push(`${label}: executors.${key}.model is ignored (the workflow does not select models)`);
       }
       continue;
     }
-    return { ok: false, reason: `${label}: executors.${key} must be string or { executor, model? }` };
+    return { ok: false, reason: `${label}: executors.${key} must be string or { executor }` };
   }
-  return { ok: true, executors, executorModels };
+  return { ok: true, executors, warnings };
 }
 
 /**
@@ -181,34 +181,46 @@ export function loadWorkflowSettings(options) {
   /** @type {Partial<Record<string, "ask"|"sdk"|"agy">>} */
   const agy = { ...globalAgy.choices, ...projectAgy.choices };
   const executors = { ...globalExec.executors, ...projectExec.executors };
-  const executorModels = { ...globalExec.executorModels, ...projectExec.executorModels };
   const executorTimeouts = { ...globalTimeouts.executorTimeouts, ...projectTimeouts.executorTimeouts };
   const trustedExecutors = {
     ...globalTrust.trustedExecutors,
     ...projectTrust.trustedExecutors,
   };
 
-  const agyModel =
-    project.data.agyModel === null
-      ? null
-      : typeof project.data.agyModel === "string" && project.data.agyModel.trim()
-        ? project.data.agyModel.trim()
-        : typeof global.data.agyModel === "string" && global.data.agyModel.trim()
-          ? global.data.agyModel.trim()
-          : null;
+  /** @type {string[]} */
+  const warnings = [...globalExec.warnings, ...projectExec.warnings];
+  for (const [label, data] of [
+    ["global settings", global.data],
+    ["project settings", project.data],
+  ]) {
+    if (data.agyModel != null) {
+      warnings.push(`${label}: agyModel is ignored (the workflow does not select models)`);
+    }
+  }
 
   const testDone =
     typeof project.data.testDone === "string" && project.data.testDone.trim()
       ? project.data.testDone.trim()
       : null;
 
+  let docsRoot = null;
+  if (project.data.docsRoot != null && project.data.docsRoot !== "") {
+    if (typeof project.data.docsRoot !== "string" || !project.data.docsRoot.trim()) {
+      return { ok: false, reason: "project settings: docsRoot must be a string" };
+    }
+    if (project.data.docsRoot.includes("\0")) {
+      return { ok: false, reason: "project settings: docsRoot must not contain null bytes" };
+    }
+    docsRoot = project.data.docsRoot.trim();
+  }
+
   return {
     ok: true,
     agy,
-    agyModel,
     testDone,
+    docsRoot,
     executors,
-    executorModels,
+    warnings,
     executorTimeouts,
     trustedExecutors,
   };

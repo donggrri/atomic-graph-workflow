@@ -15,7 +15,6 @@ const scriptsDir = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
  *   promptFile: string,
  *   logFile: string,
  *   timeoutMin: number,
- *   model?: string,
  * }} params
  * @returns {string[]}
  */
@@ -37,44 +36,6 @@ export function buildWindowsInvokeWorkerArgv(params) {
     "-TimeoutMin",
     String(params.timeoutMin),
   ];
-  if (params.model && params.worker === "agy") {
-    argv.push("-Model", params.model);
-  } else if (params.model && params.worker === "opencode") {
-    argv.push("-OpenCodeModel", params.model);
-  }
-  return argv;
-}
-
-/**
- * invoke-worker.sh argument builder (POSIX shells).
- * @param {{
- *   worker: string,
- *   repoRoot: string,
- *   promptFile: string,
- *   logFile: string,
- *   timeoutMin: number,
- *   model?: string,
- * }} params
- * @returns {string[]}
- */
-export function buildInvokeWorkerArgv(params) {
-  const argv = [
-    "--worker",
-    params.worker,
-    "--workspace",
-    params.repoRoot,
-    "--prompt-file",
-    params.promptFile,
-    "--log-file",
-    params.logFile,
-    "--timeout-min",
-    String(params.timeoutMin),
-  ];
-  if (params.model && params.worker === "agy") {
-    argv.push("--model", params.model);
-  } else if (params.model && params.worker === "opencode") {
-    argv.push("--opencode-model", params.model);
-  }
   return argv;
 }
 
@@ -85,7 +46,6 @@ export function buildInvokeWorkerArgv(params) {
  *   prompt: string,
  *   runsDir: string,
  *   role: string,
- *   model?: string,
  *   timeoutMin?: number,
  *   skipTrust?: boolean,
  *   settings?: { trustedExecutors?: Record<string, boolean> },
@@ -125,14 +85,18 @@ export async function runWorkerExecutor(params) {
   const timeoutMin = params.timeoutMin ?? 45;
   const timeoutMs = timeoutMin * 60 * 1000;
 
-  const baseArgs = buildInvokeWorkerArgv({
+  const baseArgs = [
+    "--worker",
     worker,
-    repoRoot: params.repoRoot,
+    "--workspace",
+    params.repoRoot,
+    "--prompt-file",
     promptFile,
+    "--log-file",
     logFile,
-    timeoutMin,
-    model: params.model,
-  });
+    "--timeout-min",
+    String(timeoutMin),
+  ];
 
   let child;
   if (isWin) {
@@ -142,7 +106,6 @@ export async function runWorkerExecutor(params) {
       promptFile,
       logFile,
       timeoutMin,
-      model: params.model,
     });
     child = spawnCli(firstExecutable(["powershell", "pwsh"]) ?? "powershell", psArgv, {
       cwd: params.repoRoot,

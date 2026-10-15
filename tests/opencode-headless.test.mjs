@@ -13,7 +13,6 @@ import {
   mergeOpencodeConfig,
 } from "../scripts/lib/opencode-config.mjs";
 import { rewriteGraphExecutors } from "../scripts/lib/graph.mjs";
-import { buildInvokeWorkerArgv, buildWindowsInvokeWorkerArgv } from "../scripts/lib/executors/worker-cli.mjs";
 import { install } from "../scripts/install.mjs";
 import { getWorkflowRoot } from "../scripts/work-status.mjs";
 
@@ -168,7 +167,6 @@ test("install keeps cursor executors when cursor is also installed", async () =>
   try {
     await install({ root: ".", target, harness: "cursor,opencode", force: true });
     const graph = await readFile(join(target, ".atomic", "graph.yaml"), "utf8");
-    assert.match(graph, /executor: cursor-sdk/);
     assert.match(graph, /executor: cursor-subagent/);
     const parsed = JSON.parse(await readFile(join(target, "opencode.json"), "utf8"));
     assert.equal(parsed.permission.external_directory[EXTERNAL_KEY], "allow");
@@ -206,177 +204,6 @@ test("install does not create opencode.json for cursor-only installs", async () 
   }
 });
 
-test("buildInvokeWorkerArgv passes --opencode-model only for the opencode worker", () => {
-  const base = {
-    worker: "opencode",
-    repoRoot: "/repo",
-    promptFile: "/repo/runs/brief.md",
-    logFile: "/repo/runs/out.log",
-    timeoutMin: 45,
-    model: "anthropic/claude-sonnet-4-5",
-  };
-  const argv = buildInvokeWorkerArgv(base);
-  assert.ok(argv.includes("--opencode-model"));
-  assert.equal(argv[argv.indexOf("--opencode-model") + 1], "anthropic/claude-sonnet-4-5");
-  assert.ok(!argv.includes("--model"));
-
-  const agy = buildInvokeWorkerArgv({ ...base, worker: "agy" });
-  assert.ok(agy.includes("--model"));
-  assert.ok(!agy.includes("--opencode-model"));
-
-  const noModel = buildInvokeWorkerArgv({ ...base, model: undefined });
-  assert.ok(!noModel.includes("--opencode-model"));
-});
-
-test("buildWindowsInvokeWorkerArgv passes -OpenCodeModel only for the opencode worker", () => {
-  const argv = buildWindowsInvokeWorkerArgv({
-    worker: "opencode",
-    repoRoot: "C:\\proj",
-    promptFile: "C:\\runs\\brief.md",
-    logFile: "C:\\runs\\out.log",
-    timeoutMin: 30,
-    model: "openai/gpt-5",
-  });
-  assert.ok(argv.includes("-OpenCodeModel"));
-  assert.equal(argv[argv.indexOf("-OpenCodeModel") + 1], "openai/gpt-5");
-  assert.ok(!argv.includes("-Model"));
-
-  const agy = buildWindowsInvokeWorkerArgv({
-    worker: "agy",
-    repoRoot: "C:\\proj",
-    promptFile: "C:\\runs\\brief.md",
-    logFile: "C:\\runs\\out.log",
-    timeoutMin: 30,
-    model: "gemini-3.8-flash",
-  });
-  assert.ok(agy.includes("-Model"));
-  assert.ok(!agy.includes("-OpenCodeModel"));
-});
-
-test("invoke-worker.sh dry-run passes -m for the opencode worker", async () => {
-  const tmp = await mkdtemp(join(tmpdir(), "invoke-opencode-model-"));
-  const brief = join(tmp, "brief.md");
-  const log = join(tmp, "run.log");
-  await writeFile(brief, "opencode model brief", "utf8");
-  try {
-    const { stdout } = await execFileAsync("bash", [
-      "scripts/invoke-worker.sh",
-      "--worker",
-      "opencode",
-      "--workspace",
-      process.cwd(),
-      "--prompt-file",
-      brief,
-      "--log-file",
-      log,
-      "--opencode-model",
-      "anthropic/claude-sonnet-4-5",
-      "--dry-run",
-    ]);
-    assert.match(stdout, /exit=0/);
-    const logText = await readFile(log, "utf8");
-    assert.match(logText, /dry-run: opencode run/);
-    assert.match(logText, /-m anthropic\/claude-sonnet-4-5/);
-    assert.match(logText, /opencode_model=anthropic\/claude-sonnet-4-5/);
-  } finally {
-    await rm(tmp, { recursive: true, force: true });
-  }
-});
-
-test("invoke-worker.sh falls back to CURSOR_ATOMIC_OPENCODE_MODEL", async () => {
-  const tmp = await mkdtemp(join(tmpdir(), "invoke-opencode-env-"));
-  const brief = join(tmp, "brief.md");
-  const log = join(tmp, "run.log");
-  await writeFile(brief, "opencode env brief", "utf8");
-  try {
-    const { stdout } = await execFileAsync(
-      "bash",
-      [
-        "scripts/invoke-worker.sh",
-        "--worker",
-        "opencode",
-        "--workspace",
-        process.cwd(),
-        "--prompt-file",
-        brief,
-        "--log-file",
-        log,
-        "--dry-run",
-      ],
-      { env: { ...process.env, CURSOR_ATOMIC_OPENCODE_MODEL: "openai/gpt-5" } },
-    );
-    assert.match(stdout, /exit=0/);
-    const logText = await readFile(log, "utf8");
-    assert.match(logText, /-m openai\/gpt-5/);
-  } finally {
-    await rm(tmp, { recursive: true, force: true });
-  }
-});
-
-test("invoke-worker.sh omits -m when no opencode model is set", async () => {
-  const tmp = await mkdtemp(join(tmpdir(), "invoke-opencode-none-"));
-  const brief = join(tmp, "brief.md");
-  const log = join(tmp, "run.log");
-  await writeFile(brief, "opencode brief", "utf8");
-  try {
-    await execFileAsync(
-      "bash",
-      [
-        "scripts/invoke-worker.sh",
-        "--worker",
-        "opencode",
-        "--workspace",
-        process.cwd(),
-        "--prompt-file",
-        brief,
-        "--log-file",
-        log,
-        "--dry-run",
-      ],
-      { env: { ...process.env, CURSOR_ATOMIC_OPENCODE_MODEL: "" } },
-    );
-    const logText = await readFile(log, "utf8");
-    assert.doesNotMatch(logText, /-m /);
-    assert.match(logText, /opencode_model=default/);
-  } finally {
-    await rm(tmp, { recursive: true, force: true });
-  }
-});
-
-test("invoke-worker.sh never routes the opencode model through the agy resolver", async () => {
-  const tmp = await mkdtemp(join(tmpdir(), "invoke-agy-opencode-"));
-  const brief = join(tmp, "brief.md");
-  const log = join(tmp, "run.log");
-  await writeFile(brief, "agy brief", "utf8");
-  try {
-    await execFileAsync(
-      "bash",
-      [
-        "scripts/invoke-worker.sh",
-        "--worker",
-        "agy",
-        "--workspace",
-        process.cwd(),
-        "--prompt-file",
-        brief,
-        "--log-file",
-        log,
-        "--opencode-model",
-        "anthropic/claude-sonnet-4-5",
-        "--dry-run",
-      ],
-      { env: { ...process.env, CURSOR_ATOMIC_AGY_MODEL: "", CURSOR_ATOMIC_OPENCODE_MODEL: "" } },
-    );
-    const logText = await readFile(log, "utf8");
-    const dryLine = logText.split(/\r?\n/).find((l) => l.startsWith("dry-run:")) ?? "";
-    assert.doesNotMatch(dryLine, /-m /);
-    assert.doesNotMatch(dryLine, /claude-sonnet-4-5/);
-    assert.match(dryLine, /^dry-run: agy /);
-  } finally {
-    await rm(tmp, { recursive: true, force: true });
-  }
-});
-
 test("invoke-worker.sh separates skills block and prompt with a blank line", async () => {
   const tmp = await mkdtemp(join(tmpdir(), "invoke-skills-blank-"));
   const skillDir = join(tmp, ".agents", "skills", "tdd");
@@ -410,7 +237,7 @@ test("invoke-worker.sh separates skills block and prompt with a blank line", asy
 });
 
 test("lite skill writes the memory proposal under docsDir", async () => {
-  const text = await readFile(join("skills", "cursor-atomic-lite", "SKILL.md"), "utf8");
+  const text = await readFile(join("skills", "atomic-lite", "SKILL.md"), "utf8");
   assert.doesNotMatch(text, /\/tmp\/memory-<slug>\.json/);
   assert.match(text, /<docsDir>\/memory-<slug>\.json/);
 });

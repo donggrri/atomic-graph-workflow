@@ -9,7 +9,6 @@ test("buildWindowsInvokeWorkerArgv uses PowerShell parameter names", () => {
     promptFile: "C:\\runs\\brief.md",
     logFile: "C:\\runs\\out.log",
     timeoutMin: 30,
-    model: "gpt-test",
   });
   assert.ok(argv.includes("-NoProfile"));
   assert.ok(argv.includes("-File"));
@@ -18,7 +17,7 @@ test("buildWindowsInvokeWorkerArgv uses PowerShell parameter names", () => {
   assert.ok(argv.includes("-PromptFile"));
   assert.ok(argv.includes("-LogFile"));
   assert.ok(argv.includes("-TimeoutMin"));
-  assert.ok(argv.includes("-Model"));
+  assert.ok(!argv.includes("-Model"), "the workflow passes no model");
   const fileIdx = argv.indexOf("-File");
   assert.ok(fileIdx >= 0 && argv[fileIdx + 1]?.endsWith("invoke-worker.ps1"));
   const workerIdx = argv.indexOf("-Worker");
@@ -26,7 +25,6 @@ test("buildWindowsInvokeWorkerArgv uses PowerShell parameter names", () => {
   assert.equal(argv[argv.indexOf("-Workspace") + 1], "C:\\proj");
   assert.equal(argv[argv.indexOf("-PromptFile") + 1], "C:\\runs\\brief.md");
   assert.equal(argv[argv.indexOf("-TimeoutMin") + 1], "30");
-  assert.equal(argv[argv.indexOf("-Model") + 1], "gpt-test");
   assert.ok(!argv.includes("--worker"));
   assert.ok(!argv.includes("--prompt-file"));
 });

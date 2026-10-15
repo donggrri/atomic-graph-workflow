@@ -11,6 +11,11 @@ import { loadWorkflowSettings } from "./lib/workflow-settings.mjs";
 import { isExecutorAvailable, probeCursorSdkAvailable } from "./lib/executors/availability.mjs";
 import { loadGraph } from "./lib/graph.mjs";
 import { listRuntimeScriptRelPaths } from "./lib/atomic-runtime.mjs";
+import {
+  CANONICAL_WORKFLOW_SKILL,
+  LEGACY_NAME_MAP,
+  legacySkillAliases,
+} from "./lib/legacy-aliases.mjs";
 
 export const BUNDLED_SKILLS = [
   "code-review",
@@ -23,7 +28,7 @@ export const BUNDLED_SKILLS = [
   "wayfinder",
 ];
 
-export const WORKFLOW_SKILL = "cursor-atomic-workflow";
+export const WORKFLOW_SKILL = "atomic-workflow";
 
 const PACKAGE_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const SOURCE_SKILLS_DIR = "skills";
@@ -47,7 +52,7 @@ export async function listCommandSkills(root) {
   const dir = join(root, SOURCE_SKILLS_DIR);
   if (!existsSync(dir)) return [];
   return (await readdir(dir))
-    .filter((name) => name.startsWith("cursor-atomic-") && name !== WORKFLOW_SKILL)
+    .filter((name) => name.startsWith("atomic-") && name !== WORKFLOW_SKILL)
     .sort();
 }
 
@@ -85,10 +90,19 @@ export async function checkSingleHarness(harness, cwd, root = PACKAGE_ROOT) {
   }
 
   const commandSkills = [];
+  const legacyAliases = [];
   if (workflowOk) {
     for (const name of commandNames) {
       if (existsSync(join(skillsRoot, name, "SKILL.md"))) commandSkills.push(name);
       else problems.push(`missing command skill ${name}`);
+    }
+    for (const [legacy, canonical] of legacySkillAliases()) {
+      const aliasPath = join(skillsRoot, legacy, "SKILL.md");
+      if (!existsSync(aliasPath)) {
+        problems.push(`missing legacy alias ${legacy} for ${canonical}`);
+      } else {
+        legacyAliases.push({ legacy, canonical, path: aliasPath });
+      }
     }
   }
 
@@ -134,6 +148,7 @@ export async function checkSingleHarness(harness, cwd, root = PACKAGE_ROOT) {
     commandSkillsExpected: commandNames.length,
     legacyCursorCommands: await findLegacyCursorCommands(cwd),
     legacyCursorSkills: [],
+    legacyAliases,
   };
 
   const legacySkillRoot = join(cwd, ".cursor", "skills");
@@ -186,6 +201,10 @@ export async function checkSingleHarness(harness, cwd, root = PACKAGE_ROOT) {
       const text = await readFile(claudeMd, "utf8");
       if (!text.includes("@AGENTS.md")) problems.push("CLAUDE.md must reference @AGENTS.md");
     }
+  }
+
+  if (detail.legacyAliases.length !== Object.keys(LEGACY_NAME_MAP).length - 1) {
+    problems.push(`legacy alias count mismatch: expected ${Object.keys(LEGACY_NAME_MAP).length - 1}`);
   }
 
   if (detail.legacyCursorCommands.length) {

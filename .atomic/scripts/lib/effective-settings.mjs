@@ -1,6 +1,6 @@
 /**
  * Merge `agy.*` pipeline policy into per-stage `executors` when not explicitly set.
- * @param {{ agy?: Record<string, string>, executors?: Record<string, string>, executorModels?: Record<string, string>, executorTimeouts?: Record<string, number>, agyModel?: string | null, testDone?: string | null }} settings
+ * @param {{ agy?: Record<string, string>, executors?: Record<string, string>, executorTimeouts?: Record<string, number>, testDone?: string | null }} settings
  */
 export function applyEffectiveExecutorSettings(settings) {
   const executors = { ...(settings.executors ?? {}) };

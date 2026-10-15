@@ -8,7 +8,6 @@ import {
 import { join } from "node:path";
 import { getWorkflowPaths } from "../work-status.mjs";
 import { buildMemoryContext, withMemoryContext, writeCapture } from "../memory.mjs";
-import { getRole } from "./roles.mjs";
 import { bugbotGate } from "./bugbot.mjs";
 import { planReviewGate, planReviewPath } from "./plan-review.mjs";
 import {
@@ -335,6 +334,7 @@ export async function runPipeline(opts) {
     repoRoot,
     slug,
     runsDir: paths.runsDir,
+    docsDir: paths.docsDir,
     graph,
     settings: applyEffectiveExecutorSettings(workflowSettings),
     log: (...args) => log(...args),
@@ -379,8 +379,6 @@ export async function runPipeline(opts) {
     if (!roleRunner) {
       return { ok: false, exitCode: 2, message: "role runner not initialized" };
     }
-    const roleDef = getRole(role);
-    const model = roleDef.taskModel;
     const prompt = withMemoryContext(
       rolePrompt,
       buildMemoryContext({ root: paths.root, shortRepo: paths.shortRepo }),
@@ -393,13 +391,12 @@ export async function runPipeline(opts) {
       const startedAt = Date.now();
       if (showProgress) {
         const retry = attempts > 1 ? ` (attempt ${attempts}/${maxAttempts})` : "";
-        emit(`▶ [${phaseKey}] ${role} started · model=${model}${retry}`);
+        emit(`▶ [${phaseKey}] ${role} started${retry}`);
       }
       const result = await roleRunner.runRole({
         role,
         prompt,
         cwd: repoRoot,
-        model,
         phaseKey,
         onProgress: showProgress
           ? (line) => emit(`    [${phaseKey}/${role}] ${line}`)

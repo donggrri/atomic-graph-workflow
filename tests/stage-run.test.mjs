@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { graphAgentToRoleKey, runGraphStage } from "../scripts/lib/stage-run.mjs";
 
 test("graphAgentToRoleKey maps reviewer agent file", () => {
-  assert.equal(graphAgentToRoleKey("cursor-atomic-reviewer"), "reviewer");
+  assert.equal(graphAgentToRoleKey("atomic-reviewer"), "reviewer");
   assert.equal(graphAgentToRoleKey("memory-curator"), "memory-curator");
 });
 

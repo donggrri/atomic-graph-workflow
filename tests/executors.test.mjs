@@ -15,8 +15,8 @@ const graph = {
   },
 };
 
-test("defaultExecutorForAdapter follows adapter mode", () => {
-  assert.equal(defaultExecutorForAdapter({ mode: "sdk" }), "cursor-sdk");
+test("defaultExecutorForAdapter stays model-neutral", () => {
+  assert.equal(defaultExecutorForAdapter({ mode: "sdk" }), "cursor-subagent");
   assert.equal(defaultExecutorForAdapter({ mode: "task-card" }), "cursor-subagent");
 });
 
@@ -75,13 +75,12 @@ test("composite runner delegates cursor-subagent to task-card", async () => {
     role: "tasker",
     prompt: "hi",
     phaseKey: "tasker",
-    model: "composer-2.5",
   });
   assert.equal(result.ok, true);
   assert.equal(called, true);
 });
 
-test("task-card adapter honors model override", async () => {
+test("task-card adapter emits a generic, model-free card", async () => {
   const runs = mkdtempSync(join(tmpdir(), "task-card-model-"));
   const repo = process.cwd();
   try {
@@ -89,9 +88,13 @@ test("task-card adapter honors model override", async () => {
     const result = await adapter.runRole({
       role: "worker",
       prompt: "brief",
-      model: "custom-override-model",
+      model: "ignored-model",
     });
-    assert.equal(result.card.model, "custom-override-model");
+    assert.equal(Object.hasOwn(result.card, "model"), false);
+    assert.equal(result.card.subagent_type, "generic");
+    assert.equal(result.card.role, "worker");
+    assert.equal(result.card.instructions, join(".atomic", "agents", "worker.md"));
+    assert.match(result.card.prompt, /brief/);
   } finally {
     rmSync(runs, { recursive: true, force: true });
   }

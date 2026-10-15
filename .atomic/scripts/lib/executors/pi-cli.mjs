@@ -1,6 +1,7 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { resolveBin } from "../cli-detect.mjs";
+import { getRole } from "../roles.mjs";
 import { spawnCli } from "../exec-cross.mjs";
 
 /**
@@ -20,7 +21,8 @@ export async function runPiCli(params) {
   }
 
   const args = ["-p"];
-  const stems = [params.agentStem, "worker"].filter(Boolean);
+  const roleDef = params.agentStem ? getRole(params.agentStem) : null;
+  const stems = [roleDef?.subagentType, params.agentStem, "worker"].filter(Boolean);
   for (const stem of stems) {
     const agentPath = join(params.repoRoot, ".pi", "agents", `${stem}.md`);
     if (existsSync(agentPath)) {

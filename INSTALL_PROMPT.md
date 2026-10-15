@@ -1,6 +1,6 @@
 # 설치 프롬프트 (어느 에이전트에든 그대로 붙여넣기)
 
-> `<WORKFLOW_REPO>` 기본값: `https://github.com/donggrri/cursor-atomic-workflow`
+> `<WORKFLOW_REPO>` 기본값: `https://github.com/donggrri/atomic-workflow`
 
 ```text
 이 저장소에 Atomic Workflow를 설치해줘. 아래 순서를 지키고, 각 단계 결과를 짧게 보고해.
@@ -25,15 +25,15 @@
      node "${TMPDIR:-/tmp}/atomic-workflow/scripts/install.mjs" --target . --harness <2단계 결과>
    - Claude Code도 필요하면 `--with-claude` 또는 `--harness claude`를 추가.
    - 이전 버전(`.cursor/skills/cursor-atomic-*`)이 있으면 `--migrate`를 붙여 중복 스킬을 정리.
-   - 기대 결과: `.atomic/`(scripts, graph.yaml), `.agents/skills/cursor-atomic-*`, AGENTS.md 블록, 하네스별 어댑터
+   - 기대 결과: `.atomic/`(scripts, graph.yaml), `.agents/skills/atomic-*`, AGENTS.md 블록, 하네스별 어댑터
      (cursor: .cursor/agents / opencode: .opencode/commands, .opencode/agents / pi: .pi/prompts / claude: .claude/* + CLAUDE.md의 @AGENTS.md).
 
 4. 검증
    - `node .atomic/scripts/doctor.mjs --harness <하네스> --target .` 실행. 실패 항목은 고치고 다시 실행해서 통과할 때까지.
    - `node .atomic/scripts/work-status.mjs list`가 오류 없이 출력되는지 확인.
-   - 네 하네스에서 스킬 목록에 `cursor-atomic-lite`, `cursor-atomic-plan`이 보이는지 확인.
+   - 네 하네스에서 스킬 목록에 `atomic-lite`, `atomic-plan`이 보이는지 확인.
 
 5. 보고
    - 감지한 하네스, 생성/수정된 파일 목록, doctor 결과, 사용법 한 줄
-     (예: "코딩 작업을 그냥 요청하면 lite/full을 자동 선택. 직접 지정: /cursor-atomic-lite").
+     (예: "코딩 작업을 그냥 요청하면 lite/full을 자동 선택. 직접 지정: /atomic-lite").
 ```
