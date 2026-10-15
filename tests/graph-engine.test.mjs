@@ -394,6 +394,216 @@ function mulberry32(seed) {
   };
 }
 
+// ---------- focused regression tests for .review5.md fixes ----------
+
+test("gate: always:true (merge) applies on edge to $end via current node requires_approval", () => {
+  const doc = {
+    version: 2, defaults: {}, limits: {}, gates: {}, entry: {},
+    nodes: { a: { skill: "x", requires_approval: ["merge"] } },
+    edges: [{ from: "a", to: "$end", on: "pass" }],
+  };
+  const s = baseState("a");
+  const r1 = nextStep(s, doc, okResult("a", "pass"));
+  assert.equal(r1.decision.kind, "gate");
+  assert.ok(r1.decision.gates.includes("merge"), JSON.stringify(r1.decision));
+  assert.equal(r1.decision.target, "$end");
+  // gate pause must not commit history
+  assert.equal(r1.state.history.length, 0);
+  assert.equal(r1.state.cursor.status, "waiting_gate");
+  const approved = approveGate(r1.state, "merge");
+  const r2 = nextStep(approved, doc, okResult("a", "pass"));
+  assert.equal(r2.decision.kind, "end");
+  assert.equal(r2.decision.target, "$end");
+});
+
+test("gate: current node requires_approval applies when target is reserved ($end)", () => {
+  const doc = {
+    version: 2, defaults: {}, limits: {}, gates: {}, entry: {},
+    nodes: { a: { skill: "x", requires_approval: ["db"] } },
+    edges: [{ from: "a", to: "$end", on: "pass" }],
+  };
+  // requires_approval fires even with empty touches
+  const r1 = nextStep(baseState("a"), doc, okResult("a", "pass", { touches: [] }));
+  assert.equal(r1.decision.kind, "gate");
+  assert.ok(r1.decision.gates.includes("db"));
+  assert.equal(r1.decision.target, "$end");
+
+  // touch-based gates also fire on edges to $end
+  const doc2 = {
+    version: 2, defaults: {}, limits: {}, gates: {}, entry: {},
+    nodes: { a: { skill: "x" } },
+    edges: [{ from: "a", to: "$end", on: "pass" }],
+  };
+  const r2 = nextStep(baseState("a"), doc2, okResult("a", "pass", { touches: ["migrations/001.sql"] }));
+  assert.equal(r2.decision.kind, "gate");
+  assert.ok(r2.decision.gates.includes("db"));
+  assert.equal(r2.decision.target, "$end");
+});
+
+test("gate pause does not pollute loops/history; committed once on move", () => {
+  const doc = {
+    version: 2, defaults: {}, limits: {}, gates: {}, entry: {},
+    nodes: {
+      a: { skill: "x" },
+      b: { skill: "x", requires_approval: ["merge"] },
+    },
+    edges: [{ from: "a", to: "b", on: "pass" }],
+  };
+  const s = baseState("a", { visits: { a: 1, b: 1 }, loops: {}, history: [] });
+  const r1 = nextStep(s, doc, okResult("a", "pass"));
+  assert.equal(r1.decision.kind, "gate");
+  assert.deepEqual(r1.state.loops, {});
+  assert.deepEqual(r1.state.visits, { a: 1, b: 1 });
+  assert.equal(r1.state.history.length, 0);
+  assert.equal(r1.state.cursor.node, "a");
+
+  const approved = approveGate(r1.state, "merge");
+  const r2 = nextStep(approved, doc, okResult("a", "pass"));
+  assert.equal(r2.decision.kind, "move");
+  assert.equal(r2.decision.target, "b");
+  // exactly one loop increment + one history entry for the single transition
+  assert.deepEqual(r2.state.loops, { b: 1 });
+  assert.equal(r2.state.history.length, 1);
+});
+
+test("limits.max_loops overrides max_visits for that node (realistic walk)", () => {
+  const doc = {
+    version: 2, defaults: {}, limits: { max_loops: { a: 3 } }, gates: {}, entry: {},
+    nodes: { a: { skill: "x" } },
+    edges: [{ from: "a", to: "a", on: "pass" }],
+  };
+  let state = baseState("a", { visits: { a: 1 }, loops: {}, history: [], steps: 0 });
+  // 3 loops must all succeed (visits 1 -> 4); old max_visits=3 code escalated on the 3rd
+  for (let i = 0; i < 3; i++) {
+    const { state: ns, decision } = nextStep(state, doc, okResult("a", "pass", { reason: `iter-${i}`, touches: [] }));
+    assert.equal(decision.kind, "move", `loop ${i + 1}: ${JSON.stringify(decision)}`);
+    state = ns;
+  }
+  assert.deepEqual(state.loops, { a: 3 });
+  assert.deepEqual(state.visits, { a: 4 });
+  // 4th loop exceeds max_loops
+  const { decision: d4 } = nextStep(state, doc, okResult("a", "pass", { reason: "iter-3", touches: [] }));
+  assert.equal(d4.kind, "escalate");
+  assert.equal(d4.target, "$user");
+  assert.ok(d4.reason.includes('loop limit exceeded for "a"'));
+});
+
+test("doc.gates merged over defaults (custom does not wipe defaults)", () => {
+  const doc = {
+    version: 2, defaults: {}, limits: {}, entry: {},
+    gates: { deploy: { match: ["deploy/**"] } },
+    nodes: { a: { skill: "x" } }, edges: [],
+  };
+  // default gate still fires
+  assert.ok(matchGates(doc, { node: "a", touches: ["migrations/001.sql"] }).includes("db"));
+  // custom gate fires
+  assert.ok(matchGates(doc, { node: "a", touches: ["deploy/foo"] }).includes("deploy"));
+  // both together
+  const both = matchGates(doc, { node: "a", touches: ["migrations/001.sql", "deploy/foo"] });
+  assert.ok(both.includes("db") && both.includes("deploy"), JSON.stringify(both));
+  // empty gates object keeps defaults (does not disable them)
+  const docEmpty = {
+    version: 2, defaults: {}, limits: {}, entry: {},
+    gates: {}, nodes: { a: { skill: "x" } }, edges: [],
+  };
+  assert.ok(matchGates(docEmpty, { node: "a", touches: ["migrations/001.sql"] }).includes("db"));
+});
+
+test("2 consecutive invalid_result for same node escalate to $user", () => {
+  const doc = {
+    version: 2, defaults: {}, limits: {}, gates: {}, entry: {},
+    nodes: { plan: { skill: "x" }, other: { skill: "x" } },
+    edges: [{ from: "plan", to: "other", on: "pass" }],
+  };
+  const s0 = baseState("plan");
+  const r1 = nextStep(s0, doc, { atomic_result: 1, node: "plan", outcome: "bogus" });
+  assert.equal(r1.decision.kind, "invalid_result");
+  assert.equal(r1.decision.retry, true);
+  assert.equal(r1.state.history.length, 1);
+  assert.equal(r1.state.history[0].next, null);
+
+  const r2 = nextStep(r1.state, doc, { atomic_result: 1, node: "plan", outcome: "bogus" });
+  assert.equal(r2.decision.kind, "escalate");
+  assert.equal(r2.decision.target, "$user");
+  assert.ok(r2.decision.reason.includes('invalid result repeated 2 times for "plan"'), r2.decision.reason);
+  assert.equal(r2.state.cursor.status, "waiting_user");
+});
+
+test("transition to $end allowed at steps == max_steps", () => {
+  const doc = {
+    version: 2, defaults: {}, limits: { max_steps: 30 }, gates: {}, entry: {},
+    nodes: { a: { skill: "x" }, b: { skill: "x" } },
+    edges: [
+      { from: "a", to: "$end", on: "pass" },
+      { from: "a", to: "b", on: "fail" },
+    ],
+  };
+  const rEnd = nextStep(baseState("a", { steps: 30 }), doc, okResult("a", "pass", { touches: [] }));
+  assert.equal(rEnd.decision.kind, "end");
+  assert.equal(rEnd.decision.target, "$end");
+
+  const rBlocked = nextStep(baseState("a", { steps: 30 }), doc, okResult("a", "fail", { touches: [] }));
+  assert.equal(rBlocked.decision.kind, "escalate");
+  assert.ok(rBlocked.decision.reason.includes("max steps"), rBlocked.decision.reason);
+});
+
+test("evalWhen strict equality (no type coercion)", () => {
+  // old loose == made these true; strict === keeps them false
+  assert.equal(evalWhen("n == false", { n: 0 }), false);
+  assert.equal(evalWhen("s == 0", { s: "" }), false);
+  assert.equal(evalWhen("flag == 1", { flag: true }), false);
+  assert.equal(evalWhen("a != false", { a: 0 }), true);
+  // sanity: same-type equality still works
+  assert.equal(evalWhen("n == 1", { n: 1 }), true);
+  assert.equal(evalWhen("n == 0", { n: 0 }), true);
+  // nullish exception preserved
+  assert.equal(evalWhen("x == null", {}), true);
+  assert.equal(evalWhen("x == null", { x: null }), true);
+  assert.equal(evalWhen("x == null", { x: 1 }), false);
+  assert.equal(evalWhen("x != null", { x: 0 }), true);
+});
+
+test("applyFacts treats acStatus fail like failing tests", () => {
+  const out = applyFacts(okResult("execute", "pass", { reason: "r" }), { acStatus: { "AC-1": "fail" } });
+  assert.equal(out.outcome, "fail");
+  assert.equal(out.overridden, true);
+  assert.equal(out.originalOutcome, "pass");
+  assert.ok(out.reason.startsWith("fact: ac failed; "), out.reason);
+
+  // fail takes precedence over uncovered
+  const out2 = applyFacts(okResult("execute", "pass", { reason: "r" }), {
+    acStatus: { "AC-1": "uncovered", "AC-2": "fail" },
+  });
+  assert.equal(out2.outcome, "fail");
+  assert.ok(out2.reason.startsWith("fact: ac failed; "));
+
+  // uncovered alone still maps to spec_mismatch
+  const out3 = applyFacts(okResult("execute", "pass", { reason: "r" }), {
+    acStatus: { "AC-1": "uncovered" },
+  });
+  assert.equal(out3.outcome, "spec_mismatch");
+
+  // no override when outcome is not pass
+  const out4 = applyFacts(okResult("execute", "fail", { reason: "r" }), {
+    acStatus: { "AC-1": "fail" },
+  });
+  assert.equal(out4.outcome, "fail");
+  assert.equal(out4.overridden, false);
+});
+
+test("no spurious proposal_rejected without a proposal", () => {
+  const doc = {
+    version: 2, defaults: {}, limits: {}, gates: {}, entry: {},
+    nodes: { a: { skill: "x" }, b: { skill: "x" } },
+    edges: [{ from: "a", to: "b", on: "pass" }],
+  };
+  const { decision } = nextStep(baseState("a"), doc, okResult("a", "pass", { touches: [] }));
+  assert.equal(decision.kind, "move");
+  assert.equal(decision.target, "b");
+  assert.equal(decision.proposalAccepted, false);
+  assert.ok(!("reason" in decision) || decision.reason === undefined, JSON.stringify(decision));
+});
+
 test("property: 200 random results stay in allowed ∪ reserved and terminate", () => {
   const doc = { ...loadExample(), gates: {} };
   // strip requires_approval so gates never block property walk
