@@ -73,7 +73,7 @@ description: "단일 세션 경량 워크플로: 짧은 PLAN·구현·메모리�
 
 구현이 끝난 뒤, 이번 작업에서 다음 실행에 도움이 될 **최대 5건**만 고른다 (`projects/`, `decisions/`, `gotchas/`, 필요 시 `human.md`). 각 `text`는 한 줄·200자 이하·한국어·비밀 없음.
 
-`/tmp/memory-<slug>.json` 예:
+`<docsDir>/memory-<slug>.json` 예:
 
 ```json
 {
@@ -85,7 +85,7 @@ description: "단일 세션 경량 워크플로: 짧은 PLAN·구현·메모리�
 }
 ```
 
-`node .atomic/scripts/memory.mjs propose --auto /tmp/memory-<slug>.json` — 항목이 없으면 이 단계를 건너뛴다. 메모리 디렉터리를 직접 편집하지 않는다.
+`node .atomic/scripts/memory.mjs propose --auto <docsDir>/memory-<slug>.json` — 항목이 없으면 이 단계를 건너뛴다. 메모리 디렉터리를 직접 편집하지 않는다.
 
 ## 3) WRAPUP — 검증·요약
 

@@ -17,6 +17,8 @@ import {
 } from "./lib/install-agents.mjs";
 import { getWorkflowRoot } from "./work-status.mjs";
 import { writeInstalledHarnesses } from "./lib/project-settings.mjs";
+import { installOpencodeConfig, OPENCODE_CONFIG_FILE } from "./lib/opencode-config.mjs";
+import { rewriteGraphExecutors } from "./lib/graph.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -275,6 +277,31 @@ async function readPackageVersion(root) {
   }
 }
 
+/**
+ * Rewrites the freshly installed `.atomic/graph.yaml` to the opencode executor
+ * when the harness set is opencode-only (no cursor).
+ * @param {string} target
+ * @param {Set<string>} harnesses
+ * @param {{ copied: string[], overwritten: string[], skipped: string[] }} record
+ * @returns {Promise<number>} number of rewritten nodes
+ */
+export async function applyOpencodeGraphExecutors(target, harnesses, record) {
+  const graphDest = join(target, ".atomic", "graph.yaml");
+  if (!existsSync(graphDest)) return 0;
+  const before = await readFile(graphDest, "utf8");
+  const { text, replaced } = rewriteGraphExecutors(before, {
+    hasOpencode: harnesses.has("opencode"),
+    hasCursor: harnesses.has("cursor"),
+  });
+  if (!replaced || text === before) {
+    record.skipped.push(graphDest);
+    return 0;
+  }
+  await writeFile(graphDest, text, "utf8");
+  record.overwritten.push(graphDest);
+  return replaced;
+}
+
 async function ensureMemoryVault() {
   const home = getWorkflowRoot();
   const memoryDir = join(home, "memory");
@@ -318,6 +345,7 @@ export async function install(options = {}) {
     record.copied.push(join(target, ".atomic/profiles/"));
     record.copied.push(join(target, ".atomic/VERSION"));
     if (harnesses.has("cursor")) record.copied.push(join(target, ".cursor/agents/"));
+    if (harnesses.has("opencode")) record.copied.push(join(target, OPENCODE_CONFIG_FILE));
     return {
       target,
       harnesses: [...harnesses].sort(),
@@ -343,7 +371,15 @@ export async function install(options = {}) {
 
   await ensureMemoryVault();
 
-  await installAtomicRuntime(root, target, { force });
+  const runtime = await installAtomicRuntime(root, target, { force });
+  const graphDest = join(target, ".atomic", "graph.yaml");
+  if (
+    harnesses.has("opencode") &&
+    !harnesses.has("cursor") &&
+    runtime.copied.includes(graphDest)
+  ) {
+    await applyOpencodeGraphExecutors(target, harnesses, record);
+  }
   const versionDest = join(target, ".atomic", "VERSION");
   await mkdir(join(versionDest, ".."), { recursive: true });
   await writeFile(versionDest, `${version}\n`, "utf8");
@@ -389,6 +425,7 @@ export async function install(options = {}) {
       record[existed ? "overwritten" : "copied"].push(dest);
     }
     await installCommandShims(root, target, join(".opencode", "commands"), force, record);
+    await installOpencodeConfig(target, getWorkflowRoot(), record);
   }
 
   if (harnesses.has("pi")) {

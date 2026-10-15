@@ -26,7 +26,7 @@ node .atomic/scripts/work-status.mjs sync <slug> [phase]
 node .atomic/scripts/memory.mjs repo .
 node .atomic/scripts/memory.mjs context <shortRepo>   # 위 repo 출력값
 node .atomic/scripts/run-done.mjs "<done-command>" [logPath]
-node .atomic/scripts/memory.mjs propose --auto /tmp/memory-<slug>.json
+node .atomic/scripts/memory.mjs propose --auto <docsDir>/memory-<slug>.json
 ```
 - 메모리 볼트는 `CURSOR_ATOMIC_WORKFLOW_HOME`(없으면 `~/.cursor-atomic-workflow`) 아래 `memory/`다. `propose` JSON은 `shortRepo`, `slug`, `items[]`(`target`: `human.md` | `projects|decisions|gotchas/<name>.md`, `text`: 한 줄·200자 이하) 형식이어야 한다. 승인 대기만 넣을 때는 `propose <file.json>`(without `--auto`); `list` | `approve <id>` | `reject <id>`도 지원한다.
 - 상태·문서는 `CURSOR_ATOMIC_WORKFLOW_HOME`(기본 `~/.cursor-atomic-workflow`) 아래 `docs/<shortRepo>/<slug>/`에 기록한다.

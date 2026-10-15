@@ -24,6 +24,8 @@ param(
 
   [string]$Model,
 
+  [string]$OpenCodeModel,
+
   [int]$TimeoutMin = 45
 )
 
@@ -139,11 +141,26 @@ if (-not [string]::IsNullOrWhiteSpace($agyModel)) {
   }
 }
 
+# opencode model is passed through verbatim (no agy alias resolution).
+$openCodeModel = $OpenCodeModel
+if ([string]::IsNullOrWhiteSpace($openCodeModel) -and -not [string]::IsNullOrWhiteSpace($env:CURSOR_ATOMIC_OPENCODE_MODEL)) {
+  $openCodeModel = $env:CURSOR_ATOMIC_OPENCODE_MODEL
+}
+# A whitespace-only model counts as unset so -m is never passed a blank value.
+if ([string]::IsNullOrWhiteSpace($openCodeModel)) {
+  $openCodeModel = ''
+}
+
 Push-Location -LiteralPath $ws
 $exitCode = 1
 try {
-  $modelNote = if ($agyModel) { $agyModel } else { 'default' }
-  "worker=$Worker workspace=$ws started=$(Get-Date -Format o) agy_model=$modelNote" | Set-Content -LiteralPath $LogFile -Encoding UTF8
+  $agyNote = if ($agyModel) { $agyModel } else { 'default' }
+  $logHeader = "worker=$Worker workspace=$ws started=$(Get-Date -Format o) agy_model=$agyNote"
+  if ($Worker -eq 'opencode') {
+    $ocNote = if (-not [string]::IsNullOrWhiteSpace($openCodeModel)) { $openCodeModel } else { 'default' }
+    $logHeader += " opencode_model=$ocNote"
+  }
+  $logHeader | Set-Content -LiteralPath $LogFile -Encoding UTF8
 
   switch ($Worker) {
     'agy' {
@@ -185,7 +202,10 @@ try {
       $bin = Resolve-Bin @('opencode.exe', 'opencode')
       if (-not $bin) { throw 'opencode not on PATH. Run scripts/ensure-workers.ps1 -Workers opencode' }
       $ocPrompt = Get-ReadPromptFileInstruction $effectivePromptFile
-      & $bin run --dir $ws --auto --title "cursor-atomic-workflow" $ocPrompt 2>&1 |
+      $ocArgs = @('run', '--dir', $ws, '--auto', '--title', 'cursor-atomic-workflow')
+      if (-not [string]::IsNullOrWhiteSpace($openCodeModel)) { $ocArgs += @('-m', $openCodeModel) }
+      $ocArgs += $ocPrompt
+      & $bin @ocArgs 2>&1 |
         Tee-Object -FilePath $LogFile -Append
       $exitCode = $LASTEXITCODE
     }

@@ -106,6 +106,34 @@ export function loadGraph(repoRoot) {
   return { version: parsed.version, nodes: parsed.nodes, warnings: parsed.warnings ?? [] };
 }
 
+/** Executor ids that only run inside Cursor. */
+export const CURSOR_ONLY_EXECUTORS = ["cursor-sdk", "cursor-subagent", "cursor-agent"];
+
+/**
+ * Rewrites Cursor-only executor ids to `opencode` for opencode-only installs.
+ * Text-level rewrite; every other line is preserved verbatim.
+ * @param {string} text graph.yaml contents
+ * @param {{ hasOpencode?: boolean, hasCursor?: boolean }} [harnesses]
+ * @returns {{ text: string, replaced: number }}
+ */
+export function rewriteGraphExecutors(text, harnesses = {}) {
+  const hasOpencode = harnesses.hasOpencode === true;
+  const hasCursor = harnesses.hasCursor === true;
+  const source = typeof text === "string" ? text : "";
+  if (!hasOpencode || hasCursor) return { text: source, replaced: 0 };
+
+  let replaced = 0;
+  const pattern = new RegExp(
+    `^([ \\t]*)executor:[ \\t]*(?:${CURSOR_ONLY_EXECUTORS.join("|")})[ \\t\\r]*$`,
+    "gm",
+  );
+  const next = source.replace(pattern, (_match, indent) => {
+    replaced += 1;
+    return `${indent}executor: opencode`;
+  });
+  return { text: next, replaced };
+}
+
 /** Pipeline / setup stage ids (graph node keys). */
 export const GRAPH_STAGE_IDS = [
   "lite",
