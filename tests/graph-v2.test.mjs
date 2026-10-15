@@ -19,8 +19,8 @@ function validDoc() {
     gates: {},
     entry: { default: "plan" },
     nodes: {
-      plan: { skill: "cursor-atomic-plan" },
-      review: { skill: "cursor-atomic-review" },
+      plan: { skill: "atomic-plan" },
+      review: { skill: "atomic-review" },
     },
     edges: [{ from: "plan", to: "review", on: "pass" }],
   };
@@ -99,6 +99,19 @@ test("unreachable-node warning", () => {
   assert.ok(warnings.some((w) => w.includes('"orphan"') && w.includes("unreachable")));
 });
 
+test("model key warns instead of erroring", () => {
+  const d = validDoc();
+  d.nodes.plan = { skill: "a", model: "x" };
+  const res = validateGraphV2(d, { executorIds: EXECUTOR_IDS });
+  assert.deepEqual(res.errors, []);
+  assert.ok(res.warnings.some((w) => w.includes("model is ignored (model selection was removed)")));
+  const d2 = validDoc();
+  d2.defaults = { model: "x" };
+  const res2 = validateGraphV2(d2, { executorIds: EXECUTOR_IDS });
+  assert.deepEqual(res2.errors, []);
+  assert.ok(res2.warnings.some((w) => w.includes("model is ignored (model selection was removed)")));
+});
+
 test("v1 parses and normalizeV1 produces edges", () => {
   const text = rf("graph.yaml", "utf8");
   const g = parseGraphYaml(text);
@@ -131,8 +144,8 @@ test("add-node rewires review->test into review->security-scan->test", () => {
     const base = `version: 2
 defaults: { executor: cursor-subagent }
 nodes:
-  review: { skill: cursor-atomic-review }
-  test: { skill: cursor-atomic-test }
+  review: { skill: atomic-review }
+  test: { skill: atomic-test }
 edges:
   - { from: review, to: test, on: pass }
 `;
@@ -370,7 +383,7 @@ test("parse keeps doc.nodes pristine; serialize does not bake defaults", () => {
   const text = `version: 2
 defaults: { executor: cursor-subagent, timeout: 900 }
 nodes:
-  plan: { skill: cursor-atomic-plan }
+  plan: { skill: atomic-plan }
 edges:
   - { from: plan, to: $end, on: pass }
 `;
@@ -380,7 +393,7 @@ edges:
   assert.equal(g.nodes.plan.executor, "cursor-subagent");
   assert.equal(g.nodes.plan.timeout, 900);
   // doc stays pristine
-  assert.deepEqual(g.doc.nodes.plan, { skill: "cursor-atomic-plan" });
+  assert.deepEqual(g.doc.nodes.plan, { skill: "atomic-plan" });
   const yaml = serializeGraphV2(g.doc);
   assert.ok(!yaml.includes("timeout: 900") || yaml.includes("defaults:"));
   const g2 = parseGraphYaml(yaml);

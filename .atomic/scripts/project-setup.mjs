@@ -91,12 +91,38 @@ export async function runProjectSetup(repoRoot, options = {}) {
 
   // The workflow no longer selects models; drop a legacy value instead of carrying it forward.
   const dropKeys = existing.agyModel != null ? ["agyModel"] : [];
+  // Legacy `artifacts` block is unified onto `docsRoot`; never write it back.
+  if (existing.artifacts != null) dropKeys.push("artifacts");
 
   const priorDocsRoot =
     typeof existing.docsRoot === "string" && existing.docsRoot.trim()
       ? existing.docsRoot.trim()
       : null;
   let docsRootChoice = priorDocsRoot;
+  // --artifacts is an alias that writes docsRoot only.
+  if (options.artifacts != null && String(options.artifacts).trim() !== "") {
+    const { parseArtifactsFlag } = await import("./lib/artifacts.mjs");
+    const parsed = parseArtifactsFlag(String(options.artifacts));
+    if (!parsed.ok) throw new Error(parsed.reason);
+    docsRootChoice = parsed.docsRoot;
+    if (docsRootChoice !== priorDocsRoot) {
+      if (docsRootChoice == null) {
+        if (!dropKeys.includes("docsRoot")) dropKeys.push("docsRoot");
+      } else {
+        patch.docsRoot = docsRootChoice;
+      }
+    }
+  } else if (!interactive && priorDocsRoot == null && existing.artifacts != null) {
+    // Non-interactive migration: honor legacy artifacts once, then drop it.
+    const { docsRootFromLegacyArtifacts } = await import("./lib/artifacts.mjs");
+    const mapped = docsRootFromLegacyArtifacts(existing.artifacts);
+    if (mapped != null) {
+      docsRootChoice = mapped;
+      patch.docsRoot = mapped;
+    } else {
+      docsRootChoice = null;
+    }
+  }
   if (interactive) {
     const defaultChoice = !priorDocsRoot
       ? "global"
@@ -191,6 +217,23 @@ export async function runProjectSetup(repoRoot, options = {}) {
   }
 
   writeProjectSettings(root, patch, { dropKeys });
+  {
+    const effective = docsRootChoice ?? null;
+    if (typeof effective === "string" && effective) {
+      const { isAbsolute, sep } = await import("node:path");
+      const isRelative = !isAbsolute(effective) && !effective.startsWith("~");
+      let insideRepo = isRelative;
+      if (!insideRepo && isAbsolute(effective)) {
+        const base = resolve(root);
+        const abs = resolve(effective);
+        insideRepo = abs === base || abs.startsWith(base + sep);
+      }
+      if (insideRepo) {
+        const { artifactsRepoNote } = await import("./lib/artifacts.mjs");
+        console.log(artifactsRepoNote(effective));
+      }
+    }
+  }
   const trust = await ensureCommandTrusted(
     typeof patch.testDone === "string" ? patch.testDone : priorTest,
     { repoRoot: root, nonInteractive: !interactive },
@@ -207,10 +250,15 @@ export async function runProjectSetup(repoRoot, options = {}) {
 }
 
 if (process.argv[1]?.endsWith("project-setup.mjs")) {
-  const target = process.argv.includes("--target")
-    ? resolve(process.argv[process.argv.indexOf("--target") + 1])
+  const targetIdx = process.argv.indexOf("--target");
+  const target = targetIdx !== -1 && process.argv[targetIdx + 1]
+    ? resolve(process.argv[targetIdx + 1])
     : process.cwd();
-  runProjectSetup(target)
+  const artifactsIdx = process.argv.indexOf("--artifacts");
+  const artifacts = artifactsIdx !== -1 && process.argv[artifactsIdx + 1]
+    ? process.argv[artifactsIdx + 1]
+    : undefined;
+  runProjectSetup(target, artifacts !== undefined ? { artifacts } : {})
     .then((res) => {
       console.log(JSON.stringify(res, null, 2));
       if (!res.doctorOk) process.exit(1);

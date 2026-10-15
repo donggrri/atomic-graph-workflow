@@ -2,7 +2,6 @@ import { readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { getWorkflowRoot } from "../work-status.mjs";
 import { PROJECT_SETTINGS_FILE, GLOBAL_SETTINGS_FILE } from "./profiles.mjs";
-import { parseArtifactsBlock } from "./artifacts.mjs";
 import { EXECUTOR_IDS } from "./executors/constants.mjs";
 import { GRAPH_STAGE_IDS } from "./graph.mjs";
 
@@ -179,11 +178,6 @@ export function loadWorkflowSettings(options) {
   const projectTrust = parseTrustedExecutors(project.data.trustedExecutors, "project settings");
   if (!projectTrust.ok) return projectTrust;
 
-  const globalArtifacts = parseArtifactsBlock(global.data.artifacts, "global settings");
-  if (!globalArtifacts.ok) return globalArtifacts;
-  const projectArtifacts = parseArtifactsBlock(project.data.artifacts, "project settings");
-  if (!projectArtifacts.ok) return projectArtifacts;
-
   /** @type {Partial<Record<string, "ask"|"sdk"|"agy">>} */
   const agy = { ...globalAgy.choices, ...projectAgy.choices };
   const executors = { ...globalExec.executors, ...projectExec.executors };
@@ -201,6 +195,9 @@ export function loadWorkflowSettings(options) {
   ]) {
     if (data.agyModel != null) {
       warnings.push(`${label}: agyModel is ignored (the workflow does not select models)`);
+    }
+    if (data.artifacts != null) {
+      warnings.push(`${label}: artifacts is deprecated (use docsRoot instead)`);
     }
   }
 
@@ -229,7 +226,6 @@ export function loadWorkflowSettings(options) {
     warnings,
     executorTimeouts,
     trustedExecutors,
-    artifacts: projectArtifacts.artifacts ?? globalArtifacts.artifacts ?? null,
   };
 }
 

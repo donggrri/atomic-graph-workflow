@@ -29,7 +29,7 @@ test("artifactsRepoNote recommends committing specs dir", () => {
 });
 
 test("docs recommend committing the in-repo specs dir", () => {
-  for (const f of ["README.md", "README.kr.md", "skills/cursor-atomic-setup/SKILL.md"]) {
+  for (const f of ["README.md", "README.kr.md", "skills/atomic-setup/SKILL.md"]) {
     const text = readFileSync(f, "utf8");
     assert.ok(text.includes("commit"), `${f} should mention commit`);
     assert.ok(text.includes(".gitignore"), `${f} should mention .gitignore`);
@@ -68,14 +68,12 @@ test("project-setup with repo artifacts prints the one-line note", async () => {
   const wfHome = mkdtempSync(join(tmpdir(), "wf-note-"));
   const prevHome = process.env.CURSOR_ATOMIC_WORKFLOW_HOME;
   const prevTrust = process.env.CURSOR_ATOMIC_TRUST_COMMANDS;
-  const prevOverride = process.env.CURSOR_ATOMIC_ARTIFACTS_DIR;
   const lines = [];
   const origLog = console.log;
   console.log = (...a) => lines.push(a.join(" "));
   try {
     process.env.CURSOR_ATOMIC_WORKFLOW_HOME = wfHome;
     process.env.CURSOR_ATOMIC_TRUST_COMMANDS = "1";
-    delete process.env.CURSOR_ATOMIC_ARTIFACTS_DIR;
     writeFileSync(join(repo, "package.json"), JSON.stringify({ scripts: { test: "node --test" } }), "utf8");
     await runProjectSetup(repo, { interactive: false, artifacts: "repo:specs", skipDoctor: true });
   } finally {
@@ -84,8 +82,6 @@ test("project-setup with repo artifacts prints the one-line note", async () => {
     else delete process.env.CURSOR_ATOMIC_WORKFLOW_HOME;
     if (prevTrust !== undefined) process.env.CURSOR_ATOMIC_TRUST_COMMANDS = prevTrust;
     else delete process.env.CURSOR_ATOMIC_TRUST_COMMANDS;
-    if (prevOverride !== undefined) process.env.CURSOR_ATOMIC_ARTIFACTS_DIR = prevOverride;
-    else delete process.env.CURSOR_ATOMIC_ARTIFACTS_DIR;
   }
   try {
     const out = lines.join("\n");

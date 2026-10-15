@@ -111,7 +111,6 @@ export async function runGraphStage(options) {
         role: genericRole,
         prompt: genericPrompt,
         cwd: repoRoot,
-        model: roleTaskModel(genericRole),
         phaseKey: stage,
       });
       if (result.ok) {

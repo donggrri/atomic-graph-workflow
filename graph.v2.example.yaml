@@ -9,20 +9,20 @@ gates:
   deps: { match: [package.json, package-lock.json, requirements*.txt, go.mod, Cargo.toml] }
 entry: { default: router, by_class: { bug: explore, feature: spec, refactor: plan, trivial: lite, docs: spec } }
 nodes:
-  router: { skill: cursor-atomic-router, executor: cursor-subagent }
-  explore: { skill: cursor-atomic-explore, executor: cursor-subagent, agent: explorer }
-  spec: { skill: cursor-atomic-spec, executor: cursor-subagent, timeout: 900, inputs: [brief], outputs: [SPEC.md] }
-  spec-review: { skill: cursor-atomic-spec-review, executor: cursor-subagent, agent: spec-reviewer }
-  plan: { skill: cursor-atomic-plan, executor: cursor-subagent, agent: planner }
-  plan-review: { skill: cursor-atomic-plan, executor: cursor-subagent, agent: plan-reviewer }
-  task: { skill: cursor-atomic-task, executor: cursor-subagent, agent: tasker }
-  execute: { skill: cursor-atomic-execute, executor: cursor-subagent, agent: worker }
-  review: { skill: cursor-atomic-review, executor: cursor-subagent, agent: cursor-atomic-reviewer }
+  router: { skill: atomic-router, executor: cursor-subagent }
+  explore: { skill: atomic-explore, executor: cursor-subagent, agent: explorer }
+  spec: { skill: atomic-spec, executor: cursor-subagent, timeout: 900, inputs: [brief], outputs: [SPEC.md] }
+  spec-review: { skill: atomic-spec-review, executor: cursor-subagent, agent: spec-reviewer }
+  plan: { skill: atomic-plan, executor: cursor-subagent, agent: planner }
+  plan-review: { skill: atomic-plan, executor: cursor-subagent, agent: plan-reviewer }
+  task: { skill: atomic-task, executor: cursor-subagent, agent: tasker }
+  execute: { skill: atomic-execute, executor: cursor-subagent, agent: worker }
+  review: { skill: atomic-review, executor: cursor-subagent, agent: atomic-reviewer }
   security-scan: { skill: security-scan, executor: opencode, timeout: 600, inputs: [diff], outputs: [SECURITY.md], requires_approval: [] }
-  test: { skill: cursor-atomic-test, executor: cursor-subagent, inputs: [diff], outputs: [TEST.md] }
-  wrapup: { skill: cursor-atomic-wrapup, executor: cursor-subagent, agent: tester }
-  lite: { skill: cursor-atomic-lite, executor: cursor-sdk }
-  memory: { skill: cursor-atomic-workflow, executor: cursor-subagent, agent: memory-curator }
+  test: { skill: atomic-test, executor: cursor-subagent, inputs: [diff], outputs: [TEST.md] }
+  wrapup: { skill: atomic-wrapup, executor: cursor-subagent, agent: tester }
+  lite: { skill: atomic-lite, executor: cursor-sdk }
+  memory: { skill: atomic-workflow, executor: cursor-subagent, agent: memory-curator }
 edges:
   - { from: router, to: [lite, explore], on: route }
   - { from: explore, to: spec, on: pass }

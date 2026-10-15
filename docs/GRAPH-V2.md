@@ -1,6 +1,6 @@
 # Graph v2
 
-v2 adds `version: 2` graphs with explicit `edges`, `defaults`, `limits`, `gates`, and `entry`, plus user-defined custom nodes. In this PR v2 is parsed and validated; per-node executor/model and custom nodes work with `run-stage`. The dynamic engine that follows edges arrives in a later PR.
+v2 adds `version: 2` graphs with explicit `edges`, `defaults`, `limits`, `gates`, and `entry`, plus user-defined custom nodes. In this PR v2 is parsed and validated; per-node executor and custom nodes work with `run-stage`. The dynamic engine that follows edges arrives in a later PR.
 
 ## Schema reference
 
@@ -20,9 +20,9 @@ edges:
 
 - `version` must be `2`.
 - `nodes` (required): map of node id (`/^[a-z][a-z0-9-]*$/`) to:
-  - `skill` (string: skill name or relative path), `prompt` (string: relative path to a prompt `.md` file), `agent` (string), `executor` (one of `cursor-subagent, cursor-agent, cursor-sdk, agy, codex, opencode, pi, claude`), `model` (string), `timeout` (positive integer seconds), `mode` (string), `inputs` (string[]), `outputs` (string[]), `requires_approval` (string[] of gate ids from `gates` or `db, auth, merge, ci, deps`), `max_visits` (positive int), `terminal_hook` (bool), `description` (string), `readonly` (bool).
-  - Unknown fields are warnings. A node needs at least one of `skill`, `prompt`, `agent`; `skill` + `prompt` together is an error. `readonly` must be a boolean when present.
-  - `defaults.executor/model/timeout/max_visits` fill nodes that omit them.
+  - `skill` (string: skill name or relative path), `prompt` (string: relative path to a prompt `.md` file), `agent` (string), `executor` (one of `cursor-subagent, cursor-agent, cursor-sdk, agy, codex, opencode, pi, claude`), `timeout` (positive integer seconds), `mode` (string), `inputs` (string[]), `outputs` (string[]), `requires_approval` (string[] of gate ids from `gates` or `db, auth, merge, ci, deps`), `max_visits` (positive int), `terminal_hook` (bool), `description` (string), `readonly` (bool).
+  - Unknown fields are warnings. A `model` key produces a warning (`model is ignored (model selection was removed)`) rather than an error. A node needs at least one of `skill`, `prompt`, `agent`; `skill` + `prompt` together is an error. `readonly` must be a boolean when present.
+  - `defaults.executor/timeout/max_visits` fill nodes that omit them. A `defaults.model` key produces a warning (`model is ignored (model selection was removed)`) rather than an error.
 - `limits`: `max_steps` (positive int), `max_loops` (map node id to positive int; nodes must exist).
 - `gates`: map gate id to `{ match: string[] }` or `{ always: true }`.
 - `entry`: `{ default: <node>, by_class: { bug|feature|refactor|trivial|docs: <node> } }`.
@@ -48,12 +48,12 @@ Custom nodes without `agent` run as `worker`. With `readonly: true` they run as 
 
 ```
 node scripts/lib/graph.mjs add-node <id> --after <node> [--before <node>]
-  [--skill <name>|--prompt <relpath>] [--executor <id>] [--model <m>]
+  [--skill <name>|--prompt <relpath>] [--executor <id>]
   [--timeout <s>] [--on pass] [--readonly] [--repo <dir>] [--dry-run]
 ```
 
 - On a version 1 graph, auto-migrates: builds the v2 doc via `normalizeV1` (keeping node fields), writes a `graph.yaml.v1.bak` backup of the original, prints `migrated graph.yaml v1 -> v2 (backup: graph.yaml.v1.bak)`, then continues adding the node. `--dry-run` never writes files. `--readonly` sets `readonly: true` on the new node.
-- v1 migration details (`normalizeV1`): the legacy `next` field is dropped (v2 uses `edges`); any router-like v1 node left without `skill`/`prompt`/`agent` — i.e. the default `router: { next: [lite, explore] }` or any node that only had `next` — gets `skill: cursor-atomic-router` so the migrated doc validates. v2 validation itself stays strict (every node still needs one of `skill`, `prompt`, `agent`); no skill-less exception was added. Typed v1 scalars are coerced during normalization (`timeout`/`max_visits` digit strings to numbers, `terminal_hook`/`readonly` `"true"`/`"false"` to booleans). Single kept edge targets collapse to a scalar `to: <node>`.
+- v1 migration details (`normalizeV1`): the legacy `next` field is dropped (v2 uses `edges`); any router-like v1 node left without `skill`/`prompt`/`agent` — i.e. the default `router: { next: [lite, explore] }` or any node that only had `next` — gets `skill: atomic-router` so the migrated doc validates. v2 validation itself stays strict (every node still needs one of `skill`, `prompt`, `agent`); no skill-less exception was added. Typed v1 scalars are coerced during normalization (`timeout`/`max_visits` digit strings to numbers, `terminal_hook`/`readonly` `"true"`/`"false"` to booleans). Single kept edge targets collapse to a scalar `to: <node>`.
 - The `.v1.bak` backup and the migration log happen only after validation succeeds (and never on `--dry-run` failure), so a failed `add-node` leaves no backup behind and never claims migration succeeded.
 - Rewires every `from: <after>` edge whose `on` contains `--on` (default `pass`): with `--before` (a node id or reserved target such as `$end`), only edges targeting `--before`; without it, all such edges. Targets become `<id>`; a new `{ from: <id>, to: <old>, on: pass }` plus `{ from: <id>, to: <after>, on: fail }` is added. Edges whose `on` is an array with other outcomes are split so the other outcomes keep their original route. With no match, adds `{ from: <after>, to: <id>, on: <on> }` and `{ from: <id>, to: $end, on: pass }`; if `--before` was given but no edge links `<after>` to it, exits 1 without writing.
 - Scaffolds `.agents/skills/<name>/SKILL.md` (default name = id) or the `--prompt` file when missing.

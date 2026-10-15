@@ -195,7 +195,6 @@ export function parseGraphYaml(text, opts = {}) {
   for (const [id, nv] of Object.entries(rawNodes)) {
     const n = nv != null && typeof nv === "object" && !Array.isArray(nv) ? { ...nv } : {};
     if (defaults.executor !== undefined && n.executor === undefined) n.executor = defaults.executor;
-    if (defaults.model !== undefined && n.model === undefined) n.model = defaults.model;
     if (defaults.timeout !== undefined && n.timeout === undefined) n.timeout = defaults.timeout;
     if (defaults.max_visits !== undefined && n.max_visits === undefined) n.max_visits = defaults.max_visits;
     nodes[id] = n;
@@ -303,7 +302,6 @@ const NODE_FIELD_ORDER = [
   "prompt",
   "agent",
   "executor",
-  "model",
   "timeout",
   "mode",
   "inputs",
@@ -326,7 +324,7 @@ export function serializeGraphV2(doc) {
   const defaults = doc.defaults ?? {};
   if (defaults && typeof defaults === "object" && Object.keys(defaults).length > 0) {
     const ordered = {};
-    for (const k of ["executor", "model", "timeout", "max_visits"]) {
+    for (const k of ["executor", "timeout", "max_visits"]) {
       if (k in defaults) ordered[k] = defaults[k];
     }
     for (const k of Object.keys(defaults)) {
@@ -406,7 +404,7 @@ export function serializeGraphV2(doc) {
 function cliUsage() {
   return `Usage:
   node graph.mjs lint [--repo <dir>] [--json]
-  node graph.mjs add-node <id> --after <node> [--before <node>] [--skill <name>|--prompt <relpath>] [--executor <id>] [--model <m>] [--timeout <s>] [--on <outcome>] [--readonly] [--repo <dir>] [--dry-run]`;
+  node graph.mjs add-node <id> --after <node> [--before <node>] [--skill <name>|--prompt <relpath>] [--executor <id>] [--timeout <s>] [--on <outcome>] [--readonly] [--repo <dir>] [--dry-run]`;
 }
 
 function getFlag(args, name) {
@@ -477,7 +475,6 @@ async function cliAddNode(rest) {
   let skillGiven = false;
   let prompt = null;
   let executor = null;
-  let model = null;
   let timeout = null;
   let on = "pass";
   let readonly = false;
@@ -515,12 +512,6 @@ async function cliAddNode(rest) {
     } else if (a === "--executor") {
       executor = args[++i];
       if (!executor) {
-        console.error(cliUsage());
-        return 2;
-      }
-    } else if (a === "--model") {
-      model = args[++i];
-      if (!model) {
         console.error(cliUsage());
         return 2;
       }
@@ -643,7 +634,6 @@ async function cliAddNode(rest) {
   if (skillGiven) newNode.skill = skill ?? id;
   if (prompt) newNode.prompt = prompt;
   if (executor) newNode.executor = executor;
-  if (model) newNode.model = model;
   if (timeout !== null) newNode.timeout = timeout;
   if (readonly) newNode.readonly = true;
 

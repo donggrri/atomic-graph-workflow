@@ -1,10 +1,9 @@
-import { isAbsolute, join, resolve, sep } from "node:path";
+import { isAbsolute } from "node:path";
 
-export const ARTIFACT_LOCATIONS = ["home", "repo", "custom"];
 export const DEFAULT_REPO_ARTIFACTS_DIR = "specs";
 
 /**
- * One-line note recommending that an in-repo artifacts dir is committed.
+ * One-line note recommending that an in-repo docs dir is committed.
  * @param {string} [dir]
  * @returns {string}
  */
@@ -14,91 +13,24 @@ export function artifactsRepoNote(dir) {
   return `artifacts: ${d}/ is inside the repo; commit it with your code (do not add it to .gitignore)`;
 }
 
-/**
- * Normalize the artifacts settings block from parsed JSON.
- * @param {unknown} block
- * @param {string} [label]
- * @returns {{ ok: true, artifacts: { location: string, dir?: string } | null } | { ok: false, reason: string }}
- */
-export function parseArtifactsBlock(block, label = "project settings") {
-  if (block == null) return { ok: true, artifacts: null };
-  if (typeof block !== "object" || Array.isArray(block)) {
-    return { ok: false, reason: `${label}: artifacts must be an object` };
-  }
-  const locationRaw = block.location;
-  const location = locationRaw == null || locationRaw === "" ? "home" : String(locationRaw).trim() || "home";
-  if (!ARTIFACT_LOCATIONS.includes(location)) {
-    return {
-      ok: false,
-      reason: `${label}: unknown artifacts.location "${String(locationRaw)}" (allowed: home, repo, custom)`,
-    };
-  }
-  const dirRaw = block.dir;
-  if (dirRaw == null || dirRaw === "") {
-    if (location === "custom") {
-      return {
-        ok: false,
-        reason: `artifacts.dir must be an absolute path when artifacts.location is "custom"`,
-      };
-    }
-    if (location === "home") return { ok: true, artifacts: { location } };
-    return { ok: true, artifacts: { location } };
-  }
-  if (typeof dirRaw !== "string") {
-    if (location === "custom") {
-      return {
-        ok: false,
-        reason: `artifacts.dir must be an absolute path when artifacts.location is "custom"`,
-      };
-    }
-    if (location === "repo") {
-      return {
-        ok: false,
-        reason: `artifacts.dir must be a relative path inside the repository (got "${String(dirRaw)}")`,
-      };
-    }
-    return { ok: true, artifacts: { location } };
-  }
-  const dir = dirRaw.trim() || (location === "repo" ? "" : dirRaw);
-  if (!dir) {
-    if (location === "custom") {
-      return {
-        ok: false,
-        reason: `artifacts.dir must be an absolute path when artifacts.location is "custom"`,
-      };
-    }
-    return { ok: true, artifacts: { location } };
-  }
-  if (location === "repo") {
-    if (isAbsolute(dir)) {
-      return {
-        ok: false,
-        reason: `artifacts.dir must be a relative path inside the repository (got "${dir}")`,
-      };
-    }
-    const segments = dir.split(/[\\/]+/);
-    if (segments.includes("..")) {
-      return {
-        ok: false,
-        reason: `artifacts.dir must be a relative path inside the repository (got "${dir}")`,
-      };
-    }
-  }
-  if (location === "custom") {
-    if (!isAbsolute(dir)) {
-      return {
-        ok: false,
-        reason: `artifacts.dir must be an absolute path when artifacts.location is "custom"`,
-      };
-    }
-  }
-  return { ok: true, artifacts: { location, dir } };
+function isValidRepoDir(dir) {
+  if (typeof dir !== "string") return false;
+  const t = dir.trim();
+  if (!t) return false;
+  if (isAbsolute(t)) return false;
+  if (/^[A-Za-z]:[\\/]/.test(t)) return false;
+  const segments = t.split(/[\\/]+/);
+  if (segments.includes("..")) return false;
+  if (segments.includes("")) return false;
+  return true;
 }
 
 /**
  * Parse the `--artifacts <home|repo[:dir]|custom:/abs/path>` flag value.
+ * Returns a docsRoot value: home -> null (unset), repo -> relative dir
+ * (default "specs"), custom -> absolute path.
  * @param {string} value
- * @returns {{ ok: true, artifacts: { location: string, dir?: string } } | { ok: false, reason: string }}
+ * @returns {{ ok: true, docsRoot: string | null } | { ok: false, reason: string }}
  */
 export function parseArtifactsFlag(value) {
   const raw = typeof value === "string" ? value.trim() : "";
@@ -108,37 +40,30 @@ export function parseArtifactsFlag(value) {
       reason: `unknown artifacts location "" (expected home, repo[:dir], or custom:/abs/path)`,
     };
   }
-  if (raw === "home") return { ok: true, artifacts: { location: "home" } };
-  if (raw === "repo") return { ok: true, artifacts: { location: "repo", dir: DEFAULT_REPO_ARTIFACTS_DIR } };
+  if (raw === "home") return { ok: true, docsRoot: null };
+  if (raw === "repo") return { ok: true, docsRoot: DEFAULT_REPO_ARTIFACTS_DIR };
   if (raw.startsWith("repo:")) {
     const dir = raw.slice("repo:".length).trim();
     if (!dir) {
-      return { ok: true, artifacts: { location: "repo", dir: DEFAULT_REPO_ARTIFACTS_DIR } };
+      return { ok: true, docsRoot: DEFAULT_REPO_ARTIFACTS_DIR };
     }
-    if (isAbsolute(dir)) {
+    if (!isValidRepoDir(dir)) {
       return {
         ok: false,
-        reason: `artifacts.dir must be a relative path inside the repository (got "${dir}")`,
+        reason: `docsRoot must be a relative path inside the repository (got "${dir}")`,
       };
     }
-    const segments = dir.split(/[\\/]+/);
-    if (segments.includes("..")) {
-      return {
-        ok: false,
-        reason: `artifacts.dir must be a relative path inside the repository (got "${dir}")`,
-      };
-    }
-    return { ok: true, artifacts: { location: "repo", dir } };
+    return { ok: true, docsRoot: dir };
   }
   if (raw.startsWith("custom:")) {
     const dir = raw.slice("custom:".length).trim();
     if (!dir || !isAbsolute(dir)) {
       return {
         ok: false,
-        reason: `artifacts.dir must be an absolute path when artifacts.location is "custom"`,
+        reason: `docsRoot must be an absolute path for custom location (got "${dir}")`,
       };
     }
-    return { ok: true, artifacts: { location: "custom", dir } };
+    return { ok: true, docsRoot: dir };
   }
   return {
     ok: false,
@@ -147,135 +72,34 @@ export function parseArtifactsFlag(value) {
 }
 
 /**
- * Derive a short repo id when the caller does not provide one.
- * Mirrors getShortRepo in work-status.mjs without importing it.
- * @param {string} repoRoot
+ * Map a deprecated `artifacts` block {location, dir} to a docsRoot value.
+ * home (or missing) -> null, repo -> relative dir (default "specs"),
+ * custom -> absolute path. Returns null for missing/invalid blocks.
+ * @param {unknown} obj
+ * @returns {string | null}
  */
-function defaultShortRepo(repoRoot) {
-  if (!repoRoot) return "unknown-repo";
-  const base = String(repoRoot).split(/[\\/]/).filter(Boolean).pop() || "";
-  let normalized = base
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
-  if (normalized.length > 24) {
-    normalized = normalized.slice(0, 24).replace(/-+$/, "");
-  }
-  return normalized || "repo";
-}
-
-/**
- * Resolve the docs (artifact) directory for a slug.
- *
- * @param {{
- *   repoRoot?: string,
- *   slug?: string,
- *   shortRepo?: string,
- *   workflowRoot?: string,
- *   settings?: Record<string, unknown> | { location?: unknown, dir?: unknown } | null,
- *   env?: NodeJS.ProcessEnv
- * }} [options]
- * @returns {{ ok: true, docsDir: string, location: string } | { ok: false, reason: string }}
- */
-export function resolveArtifactsDocsDir(options = {}) {
-  const env = options.env ?? process.env;
-  const repoRoot = options.repoRoot ? resolve(String(options.repoRoot)) : resolve(process.cwd());
-  const slug = typeof options.slug === "string" ? options.slug : "";
-  const workflowRoot = options.workflowRoot ? resolve(String(options.workflowRoot)) : "";
-  const shortRepo = options.shortRepo || defaultShortRepo(repoRoot);
-
-  const envOverrideRaw =
-    env && typeof env.CURSOR_ATOMIC_ARTIFACTS_DIR === "string"
-      ? env.CURSOR_ATOMIC_ARTIFACTS_DIR.trim()
-      : "";
-  if (envOverrideRaw) {
-    if (!isAbsolute(envOverrideRaw)) {
-      return {
-        ok: false,
-        reason: `artifacts.dir must be an absolute path when artifacts.location is "custom"`,
-      };
-    }
-    return {
-      ok: true,
-      docsDir: join(resolve(envOverrideRaw), shortRepo, slug),
-      location: "custom",
-    };
-  }
-
-  const settings = options.settings;
-  let block = null;
-  if (settings && typeof settings === "object" && !Array.isArray(settings)) {
-    if (
-      settings.artifacts !== undefined &&
-      settings.artifacts !== null &&
-      typeof settings.artifacts === "object" &&
-      !Array.isArray(settings.artifacts)
-    ) {
-      block = settings.artifacts;
-    } else if (settings.location !== undefined) {
-      block = settings;
-    }
-  }
-
-  const parsed = parseArtifactsBlock(block, "project settings");
-  if (!parsed.ok) return parsed;
-  const artifacts = parsed.artifacts;
-  const location = artifacts?.location || "home";
-  const dir = artifacts?.dir;
-
-  if (location === "home") {
-    return {
-      ok: true,
-      docsDir: join(resolve(workflowRoot), "docs", shortRepo, slug),
-      location: "home",
-    };
-  }
-
+export function docsRootFromLegacyArtifacts(obj) {
+  if (obj == null || typeof obj !== "object" || Array.isArray(obj)) return null;
+  const block = /** @type {Record<string, unknown>} */ (obj);
+  const locationRaw = block.location;
+  const location =
+    locationRaw == null || locationRaw === "" ? "home" : String(locationRaw).trim() || "home";
+  if (location === "home") return null;
   if (location === "repo") {
-    const rel = typeof dir === "string" && dir.trim() ? dir.trim() : DEFAULT_REPO_ARTIFACTS_DIR;
-    if (isAbsolute(rel)) {
-      return {
-        ok: false,
-        reason: `artifacts.dir must be a relative path inside the repository (got "${rel}")`,
-      };
-    }
-    const segments = rel.split(/[\\/]+/);
-    if (segments.includes("..")) {
-      return {
-        ok: false,
-        reason: `artifacts.dir must be a relative path inside the repository (got "${rel}")`,
-      };
-    }
-    const resolved = resolve(repoRoot, rel);
-    if (resolved !== repoRoot && !resolved.startsWith(repoRoot + sep)) {
-      return {
-        ok: false,
-        reason: `artifacts.dir must be a relative path inside the repository (got "${rel}")`,
-      };
-    }
-    return {
-      ok: true,
-      docsDir: join(resolved, slug),
-      location: "repo",
-    };
+    const dirRaw = block.dir;
+    if (dirRaw == null || dirRaw === "") return DEFAULT_REPO_ARTIFACTS_DIR;
+    if (typeof dirRaw !== "string") return null;
+    const dir = dirRaw.trim();
+    if (!dir) return DEFAULT_REPO_ARTIFACTS_DIR;
+    if (!isValidRepoDir(dir)) return null;
+    return dir;
   }
-
   if (location === "custom") {
-    if (typeof dir !== "string" || !dir.trim() || !isAbsolute(dir.trim())) {
-      return {
-        ok: false,
-        reason: `artifacts.dir must be an absolute path when artifacts.location is "custom"`,
-      };
-    }
-    return {
-      ok: true,
-      docsDir: join(resolve(dir.trim()), shortRepo, slug),
-      location: "custom",
-    };
+    const dirRaw = block.dir;
+    if (typeof dirRaw !== "string") return null;
+    const dir = dirRaw.trim();
+    if (!dir || !isAbsolute(dir)) return null;
+    return dir;
   }
-
-  return {
-    ok: false,
-    reason: `unknown artifacts.location "${location}" (allowed: home, repo, custom)`,
-  };
+  return null;
 }

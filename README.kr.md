@@ -137,6 +137,8 @@ lite에서 **파일 5개 이상**, **DB/스키마**, **인증·보안**, 계획�
 
 산출물은 `~/.cursor-atomic-workflow/docs/{shortRepo}/{slug}/` 아래에 쌓인다 (`CURSOR_ATOMIC_WORKFLOW_HOME`으로 홈을 바꿀 수 있다).
 
+문서 위치 (`docsRoot`, `.cursor-atomic-workflow.json`): `home`(기본 전역 홈), 저장소 기준 상대 경로(예: `specs`), 절대 경로. `runs/`·`memory/`·`evidence/`는 항상 워크플로 홈에 남는다. artifacts: specs/ is inside the repo; commit it with your code (do not add it to .gitignore).
+
 PLAN에 막힌 질문(보안·범위·데이터 손실)이 있으면 거기서 멈춘다. 계획만 쓰려면 `/atomic-plan 계획만`.
 
 ---

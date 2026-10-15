@@ -13,7 +13,7 @@ import {
   rejectSetModel,
 } from "./lib/install-agents.mjs";
 import { getWorkflowRoot } from "./work-status.mjs";
-import { writeInstalledHarnesses } from "./lib/project-settings.mjs";
+import { writeInstalledHarnesses, writeProjectSettings } from "./lib/project-settings.mjs";
 import { installOpencodeConfig, OPENCODE_CONFIG_FILE } from "./lib/opencode-config.mjs";
 import { rewriteGraphExecutors } from "./lib/graph.mjs";
 import {
@@ -56,6 +56,7 @@ export function parseInstallArgs(args) {
     yes: false,
     dryRun: false,
     skipDoctor: false,
+    artifacts: null,
   };
   let harnessExplicit = false;
   for (let i = 0; i < args.length; i++) {
@@ -67,6 +68,7 @@ export function parseInstallArgs(args) {
       opts.harness = args[++i];
       harnessExplicit = true;
     }
+    else if (a === "--artifacts" && args[i + 1]) opts.artifacts = args[++i];
     else if (a === "--force") opts.force = true;
     else if (a === "--migrate") opts.migrate = true;
     else if (a === "--with-claude") opts.withClaude = true;
@@ -101,6 +103,7 @@ Options:
   --target <dir>       설치 대상 (기본: cwd)
   --harness <list>     auto|cursor|opencode|codex|pi|agy|claude|all (쉼표 구분)
   --with-claude        auto/all에 Claude Code 포함
+  --artifacts <spec>   docsRoot 별칭: home|repo[:dir]|custom:/abs (docsRoot만 저장)
   --migrate            레거시 .cursor/skills/cursor-atomic-* 제거 (백업 권장)
   --force              기존 생성 파일을 소스로 다시 생성 (모델 핀 없음)
   --yes, -y            비대화형 기본값으로 진행
@@ -363,6 +366,15 @@ export async function install(options = {}) {
     withClaude: !!options.withClaude || harnessParts.includes("claude"),
   });
   rejectSetModel(options.setModel);
+  let artifactsDocsRoot = null;
+  let hasArtifactsFlag = false;
+  if (options.artifacts != null && String(options.artifacts).trim() !== "") {
+    const { parseArtifactsFlag } = await import("./lib/artifacts.mjs");
+    const parsed = parseArtifactsFlag(String(options.artifacts));
+    if (!parsed.ok) throw new Error(parsed.reason);
+    artifactsDocsRoot = parsed.docsRoot;
+    hasArtifactsFlag = true;
+  }
   const version = await readPackageVersion(root);
   const record = { copied: [], overwritten: [], skipped: [], removed: [] };
 
@@ -481,6 +493,28 @@ export async function install(options = {}) {
   }
 
   writeInstalledHarnesses(target, [...harnesses]);
+
+  if (hasArtifactsFlag) {
+    // --artifacts is an alias that writes docsRoot only (never artifacts).
+    if (artifactsDocsRoot == null) {
+      writeProjectSettings(target, {}, { dropKeys: ["docsRoot", "artifacts"] });
+    } else {
+      writeProjectSettings(target, { docsRoot: artifactsDocsRoot }, { dropKeys: ["artifacts"] });
+      const { isAbsolute, sep } = await import("node:path");
+      const expanded = artifactsDocsRoot;
+      const isRelative = !isAbsolute(expanded) && !expanded.startsWith("~");
+      let insideRepo = isRelative;
+      if (!insideRepo && isAbsolute(expanded)) {
+        const base = resolve(target);
+        const abs = resolve(expanded);
+        insideRepo = abs === base || abs.startsWith(base + sep);
+      }
+      if (insideRepo) {
+        const { artifactsRepoNote } = await import("./lib/artifacts.mjs");
+        console.log(artifactsRepoNote(artifactsDocsRoot));
+      }
+    }
+  }
 
   const legacy = await findLegacyCursorCommands(target);
   return {

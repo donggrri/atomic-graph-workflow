@@ -24,7 +24,6 @@ const NODE_FIELDS = new Set([
   "prompt",
   "agent",
   "executor",
-  "model",
   "timeout",
   "mode",
   "inputs",
@@ -157,6 +156,10 @@ export function validateGraphV2(doc, opts = {}) {
     }
     const node = /** @type {Record<string, unknown>} */ (raw);
     for (const k of Object.keys(node)) {
+      if (k === "model") {
+        warnings.push(`graph.yaml: nodes.${id}.model is ignored (model selection was removed)`);
+        continue;
+      }
       if (!NODE_FIELDS.has(k)) {
         warnings.push(`graph.yaml: nodes.${id}.${k} is unknown (ignored)`);
       }
@@ -186,9 +189,6 @@ export function validateGraphV2(doc, opts = {}) {
           `graph.yaml: nodes.${id}.executor "${String(node.executor)}" is not one of ${executorIds.join(", ")}`,
         );
       }
-    }
-    if (typeof node.model !== "undefined" && typeof node.model !== "string") {
-      errors.push(`graph.yaml: nodes.${id}.model must be a string`);
     }
     if (typeof node.timeout !== "undefined" && !isPositiveInt(node.timeout)) {
       errors.push(`graph.yaml: nodes.${id}.timeout must be a positive integer seconds`);
@@ -245,7 +245,11 @@ export function validateGraphV2(doc, opts = {}) {
     } else {
       const defs = /** @type {Record<string, unknown>} */ (d.defaults);
       for (const k of Object.keys(defs)) {
-        if (!["executor", "model", "timeout", "max_visits"].includes(k)) {
+        if (k === "model") {
+          warnings.push("graph.yaml: defaults.model is ignored (model selection was removed)");
+          continue;
+        }
+        if (!["executor", "timeout", "max_visits"].includes(k)) {
           warnings.push(`graph.yaml: defaults.${k} is unknown (ignored)`);
         }
       }
@@ -253,9 +257,6 @@ export function validateGraphV2(doc, opts = {}) {
         errors.push(
           `graph.yaml: defaults.executor "${String(defs.executor)}" is not one of ${executorIds.join(", ")}`,
         );
-      }
-      if ("model" in defs && typeof defs.model !== "string") {
-        errors.push("graph.yaml: defaults.model must be a string");
       }
       if ("timeout" in defs && !isPositiveInt(defs.timeout)) {
         errors.push("graph.yaml: defaults.timeout must be a positive integer seconds");
@@ -491,7 +492,7 @@ export function normalizeV1(v1nodes) {
   // v1 used a legacy `next` field for routing (e.g. `router: { next: [lite, explore] }`).
   // v2 expresses routing via `edges`, so drop `next` and coerce typed scalars.
   // Any v1 node left without skill/prompt/agent (typically `router` with only
-  // `next`) is router-like: give it `skill: cursor-atomic-router` so the
+  // `next`) is router-like: give it `skill: atomic-router` so the
   // migrated doc passes v2 validation. This keeps validation strict for v2
   // (no exception for skill-less nodes) while making default v1 graphs migrate
   // cleanly.
@@ -519,7 +520,7 @@ export function normalizeV1(v1nodes) {
     // Router-like v1 nodes (only `next`, e.g. default `router`) have no
     // skill/prompt/agent; give them the router skill so migration validates.
     if (!hasSkill && !hasPrompt && !hasAgent && (hadNext || id === "router")) {
-      node.skill = "cursor-atomic-router";
+      node.skill = "atomic-router";
     }
   }
   const has = (id) => Object.prototype.hasOwnProperty.call(nodes, id);

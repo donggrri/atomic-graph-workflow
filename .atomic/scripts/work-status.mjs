@@ -13,6 +13,7 @@ import {
   existsSync,
 } from "node:fs";
 import { execSync } from "node:child_process";
+import { docsRootFromLegacyArtifacts } from "./lib/artifacts.mjs";
 
 /**
  * Expands a leading ~ to home. Other paths are unchanged.
@@ -141,31 +142,69 @@ export function readDocsRootSetting(repoRoot) {
 }
 
 /**
+ * Reads the effective docsRoot honoring a deprecated legacy `artifacts`
+ * block when `docsRoot` is unset. Returns the docsRoot value plus an
+ * optional deprecation warning. Never throws for invalid values.
+ * @param {string} [repoRoot]
+ * @returns {{ docsRoot: string | null, warning: string | null }}
+ */
+export function readEffectiveDocsRoot(repoRoot) {
+  const direct = readDocsRootSetting(repoRoot);
+  if (direct) return { docsRoot: direct, warning: null };
+  if (!repoRoot || typeof repoRoot !== "string") return { docsRoot: null, warning: null };
+  let settingsPath;
+  try {
+    settingsPath = join(resolve(repoRoot), PROJECT_SETTINGS_FILENAME);
+  } catch {
+    return { docsRoot: null, warning: null };
+  }
+  let raw;
+  try {
+    raw = JSON.parse(readFileSync(settingsPath, "utf8"));
+  } catch {
+    return { docsRoot: null, warning: null };
+  }
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return { docsRoot: null, warning: null };
+  if (raw.artifacts === undefined || raw.artifacts === null) return { docsRoot: null, warning: null };
+  if (typeof raw.artifacts !== "object" || Array.isArray(raw.artifacts)) {
+    return {
+      docsRoot: null,
+      warning: "project settings: artifacts is deprecated (use docsRoot instead)",
+    };
+  }
+  const mapped = docsRootFromLegacyArtifacts(raw.artifacts);
+  return {
+    docsRoot: mapped,
+    warning: "project settings: artifacts is deprecated (use docsRoot instead)",
+  };
+}
+
+/**
  * Resolves the slug docs directory honoring an optional project docsRoot.
  * Relative docsRoot resolves against repoRoot; absolute (or ~-leading) paths
  * are used as-is as the docs base. Returns the docsDir and its source.
  */
 export function resolveDocsDir(repoRoot, slug, root, shortRepo) {
-  const custom = readDocsRootSetting(repoRoot);
+  const { docsRoot: custom, warning } = readEffectiveDocsRoot(repoRoot);
   if (custom && repoRoot) {
     const expanded = expandHomePath(custom);
     const base = isAbsolute(expanded)
       ? expanded
       : resolve(repoRoot, expanded);
-    return { docsDir: join(base, slug), source: "project" };
+    return { docsDir: join(base, slug), source: "project", warning };
   }
-  return { docsDir: join(root, "docs", shortRepo, slug), source: "global" };
+  return { docsDir: join(root, "docs", shortRepo, slug), source: "global", warning };
 }
 
 export function getWorkflowPaths(repoRoot, slug) {
   const root = getWorkflowRoot();
   const shortRepo = getShortRepo(repoRoot);
-  const { docsDir, source } = resolveDocsDir(repoRoot, slug, root, shortRepo);
+  const { docsDir, source, warning } = resolveDocsDir(repoRoot, slug, root, shortRepo);
   const runsDir = join(root, "runs", shortRepo, slug);
   const evidenceDir = join(root, "evidence", shortRepo);
   const statusJson = join(docsDir, "STATUS.json");
 
-  return {
+  const out = {
     root,
     shortRepo,
     slug,
@@ -175,6 +214,11 @@ export function getWorkflowPaths(repoRoot, slug) {
     statusJson,
     docsDirSource: source,
   };
+  if (warning) {
+    out.docsRootWarning = warning;
+    out.artifactsWarning = warning;
+  }
+  return out;
 }
 
 /**
@@ -532,8 +576,9 @@ export async function listAllStatuses(options) {
   } catch {}
 
   // Repo-local docsRoot: layout is <docsRoot>/<slug>/STATUS.json (no shortRepo level).
+  // Honors the deprecated legacy `artifacts` block via the same mapping.
   if (repoRoot) {
-    const custom = readDocsRootSetting(repoRoot);
+    const { docsRoot: custom } = readEffectiveDocsRoot(repoRoot);
     if (custom) {
       const expanded = expandHomePath(custom);
       const base = isAbsolute(expanded)

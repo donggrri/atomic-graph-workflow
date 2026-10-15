@@ -18,11 +18,11 @@ function writeV2Repo(repo, text) {
 test("#1 normalizeV1 gives router-like nodes a router skill and drops next", () => {
   const doc = normalizeV1({
     router: { next: ["lite", "explore"] },
-    lite: { skill: "cursor-atomic-lite" },
-    explore: { skill: "cursor-atomic-explore" },
-    execute: { skill: "cursor-atomic-execute" },
+    lite: { skill: "atomic-lite" },
+    explore: { skill: "atomic-explore" },
+    execute: { skill: "atomic-execute" },
   });
-  assert.equal(doc.nodes.router.skill, "cursor-atomic-router");
+  assert.equal(doc.nodes.router.skill, "atomic-router");
   assert.ok(!("next" in doc.nodes.router));
   const { errors } = validateGraphV2(doc);
   assert.ok(!errors.some((e) => e.includes("nodes.router")), errors.join("\n"));
@@ -32,7 +32,7 @@ test("#1 add-node on default v1 graph with bare router succeeds", () => {
   const repo = mkdtempSync(join(tmpdir(), "rv4-router-"));
   try {
     mkdirSync(join(repo, ".atomic"), { recursive: true });
-    const original = "version: 1\nnodes:\n  router:\n    next: [lite, explore]\n  lite:\n    skill: cursor-atomic-lite\n  explore:\n    skill: cursor-atomic-explore\n";
+    const original = "version: 1\nnodes:\n  router:\n    next: [lite, explore]\n  lite:\n    skill: atomic-lite\n  explore:\n    skill: atomic-explore\n";
     writeFileSync(join(repo, ".atomic", "graph.yaml"), original, "utf8");
     const r = spawnSync(
       process.execPath,
@@ -42,7 +42,7 @@ test("#1 add-node on default v1 graph with bare router succeeds", () => {
     assert.equal(r.status, 0, r.stderr + r.stdout);
     const g = loadGraph(repo);
     assert.deepEqual(g.errors, []);
-    assert.equal(g.nodes.router.skill, "cursor-atomic-router");
+    assert.equal(g.nodes.router.skill, "atomic-router");
   } finally {
     rmSync(repo, { recursive: true, force: true });
   }
@@ -169,8 +169,8 @@ test("#4 readonly built-in stage with agent enforces reviewer role", async () =>
       repo,
       `version: 2
 nodes:
-  plan: { skill: cursor-atomic-plan, agent: planner, readonly: true }
-  review: { skill: cursor-atomic-review }
+  plan: { skill: atomic-plan, agent: planner, readonly: true }
+  review: { skill: atomic-review }
 edges:
   - { from: plan, to: review, on: pass }
 `,
@@ -232,14 +232,12 @@ test("#7 runProjectSetup shows repo note when already configured", async () => {
   const wfHome = mkdtempSync(join(tmpdir(), "rv4-wf-"));
   const prevHome = process.env.CURSOR_ATOMIC_WORKFLOW_HOME;
   const prevTrust = process.env.CURSOR_ATOMIC_TRUST_COMMANDS;
-  const prevOverride = process.env.CURSOR_ATOMIC_ARTIFACTS_DIR;
   const lines = [];
   const origLog = console.log;
   console.log = (...a) => lines.push(a.join(" "));
   try {
     process.env.CURSOR_ATOMIC_WORKFLOW_HOME = wfHome;
     process.env.CURSOR_ATOMIC_TRUST_COMMANDS = "1";
-    delete process.env.CURSOR_ATOMIC_ARTIFACTS_DIR;
     writeFileSync(join(repo, "package.json"), JSON.stringify({ scripts: { test: "x" } }), "utf8");
     writeFileSync(
       join(repo, ".cursor-atomic-workflow.json"),
@@ -253,8 +251,6 @@ test("#7 runProjectSetup shows repo note when already configured", async () => {
     else delete process.env.CURSOR_ATOMIC_WORKFLOW_HOME;
     if (prevTrust !== undefined) process.env.CURSOR_ATOMIC_TRUST_COMMANDS = prevTrust;
     else delete process.env.CURSOR_ATOMIC_TRUST_COMMANDS;
-    if (prevOverride !== undefined) process.env.CURSOR_ATOMIC_ARTIFACTS_DIR = prevOverride;
-    else delete process.env.CURSOR_ATOMIC_ARTIFACTS_DIR;
   }
   try {
     assert.ok(
