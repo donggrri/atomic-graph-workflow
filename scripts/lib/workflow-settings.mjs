@@ -1,5 +1,6 @@
 import { readFileSync, existsSync } from "node:fs";
-import { join } from "node:path";
+import { isAbsolute, join } from "node:path";
+import { docsRootFromLegacyArtifacts } from "./artifacts.mjs";
 import { getWorkflowRoot } from "../work-status.mjs";
 import { PROJECT_SETTINGS_FILE, GLOBAL_SETTINGS_FILE } from "./profiles.mjs";
 import { EXECUTOR_IDS } from "./executors/constants.mjs";
@@ -7,6 +8,30 @@ import { GRAPH_STAGE_IDS } from "./graph.mjs";
 
 const AGY_STAGES = ["plan", "implement", "review"];
 const AGY_VALUES = new Set(["ask", "sdk", "agy"]);
+
+/**
+ * Warning emitted when the project settings file carries an absolute (or
+ * ~-leading) docsRoot. The project file must use a repo-relative path;
+ * absolute paths are only honored in global settings.
+ */
+export const PROJECT_DOCSROOT_ABSOLUTE_WARNING =
+  "docsRoot from project settings must be a relative path inside the repository; absolute paths are only allowed in global settings";
+
+/**
+ * @param {string} value trimmed docsRoot
+ */
+function isAbsoluteLikeDocsRoot(value) {
+  return (
+    isAbsolute(value) || value.startsWith("~") || /^[A-Za-z]:[\\/]/.test(value)
+  );
+}
+
+/**
+ * @param {string} value trimmed docsRoot
+ */
+function hasDotDotSegment(value) {
+  return value.split(/[\\/]/).includes("..");
+}
 
 /**
  * @param {string} filePath
@@ -196,6 +221,9 @@ export function loadWorkflowSettings(options) {
     if (data.agyModel != null) {
       warnings.push(`${label}: agyModel is ignored (the workflow does not select models)`);
     }
+    if (data.artifacts != null) {
+      warnings.push(`${label}: artifacts is deprecated (use docsRoot instead)`);
+    }
   }
 
   const testDone =
@@ -204,6 +232,17 @@ export function loadWorkflowSettings(options) {
       : null;
 
   let docsRoot = null;
+  let globalDocsRoot = null;
+  if (global.data.docsRoot != null && global.data.docsRoot !== "") {
+    if (typeof global.data.docsRoot !== "string" || !global.data.docsRoot.trim()) {
+      return { ok: false, reason: "global settings: docsRoot must be a string" };
+    }
+    if (global.data.docsRoot.includes("\0")) {
+      return { ok: false, reason: "global settings: docsRoot must not contain null bytes" };
+    }
+    // Absolute (or ~-leading) paths remain allowed in global settings.
+    globalDocsRoot = global.data.docsRoot.trim();
+  }
   if (project.data.docsRoot != null && project.data.docsRoot !== "") {
     if (typeof project.data.docsRoot !== "string" || !project.data.docsRoot.trim()) {
       return { ok: false, reason: "project settings: docsRoot must be a string" };
@@ -211,14 +250,34 @@ export function loadWorkflowSettings(options) {
     if (project.data.docsRoot.includes("\0")) {
       return { ok: false, reason: "project settings: docsRoot must not contain null bytes" };
     }
-    docsRoot = project.data.docsRoot.trim();
+    const trimmed = project.data.docsRoot.trim();
+    if (isAbsoluteLikeDocsRoot(trimmed)) {
+      warnings.push(PROJECT_DOCSROOT_ABSOLUTE_WARNING);
+    } else if (hasDotDotSegment(trimmed)) {
+      return { ok: false, reason: `project settings: docsRoot must be a relative path inside the repository (got "${trimmed}")` };
+    } else {
+      docsRoot = trimmed;
+    }
+  }
+  if (
+    docsRoot == null &&
+    project.data.artifacts != null &&
+    typeof project.data.artifacts === "object" &&
+    !Array.isArray(project.data.artifacts)
+  ) {
+    // Keep the legacy alias consistent: a project-level `custom` absolute
+    // dir is ignored with the same warning instead of being honored.
+    const mapped = docsRootFromLegacyArtifacts(project.data.artifacts);
+    if (mapped != null && isAbsoluteLikeDocsRoot(mapped.trim())) {
+      warnings.push(PROJECT_DOCSROOT_ABSOLUTE_WARNING);
+    }
   }
 
   return {
     ok: true,
     agy,
     testDone,
-    docsRoot,
+    docsRoot: docsRoot ?? globalDocsRoot,
     executors,
     warnings,
     executorTimeouts,

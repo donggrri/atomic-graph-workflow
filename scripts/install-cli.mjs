@@ -134,12 +134,82 @@ async function runInteractiveInstall(opts) {
     };
   }
 
+  const { parseArtifactsFlag, isAbsoluteLikeDocsRoot, absoluteDocsRootReason } = await import("./lib/artifacts.mjs");
+  let pendingDropKeys = [];
+  if (opts.artifacts) {
+    const parsed = parseArtifactsFlag(String(opts.artifacts));
+    if (!parsed.ok) throw new Error(parsed.reason);
+    if (parsed.docsRoot != null && isAbsoluteLikeDocsRoot(parsed.docsRoot)) {
+      throw new Error(absoluteDocsRootReason(parsed.docsRoot));
+    }
+    if (parsed.docsRoot == null) {
+      pendingDropKeys.push("docsRoot", "artifacts");
+    } else {
+      pendingProjectSettings = { ...(pendingProjectSettings || {}), docsRoot: parsed.docsRoot };
+      pendingDropKeys.push("artifacts");
+    }
+  } else {
+    const artifactsChoice = await select(
+      "◆  (고급) 산출물(docs) 위치를 어디에 둘까요?",
+      [
+        { value: "home", label: "전역 홈 (기본)" },
+        { value: "repo", label: "저장소 안 specs/ (repo)" },
+        { value: "custom", label: "절대 경로 (custom)" },
+      ],
+      "home",
+    );
+    if (artifactsChoice === "repo") {
+      const dir = await text("◆  저장소 안 산출물 폴더", "specs");
+      const parsed = parseArtifactsFlag(`repo:${(dir || "specs").trim() || "specs"}`);
+      if (!parsed.ok) throw new Error(parsed.reason);
+      pendingProjectSettings = { ...(pendingProjectSettings || {}), docsRoot: parsed.docsRoot };
+      pendingDropKeys.push("artifacts");
+    } else if (artifactsChoice === "custom") {
+      const dir = await text("◆  산출물 절대 경로 (전역 설정에만 저장 가능)", "");
+      if (dir.trim()) {
+        const parsed = parseArtifactsFlag(`custom:${dir.trim()}`);
+        if (!parsed.ok) throw new Error(parsed.reason);
+        if (parsed.docsRoot != null && isAbsoluteLikeDocsRoot(parsed.docsRoot)) {
+          throw new Error(absoluteDocsRootReason(parsed.docsRoot));
+        }
+        pendingProjectSettings = { ...(pendingProjectSettings || {}), docsRoot: parsed.docsRoot };
+        pendingDropKeys.push("artifacts");
+      }
+    } else {
+      pendingDropKeys.push("docsRoot", "artifacts");
+    }
+  }
+
   const go = await confirm("◆  설치를 진행할까요?", { default: true });
   if (!go) throw new Error("설치를 취소했습니다.");
 
-  if (pendingProjectSettings) {
-    const { writeProjectSettings } = await import("./lib/project-settings.mjs");
-    writeProjectSettings(target, pendingProjectSettings);
+  if (pendingProjectSettings || pendingDropKeys.length > 0) {
+    const { writeProjectSettings, readProjectSettings } = await import("./lib/project-settings.mjs");
+    const existingForDrop = readProjectSettings(target);
+    const needsWrite =
+      pendingProjectSettings != null ||
+      pendingDropKeys.some((k) => existingForDrop[k] !== undefined);
+    if (needsWrite) {
+      writeProjectSettings(target, pendingProjectSettings || {}, { dropKeys: pendingDropKeys });
+    }
+    const effectiveDocsRoot = pendingProjectSettings?.docsRoot ?? null;
+    if (typeof effectiveDocsRoot === "string" && effectiveDocsRoot) {
+      const { isAbsolute, resolve: resolvePath, sep } = await import("node:path");
+      const isRelative = !isAbsolute(effectiveDocsRoot) && !effectiveDocsRoot.startsWith("~");
+      let insideRepo = isRelative;
+      if (!insideRepo && isAbsolute(effectiveDocsRoot)) {
+        const base = resolvePath(target);
+        const abs = resolvePath(effectiveDocsRoot);
+        insideRepo = abs === base || abs.startsWith(base + sep);
+      }
+      if (insideRepo) {
+        const { artifactsRepoNote } = await import("./lib/artifacts.mjs");
+        console.log(artifactsRepoNote(effectiveDocsRoot));
+      }
+    }
+    // docsRoot was already persisted and announced here; clear the flag so
+    // install() does not persist/print the same note a second time.
+    delete opts.artifacts;
   }
 
   opts.harness = harnessList.join(",");
