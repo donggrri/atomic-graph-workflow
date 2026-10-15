@@ -2,7 +2,7 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { readInstalledHarnesses } from "./project-settings.mjs";
 
-export const HARNESS_IDS = ["cursor", "opencode", "codex", "pi", "agy", "claude"];
+export const HARNESS_IDS = ["cursor", "opencode", "codex", "pi", "agy", "claude", "hermes"];
 
 /** @param {string} raw */
 export function parseHarnessSpec(raw) {
@@ -53,6 +53,7 @@ const MARKERS = [
   ["GEMINI.md", "agy"],
   [".claude", "claude"],
   ["CLAUDE.md", "claude"],
+  [".hermes", "hermes"],
 ];
 
 /** @param {string} targetDir */

@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Added
+
+- **Hermes Agent harness** (`--harness hermes`): installs skills under `.hermes/skills/` (command + role skills), `atomic-hermes-delegate` skill, `hermes-delegate.mjs` stage router, `hermes` pipeline executor, and doctor checks (`hermes --version`, `hermes status`, `.hermes.md` warning, `hermes skills trust` reminder).
+
 ### Breaking / migration
 
 - Removed installed `cursor-atomic-*` aliases; use `atomic-*` skills and commands.

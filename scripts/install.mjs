@@ -17,6 +17,12 @@ import { writeInstalledHarnesses, writeProjectSettings } from "./lib/project-set
 import { installOpencodeConfig, OPENCODE_CONFIG_FILE } from "./lib/opencode-config.mjs";
 import { rewriteGraphExecutors } from "./lib/graph.mjs";
 import { LEGACY_INSTALLED_ALIAS_PREFIX } from "./lib/legacy-paths.mjs";
+import {
+  installHermesSkills,
+  installHermesRoleSkills,
+  isHermesExclusiveSkill,
+  HERMES_SKILLS_DIR,
+} from "./lib/install-hermes.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -93,7 +99,7 @@ export function printInstallHelp() {
 
 Options:
   --target <dir>       설치 대상 (기본: cwd)
-  --harness <list>     auto|cursor|opencode|codex|pi|agy|claude|all (쉼표 구분)
+  --harness <list>     auto|cursor|opencode|codex|pi|agy|claude|hermes|all (쉼표 구분)
   --with-claude        auto/all에 Claude Code 포함
   --artifacts <spec>   docsRoot 별칭: home|repo[:dir]|custom:/abs (docsRoot만 저장)
   --migrate            레거시 cursor-atomic-* 스킬·커맨드·에이전트 별칭 제거 (백업 권장)
@@ -174,12 +180,13 @@ async function removeLegacyCursorSkills(target) {
   return removed;
 }
 
-async function installSkills(root, target, skillsDest, force, record) {
+async function installSkills(root, target, skillsDest, force, record, options = {}) {
   const srcSkills = join(root, "skills");
   if (!existsSync(srcSkills)) {
     throw new Error(`skills/ 가 없습니다. 패키지 루트에서 실행하세요.`);
   }
   for (const entry of (await readdir(srcSkills)).sort()) {
+    if (options.skipEntries?.has(entry)) continue;
     const src = join(srcSkills, entry);
     const st = await stat(src).catch(() => null);
     if (!st || !st.isDirectory()) continue;
@@ -457,6 +464,7 @@ export async function install(options = {}) {
     record.copied.push(join(target, AGENTS_SKILLS_DIR, "/"));
     record.copied.push(join(target, ".atomic/VERSION"));
     if (harnesses.has("cursor")) record.copied.push(join(target, ".cursor/agents/"));
+    if (harnesses.has("hermes")) record.copied.push(join(target, HERMES_SKILLS_DIR, "/"));
     if (harnesses.has("opencode")) record.copied.push(join(target, OPENCODE_CONFIG_FILE));
     return {
       target,
@@ -505,9 +513,22 @@ export async function install(options = {}) {
   await copyAgentsToAtomic(neutralAgents, join(target, ".atomic", "agents"), force, record);
   await mergeAgentsMd(root, target, force, record);
 
-  const skillsTargets = new Set([AGENTS_SKILLS_DIR]);
+  const skillsTargets = new Set();
+  const needsAgentsSkills =
+    harnesses.has("cursor") ||
+    harnesses.has("opencode") ||
+    harnesses.has("codex") ||
+    harnesses.has("pi") ||
+    harnesses.has("agy");
+  if (needsAgentsSkills) {
+    skillsTargets.add(AGENTS_SKILLS_DIR);
+  }
   if (harnesses.has("claude")) {
     skillsTargets.add(".claude/skills");
+  }
+  const hermesExclusive = new Set();
+  for (const entry of await readdir(join(root, "skills")).catch(() => [])) {
+    if (isHermesExclusiveSkill(entry)) hermesExclusive.add(entry);
   }
 
   if (force && !options.migrate) {
@@ -523,7 +544,12 @@ export async function install(options = {}) {
   }
 
   for (const skillsDir of skillsTargets) {
-    await installSkills(root, target, skillsDir, force, record);
+    await installSkills(root, target, skillsDir, force, record, { skipEntries: hermesExclusive });
+  }
+
+  if (harnesses.has("hermes")) {
+    await installHermesSkills(root, target, force, record);
+    await installHermesRoleSkills(root, target, force, record);
   }
 
   if (harnesses.has("cursor")) {

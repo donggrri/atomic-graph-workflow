@@ -6,6 +6,8 @@ import { homedir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { bundledScriptDiffs } from "./sync-bundled.mjs";
 import { findLegacyCursorCommands, AGENTS_SKILLS_DIR } from "./install.mjs";
+import { HERMES_SKILLS_DIR } from "./lib/install-hermes.mjs";
+import { checkHermesCli, hermesDoctorWarnings } from "./lib/hermes-doctor.mjs";
 import { parseHarnessSpec, resolveHarnesses } from "./lib/harnesses.mjs";
 import { loadWorkflowSettings } from "./lib/workflow-settings.mjs";
 import { isExecutorAvailable, probeCursorSdkAvailable } from "./lib/executors/availability.mjs";
@@ -48,7 +50,10 @@ export async function listCommandSkills(root) {
   const dir = join(root, SOURCE_SKILLS_DIR);
   if (!existsSync(dir)) return [];
   return (await readdir(dir))
-    .filter((name) => name.startsWith("atomic-") && name !== WORKFLOW_SKILL)
+    .filter(
+      (name) =>
+        name.startsWith("atomic-") && name !== WORKFLOW_SKILL && name !== "atomic-hermes-delegate",
+    )
     .sort();
 }
 
@@ -75,14 +80,23 @@ async function countMarkdown(dir, names) {
  * @param {string} cwd target project
  * @param {string} root package root for expected lists
  */
+/** @param {string} harness */
+export function skillsRootForHarness(harness, cwd) {
+  if (harness === "hermes") return join(cwd, HERMES_SKILLS_DIR);
+  if (harness === "claude") return join(cwd, ".claude", "skills");
+  return join(cwd, AGENTS_SKILLS_DIR);
+}
+
 export async function checkSingleHarness(harness, cwd, root = PACKAGE_ROOT) {
   const problems = [];
+  const warnings = [];
   const { agentFileName, roleNames } = await import("./lib/roles.mjs");
   const commandNames = await listCommandSkills(root);
-  const skillsRoot = join(cwd, AGENTS_SKILLS_DIR);
+  const skillsRoot = skillsRootForHarness(harness, cwd);
   const workflowOk = existsSync(join(skillsRoot, WORKFLOW_SKILL, "SKILL.md"));
   if (!workflowOk) {
-    problems.push(`missing ${AGENTS_SKILLS_DIR}/${WORKFLOW_SKILL}/SKILL.md`);
+    const rel = harness === "hermes" ? `${HERMES_SKILLS_DIR}/${WORKFLOW_SKILL}/SKILL.md` : `${AGENTS_SKILLS_DIR}/${WORKFLOW_SKILL}/SKILL.md`;
+    problems.push(`missing ${rel}`);
   }
 
   const commandSkills = [];
@@ -172,6 +186,26 @@ export async function checkSingleHarness(harness, cwd, root = PACKAGE_ROOT) {
     }
   }
 
+  if (harness === "hermes") {
+    const delegateSkill = join(skillsRoot, "atomic-hermes-delegate", "SKILL.md");
+    if (!existsSync(delegateSkill)) {
+      problems.push("missing .hermes/skills/atomic-hermes-delegate/SKILL.md");
+    }
+    for (const name of commandNames) {
+      const cmdSkill = join(skillsRoot, name, "SKILL.md");
+      if (!existsSync(cmdSkill)) problems.push(`missing hermes command skill ${name}`);
+    }
+    for (const stem of expectedAgentStems) {
+      const roleSkill = join(skillsRoot, `atomic-role-${stem}`, "SKILL.md");
+      if (!existsSync(roleSkill)) problems.push(`missing .hermes/skills/atomic-role-${stem}/SKILL.md`);
+    }
+    const cli = checkHermesCli(cwd);
+    warnings.push(...cli.warnings);
+    problems.push(...cli.problems);
+    warnings.push(...hermesDoctorWarnings(cwd));
+    detail.hermesCli = cli;
+  }
+
   if (harness === "claude") {
     const clSkills = join(cwd, ".claude", "skills", WORKFLOW_SKILL, "SKILL.md");
     if (!existsSync(clSkills)) problems.push("missing .claude/skills/ copy");
@@ -195,7 +229,7 @@ export async function checkSingleHarness(harness, cwd, root = PACKAGE_ROOT) {
     }
   }
 
-  return { harness, ok: problems.length === 0, problems, detail };
+  return { harness, ok: problems.length === 0, problems, warnings, detail };
 }
 
 export async function checkHarnessInstall(options = {}) {
@@ -204,7 +238,7 @@ export async function checkHarnessInstall(options = {}) {
   const single = await checkSingleHarness(harness, cwd, options.root || PACKAGE_ROOT);
   return {
     skillsInstalled: single.detail.workflowSkill,
-    skillDirs: single.detail.workflowSkill ? [join(cwd, AGENTS_SKILLS_DIR)] : [],
+    skillDirs: single.detail.workflowSkill ? [skillsRootForHarness(harness, cwd)] : [],
     commandSkills: single.detail.commandSkills,
     commandSkillsExpected: single.detail.commandSkillsExpected,
     routerRuleInstalled: single.detail.routerRuleInstalled ?? false,

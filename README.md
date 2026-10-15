@@ -4,7 +4,7 @@ English | [한국어](README.kr.md)
 
 Harness-neutral Atomic Workflow. Technical identifiers stay `atomic-*`.
 
-Atomic explore → plan → task → execute → review workflow for Cursor, AGY, Claude Code, OpenCode, Codex, and Pi.
+Atomic explore → plan → task → execute → review workflow for Cursor, AGY, Claude Code, OpenCode, Codex, Pi, and Hermes Agent.
 `/atomic-explore` (optional) → `/atomic-plan` → `/atomic-task` → `/atomic-execute` → `/atomic-review` → `/atomic-wrapup`
 
 Slash commands keep the `atomic-` prefix. The repository is **harness-neutral** (Cursor, opencode, Codex, Pi, AGY; Claude Code optional).
@@ -65,7 +65,7 @@ npx github:donggrri/atomic-graph-workflow --target /path/to/project --harness au
 | Option | Meaning |
 |---|---|
 | `--target <dir>` | Target project (default: current directory) |
-| `--harness <list>` | `auto`, `cursor`, `opencode`, `codex`, `pi`, `agy`, `claude`, `all` (comma-separated). `auto`/`all` omit Claude unless `--with-claude` |
+| `--harness <list>` | `auto`, `cursor`, `opencode`, `codex`, `pi`, `agy`, `claude`, `hermes`, `all` (comma-separated). `auto`/`all` omit Claude unless `--with-claude` |
 | `--migrate` | Replace old `.agents/skills/atomic-*` installs with thin aliases (backup legacy `.cursor/skills/atomic-*`) |
 | `--force` | Regenerate existing generated files from the package source (agent files carry no model pin) |
 | `--with-claude` | Include Claude Code (`.claude/*`, `CLAUDE.md` with `@AGENTS.md`) |
@@ -76,7 +76,9 @@ npx github:donggrri/atomic-graph-workflow --target /path/to/project --harness au
 
 After install, run **`/atomic-setup`** in your agent to write `.atomic-workflow.json` (AGY stages, `testDone`, per-stage `executors`, gitignore policy).
 
-`run-pipeline.mjs` and `run-stage.mjs` read `.atomic/graph.yaml` for each stage’s default `executor`. Project `executors` in `.atomic-workflow.json` override the graph. Supported executors: `cursor-subagent`, `cursor-agent`, `cursor-sdk` (explicit opt-in only; it requires a configured SDK model), `agy`, `codex`, `opencode`, `pi` (headless `pi -p`), `claude`. The model-neutral default is `cursor-subagent`; missing CLIs/SDK fall back at runtime (`run-stage` logs to stderr); doctor warns. External CLIs can be pre-approved via `trustedExecutors` or interactive trust (per-repo hash). Optional `executorTimeouts` maps stage ids (`lite`, `explore`, `plan`, …) to timeout minutes (default 45).
+`run-pipeline.mjs` and `run-stage.mjs` read `.atomic/graph.yaml` for each stage’s default `executor`. Project `executors` in `.atomic-workflow.json` override the graph. Supported executors: `cursor-subagent`, `cursor-agent`, `cursor-sdk` (explicit opt-in only; it requires a configured SDK model), `agy`, `codex`, `opencode`, `pi` (headless `pi -p`), `claude`, `hermes` (headless `hermes chat --oneshot`). The model-neutral default is `cursor-subagent`; missing CLIs/SDK fall back at runtime (`run-stage` logs to stderr); doctor warns. External CLIs can be pre-approved via `trustedExecutors` or interactive trust (per-repo hash). Optional `executorTimeouts` maps stage ids (`lite`, `explore`, `plan`, …) to timeout minutes (default 45).
+
+**Hermes** (`--harness hermes`): skills install to `.hermes/skills/` (not `.agents/skills`). Command and role skills are generated on install; run `hermes skills trust` in the repo afterward. The **orchestrator** (parent Hermes session) should use the `hermes-cursor-provider` bridge with `model.default: grok-4.7-high` in `~/.hermes/config.yaml` (install prints a reminder only; it does not edit user config). Never use `*fast*` orchestrator models. Hermes workflows delegate stages via `node .atomic/scripts/hermes-delegate.mjs` (see `atomic-hermes-delegate` skill). Do not create `.hermes.md` (it shadows `AGENTS.md`). Stage routing picks `cursor-agent` or `agy` with per-stage models: override in `.atomic/graph.yaml` (`nodes.<stage>.executor` / `model`, or `hermes.routing`), or `ATOMIC_HERMES_ROUTING` JSON. Allowed `cursor-agent` model ids: `composer-2.5` (default), `claude-haiku-5-5-high`, `claude-sonnet-5-5-high`, `grok-4.7-high` (aliases `haiku-5.5-high`, `sonnet-5.5-high`); `fast` models are rejected; unknown ids warn and fall back to `composer-2.5`. Defaults: explore/test → haiku; implement stages → composer-2.5 (fallback agy gemini); plan-review → agy gemini (fallback cursor-agent grok-4.7-high); spec-review/escalate → grok-4.7-high; plan/spec/review → agy gemini with cursor-agent sonnet fallback when agy is unavailable.
 
 **AGY policy vs per-stage executors:** `agy.plan` / `agy.implement` / `agy.review` control whether the pipeline *asks* to delegate to AGY (`ask`), runs Cursor SDK roles (`sdk`), or stops for parent `/atomic-agy` (`agy`). When a policy is `agy` and you have **not** set an explicit `executors.<stage>`, the runner fills matching graph stages with executor `agy` (`plan` → `explore`, `plan`, `plan-review`; `implement` → `task`, `execute`; `review` → `review`, `wrapup`). Explicit `executors` always win. Headless stage runs: `node .atomic/scripts/run-stage.mjs <stage> --repo . --slug <slug> --prompt-file <brief.md>` (explore, plan, lite, memory, …).
 

@@ -11,6 +11,7 @@ import { runWorkerExecutor } from "./worker-cli.mjs";
 import { runCursorAgentCli } from "./cursor-agent-cli.mjs";
 import { applyStagePolicy } from "./delegation-policy.mjs";
 import { runPiCli } from "./pi-cli.mjs";
+import { runHermesCli } from "./hermes-cli.mjs";
 import { EXECUTOR_WORKER } from "./constants.mjs";
 import { resolveExecutorTimeoutMin } from "../effective-settings.mjs";
 import { readEnv } from "../legacy-paths.mjs";
@@ -125,6 +126,15 @@ export function createCompositeRoleRunner(options) {
         prompt: base.prompt,
         timeoutMin,
         agentStem: base.role,
+      });
+    }
+
+    if (executor === "hermes") {
+      const timeoutSec = Math.min((timeoutMin ?? 9) * 60, 590);
+      return runHermesCli({
+        repoRoot: options.repoRoot,
+        prompt: base.prompt,
+        timeoutSec: timeoutSec >= 560 ? timeoutSec : 560,
       });
     }
 

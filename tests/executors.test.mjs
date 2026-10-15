@@ -43,6 +43,15 @@ test("resolveExecutorWithFallback returns an executor id", () => {
   assert.ok(res.executor.length > 0);
 });
 
+test("resolveExecutorWithFallback falls back when hermes is missing", () => {
+  const prev = process.env.PATH;
+  process.env.PATH = "";
+  const res = resolveExecutorWithFallback("hermes");
+  assert.notEqual(res.executor, "hermes");
+  assert.equal(res.fallbackFrom, "hermes");
+  process.env.PATH = prev;
+});
+
 test("resolveExecutorWithFallback keeps pi only when allowPi", () => {
   const blocked = resolveExecutorWithFallback("pi");
   assert.notEqual(blocked.executor, "pi");
