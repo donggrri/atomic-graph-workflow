@@ -157,7 +157,11 @@ export async function runDelegatedStage(opts) {
     return { ...routed, exitCode: 0, fallbackUsed: false, dryRun: true };
   }
 
+  // Whole stage (primary + fallback) must stay under Hermes' 600s foreground limit.
+  const budgetSec = Math.min(opts.timeoutSec ?? 560, 590);
+  const startedAt = Date.now();
   let result = await runRunnerCli({
+    timeoutSec: budgetSec,
     runner,
     model,
     workspace,
@@ -167,11 +171,13 @@ export async function runDelegatedStage(opts) {
 
   if (!result.ok) {
     const fb = routed.fallback;
-    if (isHermesRunnerOnPath(fb.runner) && (fb.runner !== runner || fb.model !== model)) {
+    const remainingSec = Math.floor(budgetSec - (Date.now() - startedAt) / 1000);
+    if (remainingSec >= 30 && isHermesRunnerOnPath(fb.runner) && (fb.runner !== runner || fb.model !== model)) {
       fallbackUsed = true;
       runner = fb.runner;
       model = fb.model;
       result = await runRunnerCli({
+        timeoutSec: remainingSec,
         runner,
         model,
         workspace,
