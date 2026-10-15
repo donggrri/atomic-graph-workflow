@@ -13,7 +13,7 @@ description: "atomic-workflow Phase 1. grilling preflight 후 PLAN 작성·승�
 
 서브에이전트 호출법, 스크립트 경로, 하네스 전용 도구는 `atomic-workflow`의 `references/harness.md`를 따른다. CLI 워커를 직접 설치하거나 `agy`/`codex`를 인자 없이 실행하지 마라.
 
-`docsDir` = `node .atomic/scripts/work-status.mjs path <slug> [--repo <dir>]` (기본 홈 `CURSOR_ATOMIC_WORKFLOW_HOME`, 없으면 `~/.cursor-atomic-workflow`). 산출물 `<docsDir>/PLAN-<slug>.md` (레거시 읽기: `.docs/<slug>/`, `docs/<slug>/`). 홈·스킬·제품 `docs/` 혼용 금지. `--profile <id>`가 있어도 산출물 위치는 같다. 그 프로필의 `plan.command`가 있으면 planner 브리프에 그 경로를 넣고, 러너에도 같은 `--profile`을 넘긴다. 외부 명령 파일은 지침일 뿐이고 제품 저장소의 `docs/plan/`으로 옮기지 않는다.
+`docsDir` = `node .atomic/scripts/work-status.mjs path <slug> [--repo <dir>]` (기본 홈 `ATOMIC_WORKFLOW_HOME`, 없으면 `~/.atomic-workflow`). 산출물 `<docsDir>/PLAN-<slug>.md` (레거시 읽기: `.docs/<slug>/`, `docs/<slug>/`). 홈·스킬·제품 `docs/` 혼용 금지. `--profile <id>`가 있어도 산출물 위치는 같다. 그 프로필의 `plan.command`가 있으면 planner 브리프에 그 경로를 넣고, 러너에도 같은 `--profile`을 넘긴다. 외부 명령 파일은 지침일 뿐이고 제품 저장소의 `docs/plan/`으로 옮기지 않는다.
 
 ## Planning preflight — 부모가 직접 수행
 

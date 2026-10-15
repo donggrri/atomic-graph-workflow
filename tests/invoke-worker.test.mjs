@@ -49,14 +49,6 @@ test("invoke-worker.sh rejects unknown worker with exit 2", async () => {
   }
 });
 
-test("invoke-worker.ps1 documents claude workers and skills", async () => {
-  const text = await readFile(join(scriptsDir, "invoke-worker.ps1"), "utf8");
-  assert.doesNotMatch(text, /'pi'/);
-  assert.match(text, /'claude'/);
-  assert.match(text, /Skills/i);
-  assert.doesNotMatch(text, /Resolve-PiPkg/);
-});
-
 test("invoke-worker.sh passes no --model to agy and rejects --model", async () => {
   const { execFile } = await import("node:child_process");
   const { promisify } = await import("node:util");
@@ -79,7 +71,7 @@ test("invoke-worker.sh passes no --model to agy and rejects --model", async () =
   ];
   try {
     await execFileAsync("bash", [...base, "--dry-run"], {
-      env: { ...process.env, CURSOR_ATOMIC_AGY_MODEL: "legacy-env-model" },
+      env: { ...process.env, ATOMIC_AGY_MODEL: "legacy-env-model" },
     });
     const logText = await readFile(log, "utf8");
     assert.doesNotMatch(logText, /--model/);
@@ -129,7 +121,7 @@ test("invoke-worker.sh supports --dry-run", async () => {
 test("invoke-worker.sh never documents a bare agy invocation", async () => {
   const text = await readFile(join(scriptsDir, "invoke-worker.sh"), "utf8");
   assert.doesNotMatch(text, /^\s*agy\s*$/m);
-  assert.match(text, /CURSOR_ATOMIC_SKILL_ROOT/);
+  assert.match(text, /ATOMIC_SKILL_ROOT/);
   assert.doesNotMatch(text, /resolve_pi_pkg/);
   assert.match(text, /--dry-run/);
   assert.match(text, /--skills-file/);

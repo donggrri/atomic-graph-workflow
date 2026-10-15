@@ -169,7 +169,7 @@ test("doctor skips bundle sync check outside the package repo", async () => {
   }
 });
 
-test("all cursor-atomic command skill directories exist", async () => {
+test("all atomic command skill directories exist", async () => {
   const names = (await readdir(SKILLS))
     .filter((n) => n.startsWith("atomic-") && n !== WORKFLOW)
     .sort();
@@ -191,10 +191,15 @@ for (const harness of HARNESS_TARGETS) {
       }
       await install({ root: ".", target, harness, force: true });
       if (harness === "agy" || harness === "codex") {
-        const settings = JSON.parse(await read(join(target, ".cursor-atomic-workflow.json")));
+        const settings = JSON.parse(await read(join(target, ".atomic-workflow.json")));
         assert.ok(settings.installedHarnesses.includes(harness));
       }
-      const report = await runDoctor({ cwd: target, harness: "auto", root: "." });
+      const report = await runDoctor({
+        cwd: target,
+        harness: "auto",
+        root: ".",
+        nodeVersion: "v22.13.0",
+      });
       assert.equal(report.ok, true, report.problems.join("\n"));
     } finally {
       await rm(target, { recursive: true, force: true });
@@ -213,7 +218,12 @@ test("claude harness is optional and requires explicit harness", async () => {
     const claudeMd = await read(join(target, "CLAUDE.md"));
     assert.match(claudeMd, /@AGENTS\.md/);
 
-    const report = await runDoctor({ cwd: target, harness: "claude", root: "." });
+    const report = await runDoctor({
+      cwd: target,
+      harness: "claude",
+      root: ".",
+      nodeVersion: "v22.13.0",
+    });
     assert.equal(report.ok, true, report.problems.join("\n"));
   } finally {
     await rm(target, { recursive: true, force: true });
@@ -226,7 +236,19 @@ test("installed .atomic/scripts/doctor.mjs runs standalone in target", async () 
     const dir = await mkdtemp(join(tmpdir(), `atomic-standalone-${harness}-`));
     try {
       await install({ target: dir, harness, force: true, quiet: true });
-      execFileSync(process.execPath, [join(dir, ".atomic", "scripts", "doctor.mjs"), "--harness", harness, "--target", "."], { cwd: dir, stdio: "pipe" });
+      execFileSync(
+        process.execPath,
+        [
+          join(dir, ".atomic", "scripts", "doctor.mjs"),
+          "--harness",
+          harness,
+          "--target",
+          ".",
+          "--node-version",
+          "v22.13.0",
+        ],
+        { cwd: dir, stdio: "pipe" },
+      );
     } finally {
       await rm(dir, { recursive: true, force: true });
     }

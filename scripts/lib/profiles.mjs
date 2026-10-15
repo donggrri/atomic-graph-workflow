@@ -4,9 +4,13 @@ import { dirname, isAbsolute, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { getWorkflowRoot } from "../work-status.mjs";
 import { loadWorkflowSettings } from "./workflow-settings.mjs";
+import {
+  PROJECT_SETTINGS_FILE,
+  resolveProjectSettingsReadPath,
+} from "./legacy-paths.mjs";
 
 export const DEFAULT_PROFILE_ID = "atomic";
-export const PROJECT_SETTINGS_FILE = ".cursor-atomic-workflow.json";
+export { PROJECT_SETTINGS_FILE };
 export const GLOBAL_SETTINGS_FILE = "settings.json";
 
 const SSH_LINE =
@@ -77,7 +81,7 @@ function readProfileSetting(filePath, label, fs) {
 }
 
 /**
- * CLI, then project `.cursor-atomic-workflow.json`, then global settings, then atomic.
+ * CLI, then project `.atomic-workflow.json`, then global settings, then atomic.
  *
  * @param {{
  *   cliProfile?: string | null,
@@ -92,7 +96,7 @@ export function resolveProfileId(options) {
   if (cli) return { ok: true, id: cli, source: "cli" };
 
   const fs = fsOf(options);
-  const projectPath = join(options.repoRoot, PROJECT_SETTINGS_FILE);
+  const projectPath = resolveProjectSettingsReadPath(options.repoRoot, fs.exists);
   const project = readProfileSetting(projectPath, "project settings", fs);
   if (!project.ok) return project;
   if (project.profile) return { ok: true, id: project.profile, source: "project" };

@@ -28,13 +28,13 @@ node .atomic/scripts/memory.mjs context <shortRepo> # repo 출력값으로 관�
 node .atomic/scripts/run-done.mjs "<done-command>" [logPath]
 node .atomic/scripts/memory.mjs propose --auto /tmp/memory-<slug>.json
 ```
-- 메모리 볼트: `CURSOR_ATOMIC_WORKFLOW_HOME` 아래 `memory/`. `propose` JSON은 `shortRepo`, `slug`, `items[]`(`target`, 한 줄 `text`) 형식. `list` | `approve` | `reject` 지원.
-- 상태는 `.atomic/state.json`, 문서는 `.atomic/docs/`(또는 `CURSOR_ATOMIC_WORKFLOW_HOME`)에 기록한다. 이 파일들을 손으로 고치지 않는다.
+- 메모리 볼트: `ATOMIC_WORKFLOW_HOME` 아래 `memory/`. `propose` JSON은 `shortRepo`, `slug`, `items[]`(`target`, 한 줄 `text`) 형식. `list` | `approve` | `reject` 지원.
+- 상태는 `.atomic/state.json`, 문서는 `.atomic/docs/`(또는 `ATOMIC_WORKFLOW_HOME`)에 기록한다. 이 파일들을 손으로 고치지 않는다.
 - `node`가 없으면 작업을 멈추고 사용자에게 알린다.
 
 ## 4. 역할과 실행기
 - 역할 정의는 `.atomic/agents/*.md`. 서브에이전트를 지원하는 하네스는 설치된 서브에이전트를 쓰고, 지원하지 않으면 같은 지침을 메인 세션에서 순서대로 수행한다.
-- 외부 CLI 위임은 `bash .atomic/scripts/invoke-worker.sh ...` 또는 `pwsh -File .atomic/scripts/invoke-worker.ps1 ...`를 따른다.
+- 외부 CLI 위임은 `bash .atomic/scripts/invoke-worker.sh ...` 또는 `pwsh -File .atomic/scripts/invoke-worker.sh ...`를 따른다.
 - 회사 코드나 개인정보가 들어간 작업은 무료/공개 모델 실행기에 보내지 않는다.
 
 ## 5. 완료 기준

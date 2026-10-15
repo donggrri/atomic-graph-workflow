@@ -11,7 +11,7 @@ test("ensureCommandTrusted scopes hash by repoRoot", async () => {
   const repoB = mkdtempSync(join(tmpdir(), "repo-b-"));
   try {
     mkdirSync(join(home, "memory"), { recursive: true });
-    process.env.CURSOR_ATOMIC_TRUST_COMMANDS = "";
+    process.env.ATOMIC_TRUST_COMMANDS = "";
     const first = await ensureCommandTrusted("npm test", {
       workflowHome: home,
       repoRoot: repoA,
@@ -30,7 +30,7 @@ test("ensureCommandTrusted scopes hash by repoRoot", async () => {
     });
     assert.equal(trusted.ok, false);
   } finally {
-    delete process.env.CURSOR_ATOMIC_TRUST_COMMANDS;
+    delete process.env.ATOMIC_TRUST_COMMANDS;
     rmSync(home, { recursive: true, force: true });
     rmSync(repoA, { recursive: true, force: true });
     rmSync(repoB, { recursive: true, force: true });

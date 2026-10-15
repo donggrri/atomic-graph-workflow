@@ -2,6 +2,7 @@ import { resolveBin } from "../cli-detect.mjs";
 import { spawnCli } from "../exec-cross.mjs";
 import { ensureCommandTrusted } from "../command-trust.mjs";
 import { isInteractiveTTY } from "../prompt.mjs";
+import { readEnv } from "../legacy-paths.mjs";
 
 /**
  * Runs cursor-agent headlessly with full permissions (`--force --trust`). Because of that, the first
@@ -24,7 +25,7 @@ export async function runCursorAgentCli(params) {
   const trustedBySetting = params.settings?.trustedExecutors?.["cursor-agent"];
   if (
     !params.skipTrust &&
-    process.env.CURSOR_ATOMIC_TRUST_COMMANDS !== "1" &&
+    readEnv(process.env, "TRUST_COMMANDS") !== "1" &&
     !trustedBySetting
   ) {
     const trusted = await ensureCommandTrusted("invoke-worker:cursor-agent", {

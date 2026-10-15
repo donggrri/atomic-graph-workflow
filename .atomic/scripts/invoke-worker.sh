@@ -11,7 +11,7 @@ SKILLS=""
 SKILLS_FILE=""
 DRY_RUN=0
 
-CURSOR_ATOMIC_SKILL_ROOT="${CURSOR_ATOMIC_SKILL_ROOT:-$HOME/.agents/skills/atomic-workflow}"
+ATOMIC_SKILL_ROOT="${ATOMIC_SKILL_ROOT:-$HOME/.agents/skills/atomic-workflow}"
 
 usage() {
   cat <<'EOF'
@@ -48,8 +48,8 @@ find_skill_root() {
     fi
     dir="$(dirname "$dir")"
   done
-  if [[ -d "$CURSOR_ATOMIC_SKILL_ROOT" ]]; then
-    dirname "$CURSOR_ATOMIC_SKILL_ROOT"
+  if [[ -d "$ATOMIC_SKILL_ROOT" ]]; then
+    dirname "$ATOMIC_SKILL_ROOT"
     return 0
   fi
   return 1

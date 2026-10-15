@@ -140,7 +140,7 @@ export async function runProjectSetup(repoRoot, options = {}) {
     const choice = await select(
       "문서 저장 위치 선택 (docsRoot)",
       [
-        { value: "global", label: "전역 디렉터리 (기본값: ~/.cursor-atomic-workflow/docs/...)" },
+        { value: "global", label: "전역 디렉터리 (기본값: ~/.atomic-workflow/docs/...)" },
         { value: "work-docs", label: "저장소 내부 work-docs/ (추천: 팀 PR 리뷰 및 harness 호환)" },
         { value: "custom", label: "사용자 정의 상대 경로" },
       ],

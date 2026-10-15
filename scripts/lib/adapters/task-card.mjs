@@ -2,7 +2,6 @@ import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import { getRole, GENERIC_SUBAGENT } from "../roles.mjs";
-import { canonicalName, legacyName } from "../legacy-aliases.mjs";
 
 /**
  * Role instructions live in `.atomic/agents/<subagentType>.md` for every harness.
@@ -39,15 +38,7 @@ export function resolveSkillPath(repoRoot, skillName, options = {}) {
   const home = options.homeDir ?? homedir();
   const repoFile = join(resolve(repoRoot), ".agents", "skills", skillName, "SKILL.md");
   if (exists(repoFile)) return repoFile;
-  const canonical = canonicalName(skillName);
-  const canonicalRepoFile = join(resolve(repoRoot), ".agents", "skills", canonical, "SKILL.md");
-  if (exists(canonicalRepoFile)) return canonicalRepoFile;
-  const legacyPath = legacyName(canonical);
-  if (legacyPath) {
-    const legacyRepoFile = join(resolve(repoRoot), ".agents", "skills", legacyPath, "SKILL.md");
-    if (exists(legacyRepoFile)) return legacyRepoFile;
-  }
-  return join(home, ".agents", "skills", canonical, "SKILL.md");
+  return join(home, ".agents", "skills", skillName, "SKILL.md");
 }
 
 /**

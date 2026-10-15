@@ -55,11 +55,11 @@ test("docsRootFromLegacyArtifacts maps deprecated blocks", () => {
 test("getWorkflowPaths honors docsRoot, keeps runsDir in home", () => {
   const wfHome = mkdtempSync(join(tmpdir(), "wf-art-"));
   const repo = mkdtempSync(join(tmpdir(), "repo-art-"));
-  const origHome = process.env.CURSOR_ATOMIC_WORKFLOW_HOME;
+  const origHome = process.env.ATOMIC_WORKFLOW_HOME;
   try {
-    process.env.CURSOR_ATOMIC_WORKFLOW_HOME = wfHome;
+    process.env.ATOMIC_WORKFLOW_HOME = wfHome;
     writeFileSync(
-      join(repo, ".cursor-atomic-workflow.json"),
+      join(repo, ".atomic-workflow.json"),
       JSON.stringify({ docsRoot: "specs" }),
       "utf8",
     );
@@ -74,19 +74,19 @@ test("getWorkflowPaths honors docsRoot, keeps runsDir in home", () => {
   } finally {
     rmSync(wfHome, { recursive: true, force: true });
     rmSync(repo, { recursive: true, force: true });
-    if (origHome !== undefined) process.env.CURSOR_ATOMIC_WORKFLOW_HOME = origHome;
-    else delete process.env.CURSOR_ATOMIC_WORKFLOW_HOME;
+    if (origHome !== undefined) process.env.ATOMIC_WORKFLOW_HOME = origHome;
+    else delete process.env.ATOMIC_WORKFLOW_HOME;
   }
 });
 
 test("getWorkflowPaths honors legacy artifacts with deprecation warning, no throw", () => {
   const wfHome = mkdtempSync(join(tmpdir(), "wf-leg-"));
   const repo = mkdtempSync(join(tmpdir(), "repo-leg-"));
-  const origHome = process.env.CURSOR_ATOMIC_WORKFLOW_HOME;
+  const origHome = process.env.ATOMIC_WORKFLOW_HOME;
   try {
-    process.env.CURSOR_ATOMIC_WORKFLOW_HOME = wfHome;
+    process.env.ATOMIC_WORKFLOW_HOME = wfHome;
     writeFileSync(
-      join(repo, ".cursor-atomic-workflow.json"),
+      join(repo, ".atomic-workflow.json"),
       JSON.stringify({ artifacts: { location: "repo", dir: "specs" } }),
       "utf8",
     );
@@ -98,36 +98,36 @@ test("getWorkflowPaths honors legacy artifacts with deprecation warning, no thro
   } finally {
     rmSync(wfHome, { recursive: true, force: true });
     rmSync(repo, { recursive: true, force: true });
-    if (origHome !== undefined) process.env.CURSOR_ATOMIC_WORKFLOW_HOME = origHome;
-    else delete process.env.CURSOR_ATOMIC_WORKFLOW_HOME;
+    if (origHome !== undefined) process.env.ATOMIC_WORKFLOW_HOME = origHome;
+    else delete process.env.ATOMIC_WORKFLOW_HOME;
   }
 });
 
 test("getWorkflowPaths falls back to home on invalid JSON with no throw", () => {
   const wfHome = mkdtempSync(join(tmpdir(), "wf-art2-"));
   const repo = mkdtempSync(join(tmpdir(), "repo-art2-"));
-  const origHome = process.env.CURSOR_ATOMIC_WORKFLOW_HOME;
+  const origHome = process.env.ATOMIC_WORKFLOW_HOME;
   try {
-    process.env.CURSOR_ATOMIC_WORKFLOW_HOME = wfHome;
-    writeFileSync(join(repo, ".cursor-atomic-workflow.json"), "{invalid", "utf8");
+    process.env.ATOMIC_WORKFLOW_HOME = wfHome;
+    writeFileSync(join(repo, ".atomic-workflow.json"), "{invalid", "utf8");
     const paths = getWorkflowPaths(repo, "s9");
     assert.equal(paths.docsDir, join(wfHome, "docs", getShortRepo(repo), "s9"));
   } finally {
     rmSync(wfHome, { recursive: true, force: true });
     rmSync(repo, { recursive: true, force: true });
-    if (origHome !== undefined) process.env.CURSOR_ATOMIC_WORKFLOW_HOME = origHome;
-    else delete process.env.CURSOR_ATOMIC_WORKFLOW_HOME;
+    if (origHome !== undefined) process.env.ATOMIC_WORKFLOW_HOME = origHome;
+    else delete process.env.ATOMIC_WORKFLOW_HOME;
   }
 });
 
 test("getWorkflowPaths falls back to home with warning on invalid legacy values", () => {
   const wfHome = mkdtempSync(join(tmpdir(), "wf-art3-"));
   const repo = mkdtempSync(join(tmpdir(), "repo-art3-"));
-  const origHome = process.env.CURSOR_ATOMIC_WORKFLOW_HOME;
+  const origHome = process.env.ATOMIC_WORKFLOW_HOME;
   try {
-    process.env.CURSOR_ATOMIC_WORKFLOW_HOME = wfHome;
+    process.env.ATOMIC_WORKFLOW_HOME = wfHome;
     writeFileSync(
-      join(repo, ".cursor-atomic-workflow.json"),
+      join(repo, ".atomic-workflow.json"),
       JSON.stringify({ artifacts: { location: "nope" } }),
       "utf8",
     );
@@ -138,8 +138,8 @@ test("getWorkflowPaths falls back to home with warning on invalid legacy values"
   } finally {
     rmSync(wfHome, { recursive: true, force: true });
     rmSync(repo, { recursive: true, force: true });
-    if (origHome !== undefined) process.env.CURSOR_ATOMIC_WORKFLOW_HOME = origHome;
-    else delete process.env.CURSOR_ATOMIC_WORKFLOW_HOME;
+    if (origHome !== undefined) process.env.ATOMIC_WORKFLOW_HOME = origHome;
+    else delete process.env.ATOMIC_WORKFLOW_HOME;
   }
 });
 
@@ -149,9 +149,9 @@ test("install --artifacts flag parses and writes docsRoot only", async () => {
   assert.equal(opts.artifacts, "repo:specs");
   const target = mkdtempSync(join(tmpdir(), "install-art-"));
   try {
-    writeFileSync(join(target, ".cursor-atomic-workflow.json"), JSON.stringify({ profile: "atomic" }), "utf8");
+    writeFileSync(join(target, ".atomic-workflow.json"), JSON.stringify({ profile: "atomic" }), "utf8");
     await install({ root: ".", target, harness: "cursor", force: true, artifacts: opts.artifacts });
-    const data = JSON.parse(readFileSync(join(target, ".cursor-atomic-workflow.json"), "utf8"));
+    const data = JSON.parse(readFileSync(join(target, ".atomic-workflow.json"), "utf8"));
     assert.equal(data.profile, "atomic");
     assert.equal(data.docsRoot, "specs");
     assert.ok(!("artifacts" in data));
@@ -166,12 +166,12 @@ test("install --artifacts home clears docsRoot", async () => {
   const target = mkdtempSync(join(tmpdir(), "install-home-"));
   try {
     writeFileSync(
-      join(target, ".cursor-atomic-workflow.json"),
+      join(target, ".atomic-workflow.json"),
       JSON.stringify({ docsRoot: "specs" }),
       "utf8",
     );
     await install({ root: ".", target, harness: "cursor", force: true, artifacts: "home" });
-    const data = JSON.parse(readFileSync(join(target, ".cursor-atomic-workflow.json"), "utf8"));
+    const data = JSON.parse(readFileSync(join(target, ".atomic-workflow.json"), "utf8"));
     assert.ok(!("docsRoot" in data));
     assert.ok(!("artifacts" in data));
   } finally {
@@ -183,39 +183,39 @@ test("project-setup --artifacts refuses absolute docsRoot pointing to global set
   const { runProjectSetup } = await import("../scripts/project-setup.mjs");
   const repo = mkdtempSync(join(tmpdir(), "setup-art-"));
   const wfHome = mkdtempSync(join(tmpdir(), "wf-setup-art-"));
-  const origHome = process.env.CURSOR_ATOMIC_WORKFLOW_HOME;
-  const origTrust = process.env.CURSOR_ATOMIC_TRUST_COMMANDS;
+  const origHome = process.env.ATOMIC_WORKFLOW_HOME;
+  const origTrust = process.env.ATOMIC_TRUST_COMMANDS;
   try {
-    process.env.CURSOR_ATOMIC_WORKFLOW_HOME = wfHome;
-    process.env.CURSOR_ATOMIC_TRUST_COMMANDS = "1";
+    process.env.ATOMIC_WORKFLOW_HOME = wfHome;
+    process.env.ATOMIC_TRUST_COMMANDS = "1";
     writeFileSync(join(repo, "package.json"), JSON.stringify({ scripts: { test: "node --test" } }), "utf8");
     await assert.rejects(
       runProjectSetup(repo, { interactive: false, artifacts: "custom:/tmp/abs-docs", skipDoctor: true }),
       /global settings/,
     );
     // Nothing absolute lands in the project file.
-    const raw = existsSync(join(repo, ".cursor-atomic-workflow.json"))
-      ? readFileSync(join(repo, ".cursor-atomic-workflow.json"), "utf8")
+    const raw = existsSync(join(repo, ".atomic-workflow.json"))
+      ? readFileSync(join(repo, ".atomic-workflow.json"), "utf8")
       : "{}";
     assert.ok(!JSON.parse(raw).docsRoot?.startsWith("/tmp/abs-docs"));
   } finally {
     rmSync(repo, { recursive: true, force: true });
     rmSync(wfHome, { recursive: true, force: true });
-    if (origHome !== undefined) process.env.CURSOR_ATOMIC_WORKFLOW_HOME = origHome;
-    else delete process.env.CURSOR_ATOMIC_WORKFLOW_HOME;
-    if (origTrust !== undefined) process.env.CURSOR_ATOMIC_TRUST_COMMANDS = origTrust;
-    else delete process.env.CURSOR_ATOMIC_TRUST_COMMANDS;
+    if (origHome !== undefined) process.env.ATOMIC_WORKFLOW_HOME = origHome;
+    else delete process.env.ATOMIC_WORKFLOW_HOME;
+    if (origTrust !== undefined) process.env.ATOMIC_TRUST_COMMANDS = origTrust;
+    else delete process.env.ATOMIC_TRUST_COMMANDS;
   }
 });
 
 test("legacy artifacts in settings warns instead of failing", async () => {
   const wfHome = mkdtempSync(join(tmpdir(), "wf-warn-"));
   const repo = mkdtempSync(join(tmpdir(), "repo-warn-"));
-  const origHome = process.env.CURSOR_ATOMIC_WORKFLOW_HOME;
+  const origHome = process.env.ATOMIC_WORKFLOW_HOME;
   try {
-    process.env.CURSOR_ATOMIC_WORKFLOW_HOME = wfHome;
+    process.env.ATOMIC_WORKFLOW_HOME = wfHome;
     writeFileSync(
-      join(repo, ".cursor-atomic-workflow.json"),
+      join(repo, ".atomic-workflow.json"),
       JSON.stringify({ artifacts: { location: "repo", dir: "specs" } }),
       "utf8",
     );
@@ -227,7 +227,7 @@ test("legacy artifacts in settings warns instead of failing", async () => {
   } finally {
     rmSync(wfHome, { recursive: true, force: true });
     rmSync(repo, { recursive: true, force: true });
-    if (origHome !== undefined) process.env.CURSOR_ATOMIC_WORKFLOW_HOME = origHome;
-    else delete process.env.CURSOR_ATOMIC_WORKFLOW_HOME;
+    if (origHome !== undefined) process.env.ATOMIC_WORKFLOW_HOME = origHome;
+    else delete process.env.ATOMIC_WORKFLOW_HOME;
   }
 });

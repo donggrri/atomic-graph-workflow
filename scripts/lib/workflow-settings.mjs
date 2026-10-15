@@ -2,7 +2,8 @@ import { readFileSync, existsSync } from "node:fs";
 import { isAbsolute, join } from "node:path";
 import { docsRootFromLegacyArtifacts } from "./artifacts.mjs";
 import { getWorkflowRoot } from "../work-status.mjs";
-import { PROJECT_SETTINGS_FILE, GLOBAL_SETTINGS_FILE } from "./profiles.mjs";
+import { GLOBAL_SETTINGS_FILE } from "./profiles.mjs";
+import { resolveProjectSettingsReadPath } from "./legacy-paths.mjs";
 import { EXECUTOR_IDS } from "./executors/constants.mjs";
 import { GRAPH_STAGE_IDS } from "./graph.mjs";
 
@@ -164,7 +165,7 @@ export function parseExecutorTimeouts(block, label) {
 }
 
 /**
- * Global settings, then project `.cursor-atomic-workflow.json` (project wins per stage).
+ * Global settings, then project `.atomic-workflow.json` (project wins per stage).
  *
  * @param {{
  *   repoRoot: string,
@@ -176,7 +177,7 @@ export function parseExecutorTimeouts(block, label) {
 export function loadWorkflowSettings(options) {
   const workflowHome = options.workflowHome ?? getWorkflowRoot();
   const globalPath = join(workflowHome, GLOBAL_SETTINGS_FILE);
-  const projectPath = join(options.repoRoot, PROJECT_SETTINGS_FILE);
+  const projectPath = resolveProjectSettingsReadPath(options.repoRoot);
 
   const global = readSettingsFile(globalPath, "global settings");
   if (!global.ok) return global;

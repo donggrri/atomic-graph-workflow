@@ -569,7 +569,7 @@ export function normalizeV1(v1nodes) {
     nodes,
     edges,
     defaults: {},
-    limits: { max_steps: 30, max_loops: { execute: 1 } },
+    limits: { max_steps: 30 },
     gates: {},
     entry: { default: "router" },
   };

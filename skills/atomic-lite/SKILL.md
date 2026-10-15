@@ -13,7 +13,7 @@ description: "단일 세션 경량 워크플로: 짧은 PLAN·구현·메모리�
 
 스크립트 경로는 `atomic-workflow`의 `references/harness.md` 「스크립트 경로」를 따른다 (`work-status.mjs`, `memory.mjs` 포함).
 
-`docsDir` = `node .atomic/scripts/work-status.mjs path <slug> [--repo <dir>]` 출력 (기본 홈 `CURSOR_ATOMIC_WORKFLOW_HOME`, 없으면 `~/.cursor-atomic-workflow`). 쓰기: `<docsDir>/PLAN-<slug>.md` 등.
+`docsDir` = `node .atomic/scripts/work-status.mjs path <slug> [--repo <dir>]` 출력 (기본 홈 `ATOMIC_WORKFLOW_HOME`, 없으면 `~/.atomic-workflow`). 쓰기: `<docsDir>/PLAN-<slug>.md` 등.
 
 `shortRepo`는 `node .atomic/scripts/memory.mjs repo <repoRoot>` 출력. 슬러그는 의도에서 ASCII kebab-case (`fix-typo`).
 

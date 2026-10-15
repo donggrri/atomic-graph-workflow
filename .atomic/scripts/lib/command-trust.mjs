@@ -2,6 +2,7 @@ import { readFileSync, writeFileSync, existsSync, mkdirSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { join, resolve } from "node:path";
 import { getWorkflowRoot } from "../work-status.mjs";
+import { readEnv } from "./legacy-paths.mjs";
 import { confirm, isInteractiveTTY } from "./prompt.mjs";
 
 const TRUST_FILE = "trusted-commands.json";
@@ -49,7 +50,7 @@ function saveTrusted(workflowHome, hashes) {
 export async function ensureCommandTrusted(command, options = {}) {
   const cmd = String(command ?? "").trim();
   if (!cmd) return { ok: true };
-  if (process.env.CURSOR_ATOMIC_TRUST_COMMANDS === "1") return { ok: true };
+  if (readEnv(process.env, "TRUST_COMMANDS") === "1") return { ok: true };
 
   const workflowHome = options.workflowHome ?? getWorkflowRoot();
   const repoRoot = options.repoRoot ? resolve(options.repoRoot) : "";
@@ -62,7 +63,7 @@ export async function ensureCommandTrusted(command, options = {}) {
     return {
       ok: false,
       reason: `신뢰되지 않은 shell 명령입니다. 먼저 확인하세요: ${cmd}\n` +
-        `  (한 번 신뢰: CURSOR_ATOMIC_TRUST_COMMANDS=1 또는 대화형에서 승인)`,
+        `  (한 번 신뢰: ATOMIC_TRUST_COMMANDS=1 또는 대화형에서 승인)`,
     };
   }
 

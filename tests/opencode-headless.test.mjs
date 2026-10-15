@@ -25,7 +25,7 @@ function emptyRecord() {
 }
 
 test("externalDirectoryKey appends /** and trims trailing slashes", () => {
-  assert.equal(externalDirectoryKey("/home/u/.cursor-atomic-workflow"), "/home/u/.cursor-atomic-workflow/**");
+  assert.equal(externalDirectoryKey("/home/u/.atomic-workflow"), "/home/u/.atomic-workflow/**");
   assert.equal(externalDirectoryKey("/home/u/wf/"), "/home/u/wf/**");
 });
 
@@ -137,11 +137,11 @@ test("rewriteGraphExecutors rewrites cursor executors only for opencode-only ins
   assert.equal(noOpencode.text, text);
 });
 
-test("rewriteGraphExecutors keeps unrelated text intact", () => {
-  const text = "nodes:\n  lite:\n    skill: cursor-atomic-lite\n    executor: cursor-sdk # comment\n";
+test("rewriteGraphExecutors rewrites inline v1 executor lines", () => {
+  const text = "nodes:\n  lite:\n    skill: atomic-lite\n    executor: cursor-sdk # comment\n";
   const res = rewriteGraphExecutors(text, { hasOpencode: true, hasCursor: false });
-  assert.equal(res.replaced, 0);
-  assert.equal(res.text, text);
+  assert.equal(res.replaced, 1);
+  assert.match(res.text, /executor: opencode # comment/);
 });
 
 test("install writes opencode.json and rewrites graph executors for opencode-only", async () => {

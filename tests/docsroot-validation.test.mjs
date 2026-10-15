@@ -12,19 +12,19 @@ import { loadWorkflowSettings } from "../scripts/lib/workflow-settings.mjs";
 
 function withHome(fn) {
   const wfHome = mkdtempSync(join(tmpdir(), "wf-docroot-"));
-  const orig = process.env.CURSOR_ATOMIC_WORKFLOW_HOME;
-  process.env.CURSOR_ATOMIC_WORKFLOW_HOME = wfHome;
+  const orig = process.env.ATOMIC_WORKFLOW_HOME;
+  process.env.ATOMIC_WORKFLOW_HOME = wfHome;
   try {
     return fn(wfHome);
   } finally {
     rmSync(wfHome, { recursive: true, force: true });
-    if (orig !== undefined) process.env.CURSOR_ATOMIC_WORKFLOW_HOME = orig;
-    else delete process.env.CURSOR_ATOMIC_WORKFLOW_HOME;
+    if (orig !== undefined) process.env.ATOMIC_WORKFLOW_HOME = orig;
+    else delete process.env.ATOMIC_WORKFLOW_HOME;
   }
 }
 
 function writeProject(repo, data) {
-  writeFileSync(join(repo, ".cursor-atomic-workflow.json"), JSON.stringify(data), "utf8");
+  writeFileSync(join(repo, ".atomic-workflow.json"), JSON.stringify(data), "utf8");
 }
 
 test("project docsRoot with '..' falls back to global with a warning", () => {
@@ -128,8 +128,8 @@ test("install --artifacts refuses absolute docsRoot pointing to global settings"
       install({ root: ".", target, harness: "cursor", force: true, artifacts: "custom:/tmp/abs-docs" }),
       /global settings/,
     );
-    const raw = existsSync(join(target, ".cursor-atomic-workflow.json"))
-      ? readFileSync(join(target, ".cursor-atomic-workflow.json"), "utf8")
+    const raw = existsSync(join(target, ".atomic-workflow.json"))
+      ? readFileSync(join(target, ".atomic-workflow.json"), "utf8")
       : "{}";
     assert.ok(!String(JSON.parse(raw).docsRoot ?? "").startsWith("/tmp/abs-docs"));
   } finally {

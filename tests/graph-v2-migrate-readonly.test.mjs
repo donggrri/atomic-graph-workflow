@@ -119,8 +119,8 @@ test("#3 v1 text with typed scalars migrates cleanly", () => {
 // #4: readonly enforced even with agent
 test("#4 readonly custom node with agent uses reviewer role and mode line", async () => {
   const home = mkdtempSync(join(tmpdir(), "atomic-home-"));
-  const prevHome = process.env.CURSOR_ATOMIC_WORKFLOW_HOME;
-  process.env.CURSOR_ATOMIC_WORKFLOW_HOME = home;
+  const prevHome = process.env.ATOMIC_WORKFLOW_HOME;
+  process.env.ATOMIC_WORKFLOW_HOME = home;
   const repo = mkdtempSync(join(tmpdir(), "rv4-roagent-"));
   try {
     writeV2Repo(
@@ -154,15 +154,15 @@ edges:
   } finally {
     rmSync(repo, { recursive: true, force: true });
     rmSync(home, { recursive: true, force: true });
-    if (prevHome === undefined) delete process.env.CURSOR_ATOMIC_WORKFLOW_HOME;
-    else process.env.CURSOR_ATOMIC_WORKFLOW_HOME = prevHome;
+    if (prevHome === undefined) delete process.env.ATOMIC_WORKFLOW_HOME;
+    else process.env.ATOMIC_WORKFLOW_HOME = prevHome;
   }
 });
 
 test("#4 readonly built-in stage with agent enforces reviewer role", async () => {
   const home = mkdtempSync(join(tmpdir(), "atomic-home-"));
-  const prevHome = process.env.CURSOR_ATOMIC_WORKFLOW_HOME;
-  process.env.CURSOR_ATOMIC_WORKFLOW_HOME = home;
+  const prevHome = process.env.ATOMIC_WORKFLOW_HOME;
+  process.env.ATOMIC_WORKFLOW_HOME = home;
   const repo = mkdtempSync(join(tmpdir(), "rv4-robuiltin-"));
   try {
     writeV2Repo(
@@ -197,8 +197,8 @@ edges:
   } finally {
     rmSync(repo, { recursive: true, force: true });
     rmSync(home, { recursive: true, force: true });
-    if (prevHome === undefined) delete process.env.CURSOR_ATOMIC_WORKFLOW_HOME;
-    else process.env.CURSOR_ATOMIC_WORKFLOW_HOME = prevHome;
+    if (prevHome === undefined) delete process.env.ATOMIC_WORKFLOW_HOME;
+    else process.env.ATOMIC_WORKFLOW_HOME = prevHome;
   }
 });
 
@@ -230,27 +230,27 @@ test("#7 runProjectSetup shows repo note when already configured", async () => {
   const { runProjectSetup } = await import("../scripts/project-setup.mjs");
   const repo = mkdtempSync(join(tmpdir(), "rv4-setup-"));
   const wfHome = mkdtempSync(join(tmpdir(), "rv4-wf-"));
-  const prevHome = process.env.CURSOR_ATOMIC_WORKFLOW_HOME;
-  const prevTrust = process.env.CURSOR_ATOMIC_TRUST_COMMANDS;
+  const prevHome = process.env.ATOMIC_WORKFLOW_HOME;
+  const prevTrust = process.env.ATOMIC_TRUST_COMMANDS;
   const lines = [];
   const origLog = console.log;
   console.log = (...a) => lines.push(a.join(" "));
   try {
-    process.env.CURSOR_ATOMIC_WORKFLOW_HOME = wfHome;
-    process.env.CURSOR_ATOMIC_TRUST_COMMANDS = "1";
+    process.env.ATOMIC_WORKFLOW_HOME = wfHome;
+    process.env.ATOMIC_TRUST_COMMANDS = "1";
     writeFileSync(join(repo, "package.json"), JSON.stringify({ scripts: { test: "x" } }), "utf8");
     writeFileSync(
-      join(repo, ".cursor-atomic-workflow.json"),
+      join(repo, ".atomic-workflow.json"),
       JSON.stringify({ artifacts: { location: "repo", dir: "specs" } }),
       "utf8",
     );
     await runProjectSetup(repo, { interactive: false, skipDoctor: true });
   } finally {
     console.log = origLog;
-    if (prevHome !== undefined) process.env.CURSOR_ATOMIC_WORKFLOW_HOME = prevHome;
-    else delete process.env.CURSOR_ATOMIC_WORKFLOW_HOME;
-    if (prevTrust !== undefined) process.env.CURSOR_ATOMIC_TRUST_COMMANDS = prevTrust;
-    else delete process.env.CURSOR_ATOMIC_TRUST_COMMANDS;
+    if (prevHome !== undefined) process.env.ATOMIC_WORKFLOW_HOME = prevHome;
+    else delete process.env.ATOMIC_WORKFLOW_HOME;
+    if (prevTrust !== undefined) process.env.ATOMIC_TRUST_COMMANDS = prevTrust;
+    else delete process.env.ATOMIC_TRUST_COMMANDS;
   }
   try {
     assert.ok(

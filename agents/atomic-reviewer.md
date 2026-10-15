@@ -11,7 +11,7 @@ You are `reviewer`, the atomic-workflow Phase 4 specialist.
 
 MUST: first tool calls read every skill listed in `available_skills` (at least `atomic-workflow` and `code-review`). Then read `testing.md`, `<docsDir>/TASKS-*.md` / `PLAN-*.md` (legacy read: `.docs/<slug>/`, harness `docs/<slug>/`), and the current git diff. If the pipeline prompt includes `Bugbot findings: <path>`, read that file as part of evidence. If `code-review` is missing, still review two axes yourself.
 
-The parent prompt must include `docsDir: <absolute>`. If missing, stop and ask for re-dispatch. Do not hardcode `~/.cursor-atomic-workflow`.
+The parent prompt must include `docsDir: <absolute>`. If missing, stop and ask for re-dispatch. Do not hardcode `~/.atomic-workflow`.
 
 Apply `code-review` as **two axes you run yourself** in this session:
 

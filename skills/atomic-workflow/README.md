@@ -25,12 +25,12 @@ bash .atomic/scripts/invoke-worker.sh \
   --skills atomic-workflow,tdd
 ```
 
-Windows는 동일 계약의 `invoke-worker.ps1` / `ensure-workers.ps1`을 쓴다. `agy`를 인자 없이 실행하지 마라 (TUI 정지).
+Windows는 동일 계약의 `invoke-worker.sh` / `ensure-workers.sh`을 쓴다. `agy`를 인자 없이 실행하지 마라 (TUI 정지).
 
 진입점:
 
 - 공통 스킬: `.agents/skills/atomic-*/SKILL.md` (Claude Code는 `.claude/skills/`)
 - 역할 지침: `.atomic/agents/*.md` 또는 하네스별 변환본
-- 헤드리스 위임: `.atomic/scripts/invoke-worker.sh` 또는 `.atomic/scripts/invoke-worker.ps1`
+- 헤드리스 위임: `.atomic/scripts/invoke-worker.sh` 또는 `.atomic/scripts/invoke-worker.sh`
 
 계획이 막히면 구현으로 넘어가지 않는다. 커밋은 `/atomic-wrapup`일 때만, 푸시는 따로 요청할 때만 한다.

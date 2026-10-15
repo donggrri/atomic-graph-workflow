@@ -113,7 +113,17 @@ test("model key warns instead of erroring", () => {
 });
 
 test("v1 parses and normalizeV1 produces edges", () => {
-  const text = rf("graph.yaml", "utf8");
+  const text = `version: 1
+nodes:
+  router:
+    next: [lite, explore]
+  lite:
+    skill: atomic-lite
+  explore:
+    skill: atomic-explore
+  plan:
+    skill: atomic-plan
+`;
   const g = parseGraphYaml(text);
   assert.equal(g.version, 1);
   assert.deepEqual(g.errors, []);
@@ -122,6 +132,15 @@ test("v1 parses and normalizeV1 produces edges", () => {
   assert.equal(g.doc.legacy, true);
   const ids = graphNodeIds(g);
   assert.ok(ids.includes("plan"));
+});
+
+test("repo graph.yaml ships as v2", () => {
+  const text = rf("graph.yaml", "utf8");
+  const g = parseGraphYaml(text);
+  assert.equal(g.version, 2);
+  assert.deepEqual(g.errors, []);
+  assert.ok(g.nodes.plan);
+  assert.ok(g.edges.length > 0);
 });
 
 test("defaults applied to nodes", () => {
@@ -224,8 +243,8 @@ test("resolveExecutorForPhase works for custom node", () => {
 
 test("stage-run builds generic prompt for custom node", async () => {
   const home = mkdtempSync(join(tmpdir(), "atomic-home-"));
-  const prevHome = process.env.CURSOR_ATOMIC_WORKFLOW_HOME;
-  process.env.CURSOR_ATOMIC_WORKFLOW_HOME = home;
+  const prevHome = process.env.ATOMIC_WORKFLOW_HOME;
+  process.env.ATOMIC_WORKFLOW_HOME = home;
   const repo = mkdtempSync(join(tmpdir(), "stage-custom-"));
   try {
     writeV2Repo(
@@ -259,8 +278,8 @@ edges:
   } finally {
     rmSync(repo, { recursive: true, force: true });
     rmSync(home, { recursive: true, force: true });
-    if (prevHome === undefined) delete process.env.CURSOR_ATOMIC_WORKFLOW_HOME;
-    else process.env.CURSOR_ATOMIC_WORKFLOW_HOME = prevHome;
+    if (prevHome === undefined) delete process.env.ATOMIC_WORKFLOW_HOME;
+    else process.env.ATOMIC_WORKFLOW_HOME = prevHome;
   }
 });
 
@@ -316,8 +335,8 @@ test("graph-schema rejects prompt/skill paths with .. or absolute", () => {
 
 test("stage-run does not leak files outside repo via node.prompt", async () => {
   const home = mkdtempSync(join(tmpdir(), "atomic-home-"));
-  const prevHome = process.env.CURSOR_ATOMIC_WORKFLOW_HOME;
-  process.env.CURSOR_ATOMIC_WORKFLOW_HOME = home;
+  const prevHome = process.env.ATOMIC_WORKFLOW_HOME;
+  process.env.ATOMIC_WORKFLOW_HOME = home;
   const repo = mkdtempSync(join(tmpdir(), "stage-trav-"));
   const outside = join(tmpdir(), `outside-secret-${process.pid}.txt`);
   try {
@@ -346,8 +365,8 @@ edges:
     rmSync(repo, { recursive: true, force: true });
     rmSync(home, { recursive: true, force: true });
     rmSync(outside, { force: true });
-    if (prevHome === undefined) delete process.env.CURSOR_ATOMIC_WORKFLOW_HOME;
-    else process.env.CURSOR_ATOMIC_WORKFLOW_HOME = prevHome;
+    if (prevHome === undefined) delete process.env.ATOMIC_WORKFLOW_HOME;
+    else process.env.ATOMIC_WORKFLOW_HOME = prevHome;
   }
 });
 
@@ -679,8 +698,8 @@ test("loadGraph without graph.yaml returns top-level keys", () => {
 
 test("stage-run reads node.prompt via normalized path", async () => {
   const home = mkdtempSync(join(tmpdir(), "atomic-home-"));
-  const prevHome = process.env.CURSOR_ATOMIC_WORKFLOW_HOME;
-  process.env.CURSOR_ATOMIC_WORKFLOW_HOME = home;
+  const prevHome = process.env.ATOMIC_WORKFLOW_HOME;
+  process.env.ATOMIC_WORKFLOW_HOME = home;
   const repo = mkdtempSync(join(tmpdir(), "stage-norm-"));
   try {
     mkdirSync(join(repo, ".atomic"), { recursive: true });
@@ -708,8 +727,8 @@ edges:
   } finally {
     rmSync(repo, { recursive: true, force: true });
     rmSync(home, { recursive: true, force: true });
-    if (prevHome === undefined) delete process.env.CURSOR_ATOMIC_WORKFLOW_HOME;
-    else process.env.CURSOR_ATOMIC_WORKFLOW_HOME = prevHome;
+    if (prevHome === undefined) delete process.env.ATOMIC_WORKFLOW_HOME;
+    else process.env.ATOMIC_WORKFLOW_HOME = prevHome;
   }
 });
 

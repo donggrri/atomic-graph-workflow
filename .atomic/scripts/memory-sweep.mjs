@@ -5,7 +5,7 @@
 //   1) hook 모드: stdin을 읽고 즉시 `{}`를 응답한 뒤, 분리된 프로세스(--run)를 띄운다.
 //   2) --run: 전사(transcript jsonl)를 찾아 최근 대화를 발췌하고, 헤드리스 memory-curator 에이전트에게
 //      판단과 저장(`memory.mjs propose --auto`)을 맡긴다.
-//   3) 재귀 방지: 자식 에이전트는 CURSOR_ATOMIC_MEMORY_CHILD=1 을 상속받아 hook에서 바로 빠진다.
+//   3) 재귀 방지: 자식 에이전트는 ATOMIC_MEMORY_CHILD=1 을 상속받아 hook에서 바로 빠진다.
 //
 // 사용법
 //   node scripts/memory-sweep.mjs --from-hook            (stop hook 입력은 stdin)
@@ -20,8 +20,9 @@ import { fileURLToPath } from "node:url";
 import { getShortRepo, getWorkflowRoot } from "./work-status.mjs";
 import { runGraphStage } from "./lib/stage-run.mjs";
 import { buildMemoryContext, memoryDir } from "./memory.mjs";
+import { readEnv } from "./lib/legacy-paths.mjs";
 
-export const CHILD_ENV = "CURSOR_ATOMIC_MEMORY_CHILD";
+export const CHILD_ENV = "ATOMIC_MEMORY_CHILD";
 export const MIN_MESSAGES = 4;
 export const EXCERPT_CHARS = 12000;
 const SCRIPT = fileURLToPath(import.meta.url);
@@ -136,7 +137,7 @@ export function shouldSweep(state, key, size, messageCount) {
 export function buildSweepPrompt({ excerpt, shortRepo, sweepId, memoryScript, memoryHome, existingMemory = "" }) {
   const proposalFile = join(tmpdir(), `memory-sweep-${sweepId}.json`);
   return [
-    "너는 cursor-atomic 메모리 curator다. 아래 대화 발췌에서 앞으로도 계속 쓸모 있는 사실만 골라 자동 저장한다. 사용자 확인은 받지 않는다.",
+    "너는 atomic-graph-workflow 메모리 curator다. 아래 대화 발췌에서 앞으로도 계속 쓸모 있는 사실만 골라 자동 저장한다. 사용자 확인은 받지 않는다.",
     "",
     "## 기준",
     "- 저장할 것: 반복해서 쓰일 환경·빌드 명령, 확정된 결정과 이유, 재발한 실패와 회피법, 사용자가 명시적으로 말한 선호.",
@@ -288,7 +289,7 @@ async function sweepOnce(root, input) {
  */
 export function handleHook(rawStdin) {
   const root = getWorkflowRoot();
-  if (process.env[CHILD_ENV] === "1") {
+  if (readEnv(process.env, "MEMORY_CHILD") === "1") {
     return "{}";
   }
   const input = parseHookInput(rawStdin);

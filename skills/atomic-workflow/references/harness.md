@@ -19,7 +19,7 @@
 
 역할 지침은 `.atomic/agents/<subagentType>.md`가 정본이다. 논리 역할 `reviewer`처럼 role 키와 파일명이 다른 경우에는 `roles.mjs`의 매핑을 따른다(`reviewer` → `atomic-reviewer.md`). 러너가 만드는 카드(`next-card.json`)는 `subagent_type: "generic"`, 논리 `role`, `instructions`, `prompt`만 가지며 `model`이 없다.
 
-TASKS `worker:`가 `agy|opencode|codex|claude`이면 `cli-delegate` 지침으로 위임한다. `cli-delegate`는 [workers.md](../workers.md)의 `invoke-worker.sh`(bash) 또는 `invoke-worker.ps1`(Windows)만 실행한다.
+TASKS `worker:`가 `agy|opencode|codex|claude`이면 `cli-delegate` 지침으로 위임한다. `cli-delegate`는 [workers.md](../workers.md)의 `invoke-worker.sh`(bash) 또는 `invoke-worker.sh`(Windows)만 실행한다.
 
 ### 하네스별 호출 도구
 
@@ -89,13 +89,13 @@ cost-gate 통과 후 tasker 전에 러너가 `plan-reviewer` 지침으로 공용
 
 ### work-status.mjs path (`docsDir`)
 
-슬러그 문서 폴더: `node .atomic/scripts/work-status.mjs path <slug> [--repo <dir>]`. 절대 경로를 출력하고 없으면 만든다. 홈은 `CURSOR_ATOMIC_WORKFLOW_HOME`, 없으면 `~/.cursor-atomic-workflow`.
+슬러그 문서 폴더: `node .atomic/scripts/work-status.mjs path <slug> [--repo <dir>]`. 절대 경로를 출력하고 없으면 만든다. 홈은 `ATOMIC_WORKFLOW_HOME`, 없으면 `~/.atomic-workflow`.
 
-부모는 서브에이전트 브리프에 스킬 경로 다음 줄 `docsDir: <absolute>`를 **필수**로 넣는다. 자식은 `~/.cursor-atomic-workflow/...`를 쓰지 않고 `<docsDir>/PLAN-<slug>.md` 등만 쓴다. `cli-delegate`·런 로그는 `runsDir: <absolute>`(보통 `docsDir`의 `/docs/`→`/runs/`)도 넣는다.
+부모는 서브에이전트 브리프에 스킬 경로 다음 줄 `docsDir: <absolute>`를 **필수**로 넣는다. 자식은 `~/.atomic-workflow/...`를 쓰지 않고 `<docsDir>/PLAN-<slug>.md` 등만 쓴다. `cli-delegate`·런 로그는 `runsDir: <absolute>`(보통 `docsDir`의 `/docs/`→`/runs/`)도 넣는다.
 
 ### memory.mjs (승인형 볼트)
 
-볼트 루트는 `CURSOR_ATOMIC_WORKFLOW_HOME`(없으면 `~/.cursor-atomic-workflow`)이다. 메모리 파일은 `<볼트>/memory/` 아래에 있다.
+볼트 루트는 `ATOMIC_WORKFLOW_HOME`(없으면 `~/.atomic-workflow`)이다. 메모리 파일은 `<볼트>/memory/` 아래에 있다.
 
 1. `node .atomic/scripts/memory.mjs repo <repoPath>` — `shortRepo` 식별자 출력 (보통 프로젝트 루트 `.`).
 2. `node .atomic/scripts/memory.mjs context <shortRepo>` — 승인된 항목을 `<memory>` 블록으로 출력(없으면 `(주입할 메모리 없음)`).

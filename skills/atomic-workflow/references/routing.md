@@ -72,7 +72,7 @@ lite로 시작했는데 구현·탐색 중 full 신호가 나타나면 **즉시 
 ## 러너 실행 위치·감시
 
 - **cwd**: 현재 열린 제품 저장소 루트(워크플로 패키지가 아닌 작업 대상 repo). 스크립트는 워크플로 설치 경로의 `scripts/run-pipeline.mjs`를 사용한다.
-- **시작**: PLAN 게이트 통과 후 Shell에서 `node <path>/scripts/run-pipeline.mjs <slug> [--auto] [--profile <id>]`를 **백그라운드**(`block_until_ms: 0`)로 실행. `--adapter`는 붙이지 않는다. 기본 어댑터는 SDK다. `--profile`을 생략하면 프로젝트 `.cursor-atomic-workflow.json`의 `profile`, 그다음 `~/.cursor-atomic-workflow/settings.json`의 `profile`, 둘 다 없으면 `atomic`이다. PLAN·TASKS·REVIEW 위치는 프로필과 무관하게 `<docsDir>/`다.
+- **시작**: PLAN 게이트 통과 후 Shell에서 `node <path>/scripts/run-pipeline.mjs <slug> [--auto] [--profile <id>]`를 **백그라운드**(`block_until_ms: 0`)로 실행. `--adapter`는 붙이지 않는다. 기본 어댑터는 SDK다. `--profile`을 생략하면 프로젝트 `.atomic-workflow.json`의 `profile`, 그다음 `~/.atomic-workflow/settings.json`의 `profile`, 둘 다 없으면 `atomic`이다. PLAN·TASKS·REVIEW 위치는 프로필과 무관하게 `<docsDir>/`다.
 - **감시**: `<runsDir>/pipeline.log` 꼬리를 주기적으로 확인해 단계 전환마다 한 줄 보고. task-card가 선택된 이유는 그 로그와 stderr에 같은 한 줄로 남는다.
 - **상세**: CLI 인자, 상태 파일, 어댑터는 PLAN 「러너」절 및 `scripts/run-pipeline.mjs`를 참조한다.
 

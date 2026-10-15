@@ -1,5 +1,5 @@
 ---
-description: Main-chat routing between atomic-lite and full cursor-atomic workflow when no slash command is given.
+description: Main-chat routing for atomic-graph-workflow between atomic-lite and full pipeline when no slash command is given.
 alwaysApply: true
 ---
 

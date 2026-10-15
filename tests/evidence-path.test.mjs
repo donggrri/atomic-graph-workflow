@@ -11,7 +11,7 @@ const EVIDENCE = "<runsDir>/<id>.done.json";
 
 test("pipeline evidence sits beside <id>.log as <id>.done.json", () => {
   const runsDir = join(
-    "/home/me/.cursor-atomic-workflow/runs/repo",
+    "/home/me/.atomic-workflow/runs/repo",
     "slug",
   );
   const logPath = taskLogPath(runsDir, "T1");

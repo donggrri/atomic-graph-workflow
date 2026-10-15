@@ -24,7 +24,7 @@ function runInstalledMemory(cwd, memoryHome, args) {
   const script = join(cwd, ".atomic", "scripts", "memory.mjs");
   return execFileSync(process.execPath, [script, ...args], {
     cwd,
-    env: { ...process.env, CURSOR_ATOMIC_WORKFLOW_HOME: memoryHome },
+    env: { ...process.env, ATOMIC_WORKFLOW_HOME: memoryHome },
     encoding: "utf8",
     stdio: ["ignore", "pipe", "pipe"],
   });
