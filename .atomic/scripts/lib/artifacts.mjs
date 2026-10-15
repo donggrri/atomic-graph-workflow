@@ -26,6 +26,28 @@ function isValidRepoDir(dir) {
 }
 
 /**
+ * True for absolute or ~-leading docsRoot values. Such values are only
+ * allowed in global settings, never in the project
+ * `.cursor-atomic-workflow.json` file (which must stay repo-relative).
+ * @param {unknown} value
+ */
+export function isAbsoluteLikeDocsRoot(value) {
+  const t = typeof value === "string" ? value.trim() : "";
+  if (!t) return false;
+  return isAbsolute(t) || t.startsWith("~") || /^[A-Za-z]:[\\/]/.test(t);
+}
+
+/**
+ * Error text used when an absolute docsRoot is aimed at the project file.
+ * Points at global settings instead.
+ * @param {unknown} value
+ */
+export function absoluteDocsRootReason(value) {
+  const t = typeof value === "string" ? value.trim() : String(value ?? "");
+  return `docsRoot: absolute paths are only allowed in global settings (~/.cursor-atomic-workflow/settings.json "docsRoot"); the project file .cursor-atomic-workflow.json must use a repo-relative path (e.g. "specs") or be unset (got "${t}")`;
+}
+
+/**
  * Parse the `--artifacts <home|repo[:dir]|custom:/abs/path>` flag value.
  * Returns a docsRoot value: home -> null (unset), repo -> relative dir
  * (default "specs"), custom -> absolute path.

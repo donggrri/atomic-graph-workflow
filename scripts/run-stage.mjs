@@ -7,7 +7,12 @@ import { GRAPH_STAGE_IDS, loadGraph } from "./lib/graph.mjs";
 function usage() {
   console.error(`Usage: node scripts/run-stage.mjs <stage> --repo <dir> [--slug <slug>] [--prompt <text> | --prompt-file <path>]
 
-Stages: ${GRAPH_STAGE_IDS.join(", ")}, lite`);
+Stages: ${GRAPH_STAGE_IDS.join(", ")}, lite
+
+--prompt-file is a trusted CLI argument: any path is accepted (absolute or
+outside the repo). Unlike node.prompt in graph.yaml, which must stay inside
+the repo (symlink escapes refused), --prompt-file is an explicit operator
+choice and is read as-is.`);
   return 2;
 }
 
@@ -34,8 +39,11 @@ async function main(argv) {
     }
   }
   if (promptFile !== null) {
-    // --prompt-file is a trusted CLI argument (skills pass absolute /tmp paths):
-    // resolve relative to process.cwd(), allow absolute paths anywhere.
+    // --prompt-file is a trusted CLI argument (any path accepted, absolute or
+    // outside the repo): the operator invoking the CLI explicitly chooses the
+    // file. Contrast node.prompt in graph.yaml, which is untrusted repo
+    // content and must stay inside the repo (see assertInsideRepo).
+    // Skills pass absolute /tmp paths here; resolve relative to process.cwd().
     try {
       prompt = readFileSync(resolve(promptFile), "utf8");
     } catch (err) {

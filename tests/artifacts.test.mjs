@@ -179,7 +179,7 @@ test("install --artifacts home clears docsRoot", async () => {
   }
 });
 
-test("project-setup --artifacts writes docsRoot only", async () => {
+test("project-setup --artifacts refuses absolute docsRoot pointing to global settings", async () => {
   const { runProjectSetup } = await import("../scripts/project-setup.mjs");
   const repo = mkdtempSync(join(tmpdir(), "setup-art-"));
   const wfHome = mkdtempSync(join(tmpdir(), "wf-setup-art-"));
@@ -189,12 +189,15 @@ test("project-setup --artifacts writes docsRoot only", async () => {
     process.env.CURSOR_ATOMIC_WORKFLOW_HOME = wfHome;
     process.env.CURSOR_ATOMIC_TRUST_COMMANDS = "1";
     writeFileSync(join(repo, "package.json"), JSON.stringify({ scripts: { test: "node --test" } }), "utf8");
-    const res = await runProjectSetup(repo, { interactive: false, artifacts: "custom:/tmp/abs-docs", skipDoctor: true });
-    assert.equal(res.settings.docsRoot, "/tmp/abs-docs");
-    assert.ok(!("artifacts" in res.settings));
-    const data = JSON.parse(readFileSync(join(repo, ".cursor-atomic-workflow.json"), "utf8"));
-    assert.equal(data.docsRoot, "/tmp/abs-docs");
-    assert.ok(!("artifacts" in data));
+    await assert.rejects(
+      runProjectSetup(repo, { interactive: false, artifacts: "custom:/tmp/abs-docs", skipDoctor: true }),
+      /global settings/,
+    );
+    // Nothing absolute lands in the project file.
+    const raw = existsSync(join(repo, ".cursor-atomic-workflow.json"))
+      ? readFileSync(join(repo, ".cursor-atomic-workflow.json"), "utf8")
+      : "{}";
+    assert.ok(!JSON.parse(raw).docsRoot?.startsWith("/tmp/abs-docs"));
   } finally {
     rmSync(repo, { recursive: true, force: true });
     rmSync(wfHome, { recursive: true, force: true });

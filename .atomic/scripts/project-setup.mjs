@@ -101,9 +101,12 @@ export async function runProjectSetup(repoRoot, options = {}) {
   let docsRootChoice = priorDocsRoot;
   // --artifacts is an alias that writes docsRoot only.
   if (options.artifacts != null && String(options.artifacts).trim() !== "") {
-    const { parseArtifactsFlag } = await import("./lib/artifacts.mjs");
+    const { parseArtifactsFlag, isAbsoluteLikeDocsRoot, absoluteDocsRootReason } = await import("./lib/artifacts.mjs");
     const parsed = parseArtifactsFlag(String(options.artifacts));
     if (!parsed.ok) throw new Error(parsed.reason);
+    if (parsed.docsRoot != null && isAbsoluteLikeDocsRoot(parsed.docsRoot)) {
+      throw new Error(absoluteDocsRootReason(parsed.docsRoot));
+    }
     docsRootChoice = parsed.docsRoot;
     if (docsRootChoice !== priorDocsRoot) {
       if (docsRootChoice == null) {
@@ -114,9 +117,14 @@ export async function runProjectSetup(repoRoot, options = {}) {
     }
   } else if (!interactive && priorDocsRoot == null && existing.artifacts != null) {
     // Non-interactive migration: honor legacy artifacts once, then drop it.
-    const { docsRootFromLegacyArtifacts } = await import("./lib/artifacts.mjs");
+    // A legacy `custom` absolute dir is not written to the project file
+    // (absolute paths live in global settings); warn and ignore it.
+    const { docsRootFromLegacyArtifacts, isAbsoluteLikeDocsRoot, absoluteDocsRootReason } = await import("./lib/artifacts.mjs");
     const mapped = docsRootFromLegacyArtifacts(existing.artifacts);
-    if (mapped != null) {
+    if (mapped != null && isAbsoluteLikeDocsRoot(mapped)) {
+      console.warn(`warning: ${absoluteDocsRootReason(mapped)}`);
+      docsRootChoice = null;
+    } else if (mapped != null) {
       docsRootChoice = mapped;
       patch.docsRoot = mapped;
     } else {
@@ -148,6 +156,11 @@ export async function runProjectSetup(repoRoot, options = {}) {
       const trimmed = custom.trim();
       if (!trimmed) throw new Error("docsRoot: empty path");
       if (trimmed.includes("\0")) throw new Error("docsRoot: must not contain null bytes");
+      const { isAbsoluteLikeDocsRoot, absoluteDocsRootReason } = await import("./lib/artifacts.mjs");
+      if (isAbsoluteLikeDocsRoot(trimmed)) throw new Error(absoluteDocsRootReason(trimmed));
+      if (trimmed.split(/[\\/]/).includes("..")) {
+        throw new Error(`docsRoot: must be a relative path inside the repository (got "${trimmed}")`);
+      }
       docsRootChoice = trimmed;
     }
     if (docsRootChoice !== priorDocsRoot) {

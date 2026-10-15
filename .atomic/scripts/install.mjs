@@ -369,9 +369,12 @@ export async function install(options = {}) {
   let artifactsDocsRoot = null;
   let hasArtifactsFlag = false;
   if (options.artifacts != null && String(options.artifacts).trim() !== "") {
-    const { parseArtifactsFlag } = await import("./lib/artifacts.mjs");
+    const { parseArtifactsFlag, isAbsoluteLikeDocsRoot, absoluteDocsRootReason } = await import("./lib/artifacts.mjs");
     const parsed = parseArtifactsFlag(String(options.artifacts));
     if (!parsed.ok) throw new Error(parsed.reason);
+    if (parsed.docsRoot != null && isAbsoluteLikeDocsRoot(parsed.docsRoot)) {
+      throw new Error(absoluteDocsRootReason(parsed.docsRoot));
+    }
     artifactsDocsRoot = parsed.docsRoot;
     hasArtifactsFlag = true;
   }
@@ -496,23 +499,13 @@ export async function install(options = {}) {
 
   if (hasArtifactsFlag) {
     // --artifacts is an alias that writes docsRoot only (never artifacts).
+    // Absolute values are refused above; only repo-relative values land here.
     if (artifactsDocsRoot == null) {
       writeProjectSettings(target, {}, { dropKeys: ["docsRoot", "artifacts"] });
     } else {
       writeProjectSettings(target, { docsRoot: artifactsDocsRoot }, { dropKeys: ["artifacts"] });
-      const { isAbsolute, sep } = await import("node:path");
-      const expanded = artifactsDocsRoot;
-      const isRelative = !isAbsolute(expanded) && !expanded.startsWith("~");
-      let insideRepo = isRelative;
-      if (!insideRepo && isAbsolute(expanded)) {
-        const base = resolve(target);
-        const abs = resolve(expanded);
-        insideRepo = abs === base || abs.startsWith(base + sep);
-      }
-      if (insideRepo) {
-        const { artifactsRepoNote } = await import("./lib/artifacts.mjs");
-        console.log(artifactsRepoNote(artifactsDocsRoot));
-      }
+      const { artifactsRepoNote } = await import("./lib/artifacts.mjs");
+      console.log(artifactsRepoNote(artifactsDocsRoot));
     }
   }
 

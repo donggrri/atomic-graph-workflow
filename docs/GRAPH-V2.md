@@ -44,6 +44,11 @@ Warnings: nodes unreachable from `entry.default` (BFS, `"*"` edges ignored); nod
 
 Custom nodes without `agent` run as `worker`. With `readonly: true` they run as the read-only `reviewer` role instead. Prompt is built as: `Skill: <skill>` line, then prompt-file contents, then user prompt, then `Inputs:` / `Outputs:` lines, plus `Mode: read-only. Do not modify files; report findings only.` when `readonly` is true. `readonly: true` is enforced regardless of `agent`: any node (custom or built-in stage) with `readonly: true` runs as the `reviewer` role with the read-only mode line appended.
 
+## Prompt file trust boundary
+
+- `node.prompt` in `graph.yaml` must stay inside the repo: it is resolved with `assertInsideRepo`, which follows symlinks (nearest existing ancestor is realpath-resolved) and refuses paths escaping the repository or passing through a symlink. `--skill` scaffolds, `--prompt` scaffolds, and `graph.yaml`/`.bak` writes get the same check in `add-node`.
+- `--prompt-file` in `scripts/run-stage.mjs` is a trusted CLI argument: any path is accepted (absolute or outside the repo), because the caller invoking the CLI explicitly chooses the file. Never confuse the two: graph-owned `node.prompt` is untrusted repo content, `--prompt-file` is an explicit operator choice.
+
 ## add-node command
 
 ```

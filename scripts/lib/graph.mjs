@@ -1,11 +1,20 @@
-import { readFileSync, existsSync, writeFileSync, mkdirSync, copyFileSync } from "node:fs";
-import { join, resolve, dirname, relative, isAbsolute } from "node:path";
+import { readFileSync, existsSync, writeFileSync, mkdirSync, copyFileSync, realpathSync, lstatSync } from "node:fs";
+import { join, resolve, dirname, relative, isAbsolute, sep } from "node:path";
 import { parseYamlLite } from "./yaml-lite.mjs";
 import { validateGraphV2, normalizeV1, RESERVED_TARGETS } from "./graph-schema.mjs";
 import { EXECUTOR_IDS } from "./executors/constants.mjs";
 import { canonicalName } from "./legacy-aliases.mjs";
 
 /**
+ * Resolves `targetPath` against `repoRoot` and requires the result to stay
+ * inside the repository, following symlinks. Textual containment alone is
+ * not enough: a path like `evil/zz.md` is lexically inside the repo but
+ * escapes it when `evil` is a symlink to an outside directory.
+ *
+ * Resolution: realpath the repo root, find the nearest existing ancestor of
+ * the resolved target, realpath it, re-append the non-existing remainder,
+ * and require that real location to be inside the real repo root. A final
+ * target that exists and is itself a symlink is always refused.
  * @param {string} repoRoot
  * @param {string} targetPath
  * @param {string} [label]
@@ -15,8 +24,43 @@ export function assertInsideRepo(repoRoot, targetPath, label = "path") {
   const base = resolve(repoRoot);
   const absTarget = resolve(base, targetPath);
   const rel = relative(base, absTarget);
-  if (rel.startsWith("..") || isAbsolute(rel)) {
+  if (rel === ".." || rel.startsWith(".." + sep) || isAbsolute(rel)) {
     throw new Error(`${label} "${targetPath}" escapes repository root`);
+  }
+  let realRepo;
+  try {
+    realRepo = realpathSync(base);
+  } catch {
+    realRepo = base;
+  }
+  let ancestor = absTarget;
+  while (!existsSync(ancestor)) {
+    const parent = dirname(ancestor);
+    if (parent === ancestor) break;
+    ancestor = parent;
+  }
+  let realTarget = absTarget;
+  try {
+    const realAncestor = realpathSync(ancestor);
+    const remainder = relative(ancestor, absTarget);
+    realTarget = remainder ? join(realAncestor, remainder) : realAncestor;
+  } catch {
+    realTarget = absTarget;
+  }
+  const realRel = relative(realRepo, realTarget);
+  if (realRel === ".." || realRel.startsWith(".." + sep) || isAbsolute(realRel)) {
+    throw new Error(`${label} "${targetPath}" escapes repository root (symlink target outside repository)`);
+  }
+  if (existsSync(absTarget)) {
+    let isLink = false;
+    try {
+      isLink = lstatSync(absTarget).isSymbolicLink();
+    } catch {
+      isLink = false;
+    }
+    if (isLink) {
+      throw new Error(`${label} "${targetPath}" is a symlink; refusing to write through symlinks`);
+    }
   }
   return absTarget;
 }
@@ -576,7 +620,15 @@ async function cliAddNode(rest) {
     }
   }
 
-  const gpath = join(repo, ".atomic", "graph.yaml");
+  const gpath = (() => {
+    try {
+      return assertInsideRepo(repo, join(".atomic", "graph.yaml"), "graph.yaml");
+    } catch (err) {
+      console.error(`error: ${err.message}`);
+      return null;
+    }
+  })();
+  if (!gpath) return 2;
   if (!existsSync(gpath)) {
     console.error(`error: graph.yaml not found: ${gpath}`);
     return 1;
@@ -739,43 +791,62 @@ async function cliAddNode(rest) {
     return 1;
   }
 
-  // backup + write: v1 migrations back up the original text to `.v1.bak`;
-  // v2 edits back up to `.bak`. Only reached after validation passes.
-  if (migrated) {
-    writeFileSync(`${gpath}.v1.bak`, text, "utf8");
-    console.log("migrated graph.yaml v1 -> v2 (backup: graph.yaml.v1.bak)");
-  } else {
-    try {
-      copyFileSync(gpath, `${gpath}.bak`);
-    } catch {
-      // ignore
-    }
-  }
-  writeFileSync(gpath, yaml, "utf8");
-
-  // scaffolds
+  // Validate every write target (graph, backups, scaffolds) before touching
+  // the filesystem, so a symlinked path is refused without mutating the graph.
+  let skillPath = null;
+  let promptPath = null;
   if (skillGiven) {
     const skillName = String(skill ?? id);
-    let skillPath;
     try {
       skillPath = assertInsideRepo(repo, join(".agents", "skills", skillName, "SKILL.md"), "--skill");
     } catch (err) {
       console.error(`error: ${err.message}`);
       return 2;
     }
-    if (!existsSync(skillPath)) {
-      mkdirSync(dirname(skillPath), { recursive: true });
-      writeFileSync(skillPath, buildSkillFile(skillName, id), "utf8");
-    }
   }
   if (prompt) {
-    let promptPath;
     try {
       promptPath = assertInsideRepo(repo, prompt, "--prompt");
     } catch (err) {
       console.error(`error: ${err.message}`);
       return 2;
     }
+  }
+  let backupPath = null;
+  try {
+    backupPath = assertInsideRepo(
+      repo,
+      join(".atomic", migrated ? "graph.yaml.v1.bak" : "graph.yaml.bak"),
+      "graph.yaml backup",
+    );
+  } catch (err) {
+    console.error(`error: ${err.message}`);
+    return 2;
+  }
+
+  // backup + write: v1 migrations back up the original text to `.v1.bak`;
+  // v2 edits back up to `.bak`. Only reached after validation passes.
+  if (migrated) {
+    writeFileSync(/** @type {string} */ (backupPath), text, "utf8");
+    console.log("migrated graph.yaml v1 -> v2 (backup: graph.yaml.v1.bak)");
+  } else {
+    try {
+      copyFileSync(gpath, /** @type {string} */ (backupPath));
+    } catch {
+      // ignore
+    }
+  }
+  writeFileSync(gpath, yaml, "utf8");
+
+  // scaffolds (paths validated above)
+  if (skillGiven && skillPath) {
+    const skillName = String(skill ?? id);
+    if (!existsSync(skillPath)) {
+      mkdirSync(dirname(skillPath), { recursive: true });
+      writeFileSync(skillPath, buildSkillFile(skillName, id), "utf8");
+    }
+  }
+  if (prompt && promptPath) {
     if (!existsSync(promptPath)) {
       mkdirSync(dirname(promptPath), { recursive: true });
       writeFileSync(promptPath, buildPromptFile(id), "utf8");

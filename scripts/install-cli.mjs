@@ -134,11 +134,14 @@ async function runInteractiveInstall(opts) {
     };
   }
 
-  const { parseArtifactsFlag } = await import("./lib/artifacts.mjs");
+  const { parseArtifactsFlag, isAbsoluteLikeDocsRoot, absoluteDocsRootReason } = await import("./lib/artifacts.mjs");
   let pendingDropKeys = [];
   if (opts.artifacts) {
     const parsed = parseArtifactsFlag(String(opts.artifacts));
     if (!parsed.ok) throw new Error(parsed.reason);
+    if (parsed.docsRoot != null && isAbsoluteLikeDocsRoot(parsed.docsRoot)) {
+      throw new Error(absoluteDocsRootReason(parsed.docsRoot));
+    }
     if (parsed.docsRoot == null) {
       pendingDropKeys.push("docsRoot", "artifacts");
     } else {
@@ -162,10 +165,13 @@ async function runInteractiveInstall(opts) {
       pendingProjectSettings = { ...(pendingProjectSettings || {}), docsRoot: parsed.docsRoot };
       pendingDropKeys.push("artifacts");
     } else if (artifactsChoice === "custom") {
-      const dir = await text("◆  산출물 절대 경로", "");
+      const dir = await text("◆  산출물 절대 경로 (전역 설정에만 저장 가능)", "");
       if (dir.trim()) {
         const parsed = parseArtifactsFlag(`custom:${dir.trim()}`);
         if (!parsed.ok) throw new Error(parsed.reason);
+        if (parsed.docsRoot != null && isAbsoluteLikeDocsRoot(parsed.docsRoot)) {
+          throw new Error(absoluteDocsRootReason(parsed.docsRoot));
+        }
         pendingProjectSettings = { ...(pendingProjectSettings || {}), docsRoot: parsed.docsRoot };
         pendingDropKeys.push("artifacts");
       }

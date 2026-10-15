@@ -137,7 +137,7 @@ Default full path: once **PLAN is confirmed**, the pipeline runner runs **plan-r
 
 Artifacts live under `~/.cursor-atomic-workflow/docs/{shortRepo}/{slug}/` (override the home with `CURSOR_ATOMIC_WORKFLOW_HOME`).
 
-Docs location (`docsRoot` in `.cursor-atomic-workflow.json`): `home` (default global home), repo-relative (e.g. `specs`), or an absolute path. `runs/`, `memory/`, and `evidence/` always stay in the workflow home. artifacts: specs/ is inside the repo; commit it with your code (do not add it to .gitignore).
+Docs location (`docsRoot` in `.cursor-atomic-workflow.json`): `home` (default global home) or a repo-relative path (e.g. `specs`). The project file must stay inside the repository: values with a `..` segment are rejected, and absolute (or `~`-leading) values are ignored with a warning — put an absolute path in global settings (`~/.cursor-atomic-workflow/settings.json` `docsRoot`) instead. `runs/`, `memory/`, and `evidence/` always stay in the workflow home. artifacts: specs/ is inside the repo; commit it with your code (do not add it to .gitignore).
 
 If PLAN has blocking questions (security, scope, data loss), it stops there. To write a plan only, use `/atomic-plan 계획만`.
 
