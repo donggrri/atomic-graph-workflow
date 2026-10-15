@@ -1,3 +1,8 @@
+// Doc notes (kept as code comments to avoid a separate docs change):
+// - `touches` (file lists used for gate matching) will come from git diff
+//   in the engine-wiring PR, not from the model.
+// - Model-reported touches are advisory only and must not be trusted for gating.
+import { posix as posixPath } from "node:path";
 import { KNOWN_OUTCOMES, RESERVED_TARGETS } from "./graph-schema.mjs";
 
 export const DEFAULT_LIMITS = {
@@ -10,19 +15,19 @@ const DEFAULT_GATE_DEFS = {
   db: { match: ["**/migrations/**", "**/*.sql", "**/schema.*"] },
   auth: { match: ["**/auth/**", "**/*session*", "**/*token*"] },
   merge: { always: true },
-  ci: { match: [".github/workflows/**", ".gitlab-ci.yml"] },
+  ci: { match: [".github/workflows/**", "**/.gitlab-ci.yml"] },
   deps: {
     match: [
-      "package.json",
-      "package-lock.json",
-      "pnpm-lock.yaml",
-      "yarn.lock",
-      "requirements*.txt",
-      "pyproject.toml",
-      "go.mod",
-      "go.sum",
-      "Cargo.toml",
-      "Cargo.lock",
+      "**/package.json",
+      "**/package-lock.json",
+      "**/pnpm-lock.yaml",
+      "**/yarn.lock",
+      "**/requirements*.txt",
+      "**/pyproject.toml",
+      "**/go.mod",
+      "**/go.sum",
+      "**/Cargo.toml",
+      "**/Cargo.lock",
     ],
   },
 };
@@ -209,9 +214,11 @@ export function evalWhen(expr, ctx = {}) {
 
   function parseComparison() {
     let left = parsePrimary();
+    let compared = false;
     for (;;) {
       const t = peek();
       if (t && (t.type === "==" || t.type === "!=")) {
+        if (compared) fail("chained comparison not allowed");
         next();
         const right = parsePrimary();
         // strict equality; null and undefined compare equal to each other only
@@ -219,13 +226,16 @@ export function evalWhen(expr, ctx = {}) {
           (left === null || left === undefined) && (right === null || right === undefined);
         const eq = bothNullish ? true : left === right;
         left = t.type === "==" ? eq : !eq;
+        compared = true;
         continue;
       }
       if (t && t.type === "ident" && t.value === "in") {
+        if (compared) fail("chained comparison not allowed");
         next();
         const arr = parsePrimary();
         if (!Array.isArray(arr)) fail("`in` requires an array literal");
         left = arr.includes(left);
+        compared = true;
         continue;
       }
       return left;
@@ -469,38 +479,121 @@ function globMatch(pattern, path) {
   }
 }
 
+// ---------- touch normalization ----------
+
+/**
+ * Normalize a touched path before glob matching.
+ * - strip leading "./" segments
+ * - collapse "a/../b" via path.posix.normalize
+ * - drop leading "/" segments
+ * @param {unknown} raw
+ * @returns {string|null} normalized path, or null for non-strings
+ */
+function normalizeTouchPath(raw) {
+  if (typeof raw !== "string") return null;
+  let p = raw;
+  while (p.startsWith("./")) p = p.slice(2);
+  try {
+    p = posixPath.normalize(p);
+  } catch {
+    // keep pre-normalize value on unexpected error
+  }
+  while (p.startsWith("/")) p = p.slice(1);
+  while (p.startsWith("./")) p = p.slice(2);
+  return p;
+}
+
+/**
+ * @param {string} normalized
+ * @returns {boolean} true when the normalized path escapes the repo (starts with "../" or equals "..")
+ */
+function isEscapingTouch(normalized) {
+  return normalized === ".." || normalized.startsWith("../");
+}
+
 // ---------- matchGates ----------
 
 /**
+ * Compute pending gates for a transition.
  * @param {Record<string, any>} doc
- * @param {{ node?: string, touches?: string[], gatesApproved?: string[] }} [opts]
+ * @param {{ node?: string, touches?: string[], gatesApproved?: Array<string|{gate:string,step:number}>, target?: string, step?: number }} [opts]
+ * @returns {string[]}
+ *
+ * NOTE on `touches`: the authoritative source will be `git diff` in the
+ * engine-wiring PR, not the model. Model-reported `touches` are advisory
+ * only and must not be trusted for gating decisions.
  */
-export function matchGates(doc, { node, touches = [], gatesApproved = [] } = {}) {
+export function matchGates(doc, { node, touches = [], gatesApproved = [], target, step } = {}) {
   const nodeDef = doc?.nodes?.[node] ?? {};
   const requires = Array.isArray(nodeDef.requires_approval) ? nodeDef.requires_approval : [];
   const rawGates = doc?.gates;
   const hasGates = rawGates != null && typeof rawGates === "object" && !Array.isArray(rawGates);
   const gates = hasGates ? { ...DEFAULT_GATE_DEFS, ...rawGates } : DEFAULT_GATE_DEFS;
-  const approved = new Set(Array.isArray(gatesApproved) ? gatesApproved : []);
+  const approvedList = Array.isArray(gatesApproved) ? gatesApproved : [];
+  const isApproved = (gid) => {
+    for (const entry of approvedList) {
+      if (typeof entry === "string") {
+        // Legacy string entries: accept as approval for the current step.
+        if (entry === gid) return true;
+        continue;
+      }
+      if (entry != null && typeof entry === "object" && !Array.isArray(entry)) {
+        if (entry.gate !== gid) continue;
+        if (step === undefined) return true;
+        if (entry.step === step) return true;
+      }
+    }
+    return false;
+  };
   const pending = [];
   const push = (id) => {
-    if (approved.has(id)) return;
+    if (isApproved(id)) return;
     if (!pending.includes(id)) pending.push(id);
   };
   for (const id of requires) {
     if (typeof id === "string") push(id);
   }
   const touchList = Array.isArray(touches) ? touches : [];
+  const normalizedTouches = [];
+  let escaping = false;
+  for (const raw of touchList) {
+    if (typeof raw !== "string") continue;
+    const n = normalizeTouchPath(raw);
+    if (n == null) continue;
+    if (isEscapingTouch(n)) {
+      escaping = true;
+      break;
+    }
+    normalizedTouches.push(n);
+  }
+  if (escaping) {
+    // Conservative: an escaping path ("../...") is treated as touching every gate.
+    for (const gid of Object.keys(gates)) push(gid);
+    return pending;
+  }
   for (const [gid, gdef] of Object.entries(gates)) {
-    if (approved.has(gid)) continue;
+    if (isApproved(gid)) continue;
     if (gdef == null || typeof gdef !== "object" || Array.isArray(gdef)) continue;
     if (gdef.always === true) continue;
     const patterns = Array.isArray(gdef.match) ? gdef.match : [];
     for (const pat of patterns) {
       if (typeof pat !== "string") continue;
-      if (touchList.some((p) => typeof p === "string" && globMatch(pat, p))) {
+      const patForMatch = gid === "auth" ? pat.toLowerCase() : pat;
+      const matched = normalizedTouches.some((p) => {
+        if (typeof p !== "string") return false;
+        const pathForMatch = gid === "auth" ? p.toLowerCase() : p;
+        return globMatch(patForMatch, pathForMatch);
+      });
+      if (matched) {
         push(gid);
         break;
+      }
+    }
+  }
+  if (target === "$end") {
+    for (const [gid, gdef] of Object.entries(gates)) {
+      if (gdef != null && typeof gdef === "object" && !Array.isArray(gdef) && gdef.always === true) {
+        push(gid);
       }
     }
   }
@@ -522,15 +615,46 @@ function effectiveLimits(doc) {
 function maxVisitsFor(doc, target, defaultMaxVisits) {
   const n = doc?.nodes?.[target];
   let base = defaultMaxVisits;
+  let hasExplicitVisits = Number.isInteger(doc?.defaults?.max_visits);
   if (n != null && typeof n === "object" && !Array.isArray(n) && Number.isInteger(n.max_visits)) {
     base = n.max_visits;
+    hasExplicitVisits = true;
   }
-  // limits.max_loops takes precedence over max_visits: allow at least max_loops + 1 visits
-  const loopLimit = doc?.limits?.max_loops?.[target] ?? DEFAULT_LIMITS.max_loops?.[target];
+  const explicitLoop = doc?.limits?.max_loops?.[target];
+  const loopLimit = explicitLoop ?? DEFAULT_LIMITS.max_loops?.[target];
   if (loopLimit !== undefined) {
+    // When both limits.max_loops[node] and max_visits are explicitly set,
+    // the stricter bound wins.
+    if (explicitLoop !== undefined && hasExplicitVisits) {
+      return Math.min(base, explicitLoop + 1);
+    }
+    // Legacy: limits.max_loops takes precedence over max_visits: allow at least max_loops + 1 visits
     return Math.max(base, loopLimit + 1);
   }
   return base;
+}
+
+/**
+ * Lint limit config: warn when max_loops[node] exceeds max_visits.
+ * @param {Record<string, any>} doc
+ * @returns {string|null} warning string when limits.max_loops[node] > max_visits for that node, else null
+ */
+export function lintLimits(doc) {
+  const maxLoops = doc?.limits?.max_loops;
+  if (maxLoops == null || typeof maxLoops !== "object" || Array.isArray(maxLoops)) return null;
+  const defaultVisits = doc?.defaults?.max_visits ?? DEFAULT_LIMITS.max_visits;
+  for (const [node, loopLimit] of Object.entries(maxLoops)) {
+    if (!Number.isInteger(loopLimit)) continue;
+    const n = doc?.nodes?.[node];
+    let visits = defaultVisits;
+    if (n != null && typeof n === "object" && !Array.isArray(n) && Number.isInteger(n.max_visits)) {
+      visits = n.max_visits;
+    }
+    if (loopLimit > visits) {
+      return `limits.max_loops["${node}"] (${loopLimit}) > max_visits (${visits}) for node "${node}"`;
+    }
+  }
+  return null;
 }
 
 function normalizeState(state) {
@@ -556,7 +680,8 @@ export function nextStep(state, doc, rawResult, facts = {}) {
   const s = normalizeState(cloneDeep(state));
   const curNode = s.cursor?.node;
   const ctx = s.ctx ?? {};
-  const stepNo = s.history.length + 1;
+  // Unified step counter: history step numbers derive from state.steps only.
+  const stepNo = s.steps + 1;
 
   const validation = validateAtomicResult(rawResult, { doc, node: curNode, ctx });
   if (!validation.ok) {
@@ -574,7 +699,7 @@ export function nextStep(state, doc, rawResult, facts = {}) {
     }
     // After 2 consecutive invalid_result for the same node, escalate to $user.
     // Current failure would be consecutiveInvalid + 1; escalate when that reaches 2.
-    if (consecutiveInvalid + 1 >= 2 || s.history.length + 1 > maxStepsForInvalid) {
+    if (consecutiveInvalid + 1 >= 2 || s.steps + 1 > maxStepsForInvalid) {
       const entry = {
         step: stepNo,
         node: curNode,
@@ -592,7 +717,7 @@ export function nextStep(state, doc, rawResult, facts = {}) {
           reason:
             consecutiveInvalid + 1 >= 2
               ? `invalid result repeated 2 times for "${curNode}"`
-              : `max steps exceeded with invalid results (${s.history.length} >= ${maxStepsForInvalid})`,
+              : `max steps exceeded with invalid results (${s.steps} + 1 > ${maxStepsForInvalid})`,
           target: "$user",
           proposalAccepted: false,
           overridden: false,
@@ -698,7 +823,7 @@ export function nextStep(state, doc, rawResult, facts = {}) {
   if (!RESERVED_TARGETS.includes(target)) {
     const mv = maxVisitsFor(doc, target, defaultMaxVisits);
     if ((visits[target] ?? 0) >= mv) {
-      return escalateEntry(`max visits exceeded for "${target}" (${visits[target]} >= ${mv})`);
+      return escalateEntry(`max visits exceeded for "${target}" (${visits[target] ?? 0} >= ${mv})`);
     }
   }
   // A transition to $end is allowed even when steps == max_steps ($end does not consume a step).
@@ -728,7 +853,7 @@ export function nextStep(state, doc, rawResult, facts = {}) {
   // gates: touch-based gates apply even when the target is reserved.
   // For reserved targets the target has no node def, so the current node's
   // requires_approval applies instead; gates with always:true (e.g. merge)
-  // therefore still apply when transitioning to $end.
+  // fire on any transition whose target is "$end".
   // Gate pauses do not commit history or loop counters (committed on move).
   {
     const gateNode = RESERVED_TARGETS.includes(target) ? curNode : target;
@@ -736,6 +861,8 @@ export function nextStep(state, doc, rawResult, facts = {}) {
       node: gateNode,
       touches: Array.isArray(after.touches) ? after.touches : [],
       gatesApproved: s.gatesApproved,
+      target,
+      step: s.steps + 1,
     });
     if (pending.length > 0) {
       s.cursor = { ...(s.cursor ?? {}), status: "waiting_gate" };
@@ -818,13 +945,25 @@ export function nextStep(state, doc, rawResult, facts = {}) {
 }
 
 /**
+ * Approve a gate for the pending decision step only.
+ * Approvals are scoped to {gate, step} where step is the pending decision
+ * step (state.steps + 1); a later transition needing the same gate must ask again.
+ * Legacy string entries in gatesApproved are accepted as approval for the current step.
  * @param {Record<string, any>} state
  * @param {string} gateId
  */
 export function approveGate(state, gateId) {
   const s = cloneDeep(state) ?? {};
   const approved = Array.isArray(s.gatesApproved) ? [...s.gatesApproved] : [];
-  if (!approved.includes(gateId)) approved.push(gateId);
+  const step = typeof s.steps === "number" ? s.steps + 1 : 1;
+  const already = approved.some((e) => {
+    if (typeof e === "string") return e === gateId;
+    if (e != null && typeof e === "object" && !Array.isArray(e)) {
+      return e.gate === gateId && e.step === step;
+    }
+    return false;
+  });
+  if (!already) approved.push({ gate: gateId, step });
   s.gatesApproved = approved;
   s.cursor = { ...(s.cursor ?? {}), status: "running" };
   return s;

@@ -11,6 +11,7 @@ import {
   matchGates,
   nextStep,
   approveGate,
+  lintLimits,
 } from "../scripts/lib/graph-engine.mjs";
 import { KNOWN_OUTCOMES, RESERVED_TARGETS } from "../scripts/lib/graph-schema.mjs";
 
@@ -313,9 +314,16 @@ test("nextStep reserved targets $user/$end", () => {
   assert.equal(r.decision.target, "$user");
   assert.equal(r.state.cursor.status, "waiting_user");
 
+  // $end now requires the always:true merge gate: first a gate pause ...
   r = nextStep(baseState("memory"), doc, okResult("memory", "pass"));
-  assert.equal(r.decision.kind, "end");
+  assert.equal(r.decision.kind, "gate");
+  assert.ok(r.decision.gates.includes("merge"), JSON.stringify(r.decision));
   assert.equal(r.decision.target, "$end");
+  // ... then approve and reach $end.
+  const approved = approveGate(r.state, "merge");
+  const r2 = nextStep(approved, doc, okResult("memory", "pass"));
+  assert.equal(r2.decision.kind, "end");
+  assert.equal(r2.decision.target, "$end");
 });
 
 test("nextStep execute loop limit 3 escalates on 4th", () => {
@@ -365,7 +373,10 @@ test("nextStep gate then approveGate proceeds", () => {
   assert.equal(r1.state.cursor.node, "execute");
 
   const approved = approveGate(r1.state, "merge");
-  assert.ok(approved.gatesApproved.includes("merge"));
+  const hasMerge = approved.gatesApproved.some((e) =>
+    typeof e === "string" ? e === "merge" : e?.gate === "merge",
+  );
+  assert.ok(hasMerge, JSON.stringify(approved.gatesApproved));
   assert.equal(approved.cursor.status, "running");
   const r2 = nextStep(approved, doc, okResult("execute", "pass"));
   assert.equal(r2.decision.kind, "move");
@@ -538,7 +549,9 @@ test("transition to $end allowed at steps == max_steps", () => {
       { from: "a", to: "b", on: "fail" },
     ],
   };
-  const rEnd = nextStep(baseState("a", { steps: 30 }), doc, okResult("a", "pass", { touches: [] }));
+  // $end is exempt from max_steps but still needs the merge gate: approve first.
+  const preApproved = baseState("a", { steps: 30, gatesApproved: ["merge"] });
+  const rEnd = nextStep(preApproved, doc, okResult("a", "pass", { touches: [] }));
   assert.equal(rEnd.decision.kind, "end");
   assert.equal(rEnd.decision.target, "$end");
 
@@ -677,4 +690,188 @@ test("property: 200 random results stay in allowed ∪ reserved and terminate", 
     void touchPool;
     assert.ok(terminated !== null || state.cursor.status === "waiting_user", `iter ${iter} did not terminate`);
   }
+});
+
+// ---------- review findings: BLOCKER merge on $end ----------
+
+test("BLOCKER: transition to $end without requires_approval still gates merge", () => {
+  const doc = {
+    version: 2, defaults: {}, limits: {}, gates: {}, entry: {},
+    nodes: { a: { skill: "x" } },
+    edges: [{ from: "a", to: "$end", on: "pass" }],
+  };
+  const r1 = nextStep(baseState("a"), doc, okResult("a", "pass", { touches: [] }));
+  assert.equal(r1.decision.kind, "gate");
+  assert.deepEqual(r1.decision.gates, ["merge"]);
+  assert.equal(r1.decision.target, "$end");
+  const approved = approveGate(r1.state, "merge");
+  const r2 = nextStep(approved, doc, okResult("a", "pass", { touches: [] }));
+  assert.equal(r2.decision.kind, "end");
+});
+
+// ---------- review findings: MAJOR touch normalization ----------
+
+test("MAJOR: touches normalized before glob (./, a/../b, leading /)", () => {
+  const doc = { version: 2, defaults: {}, limits: {}, gates: {}, entry: {}, nodes: { a: { skill: "x" } }, edges: [] };
+  const mk = (touches) => matchGates(doc, { node: "a", touches });
+  // ./ prefix stripped
+  assert.deepEqual(mk(["./package.json"]), ["deps"]);
+  assert.deepEqual(mk(["./src/auth/x.ts"]), ["auth"]);
+  // a/../b collapsed via posix.normalize
+  assert.deepEqual(mk(["x/../package.json"]), ["deps"]);
+  assert.deepEqual(mk(["sub/../migrations/001.sql"]), ["db"]);
+  // leading / dropped
+  assert.deepEqual(mk(["/package.json"]), ["deps"]);
+  assert.deepEqual(mk(["/.github/workflows/ci.yml"]), ["ci"]);
+});
+
+test("MAJOR: escaping touches (../) conservatively touch every gate", () => {
+  const doc = { version: 2, defaults: {}, limits: {}, gates: {}, entry: {}, nodes: { a: { skill: "x" } }, edges: [] };
+  const got = matchGates(doc, { node: "a", touches: ["../evil.ts"] });
+  for (const gid of ["db", "auth", "ci", "deps", "merge"]) {
+    assert.ok(got.includes(gid), `expected ${gid} in ${JSON.stringify(got)}`);
+  }
+  // normalized escaping via a/../../b
+  const got2 = matchGates(doc, { node: "a", touches: ["a/../../evil"] });
+  assert.ok(got2.includes("db") && got2.includes("deps"), JSON.stringify(got2));
+});
+
+test("MAJOR: default deps patterns match at any depth", () => {
+  const doc = { version: 2, defaults: {}, limits: {}, gates: {}, entry: {}, nodes: { a: { skill: "x" } }, edges: [] };
+  const cases = [
+    "package.json",
+    "sub/package.json",
+    "a/b/package-lock.json",
+    "x/pnpm-lock.yaml",
+    "x/yarn.lock",
+    "requirements.txt",
+    "deep/requirements-dev.txt",
+    "pyproject.toml",
+    "pkg/pyproject.toml",
+    "go.mod",
+    "sub/go.sum",
+    "Cargo.toml",
+    "nested/Cargo.lock",
+  ];
+  for (const p of cases) {
+    const got = matchGates(doc, { node: "a", touches: [p] });
+    assert.ok(got.includes("deps"), `${p} -> ${JSON.stringify(got)}`);
+  }
+});
+
+test("MAJOR: default ci patterns match at any depth", () => {
+  const doc = { version: 2, defaults: {}, limits: {}, gates: {}, entry: {}, nodes: { a: { skill: "x" } }, edges: [] };
+  assert.ok(matchGates(doc, { node: "a", touches: [".github/workflows/ci.yml"] }).includes("ci"));
+  assert.ok(matchGates(doc, { node: "a", touches: [".gitlab-ci.yml"] }).includes("ci"));
+  assert.ok(matchGates(doc, { node: "a", touches: ["sub/.gitlab-ci.yml"] }).includes("ci"));
+  assert.ok(matchGates(doc, { node: "a", touches: ["a/b/.gitlab-ci.yml"] }).includes("ci"));
+});
+
+test("MAJOR: auth gate is case-insensitive", () => {
+  const doc = { version: 2, defaults: {}, limits: {}, gates: {}, entry: {}, nodes: { a: { skill: "x" } }, edges: [] };
+  assert.ok(matchGates(doc, { node: "a", touches: ["src/Auth/Login.ts"] }).includes("auth"));
+  assert.ok(matchGates(doc, { node: "a", touches: ["SessionStore.js"] }).includes("auth"));
+  assert.ok(matchGates(doc, { node: "a", touches: ["src/TOKEN-cache.ts"] }).includes("auth"));
+});
+
+// ---------- review findings: MAJOR scoped approvals ----------
+
+test("MAJOR: approveGate scoped to {gate, step}; later same-gate asks again", () => {
+  const doc = {
+    version: 2, defaults: {}, limits: {}, gates: {}, entry: {},
+    nodes: { a: { skill: "x" }, b: { skill: "x", requires_approval: ["db"] }, c: { skill: "x", requires_approval: ["db"] } },
+    edges: [
+      { from: "a", to: "b", on: "pass" },
+      { from: "b", to: "c", on: "pass" },
+    ],
+  };
+  // a -> b needs db (touch triggers)
+  const s0 = baseState("a");
+  const r1 = nextStep(s0, doc, okResult("a", "pass", { touches: ["migrations/001.sql"] }));
+  assert.equal(r1.decision.kind, "gate");
+  assert.ok(r1.decision.gates.includes("db"));
+  const approved = approveGate(r1.state, "db");
+  // stored as object {gate, step}
+  assert.ok(
+    approved.gatesApproved.some((e) => typeof e === "object" && e.gate === "db" && typeof e.step === "number"),
+    JSON.stringify(approved.gatesApproved),
+  );
+  const r2 = nextStep(approved, doc, okResult("a", "pass", { touches: ["migrations/001.sql"] }));
+  assert.equal(r2.decision.kind, "move");
+  assert.equal(r2.decision.target, "b");
+  // b -> c needs db again: old approval (step 1) must NOT satisfy step 2
+  const r3 = nextStep(r2.state, doc, okResult("b", "pass", { touches: ["migrations/002.sql"] }));
+  assert.equal(r3.decision.kind, "gate");
+  assert.ok(r3.decision.gates.includes("db"), JSON.stringify(r3.decision));
+});
+
+test("MAJOR: legacy string gatesApproved accepted for current step", () => {
+  const doc = { version: 2, defaults: {}, limits: {}, gates: {}, entry: {}, nodes: { a: { skill: "x" } }, edges: [] };
+  assert.deepEqual(matchGates(doc, { node: "a", touches: ["db/foo"], gatesApproved: ["db"], step: 1 }), []);
+  assert.deepEqual(matchGates(doc, { node: "a", touches: ["db/foo"], gatesApproved: ["db"] }), []);
+});
+
+// ---------- review findings: MINOR ----------
+
+test("MINOR: maxVisitsFor uses Math.min when both max_loops and max_visits set + lintLimits warns", () => {
+  const doc = {
+    version: 2, defaults: {}, limits: { max_loops: { a: 3 } }, gates: {}, entry: {},
+    nodes: { a: { skill: "x", max_visits: 2 }, b: { skill: "x" } },
+    edges: [
+      { from: "a", to: "a", on: "pass" },
+      { from: "a", to: "b", on: "fail" },
+    ],
+  };
+  const w = lintLimits(doc);
+  assert.ok(typeof w === "string" && w.includes('"a"'), w);
+  assert.ok(w.includes("3") && w.includes("2"), w);
+  // min(2, 3+1)=2: with visits.a=2 the visits limit (not loop limit) escalates
+  const s = baseState("a", { visits: { a: 2 }, loops: {}, history: [], steps: 0 });
+  const { decision } = nextStep(s, doc, okResult("a", "pass", { reason: "x", touches: [] }));
+  assert.equal(decision.kind, "escalate");
+  assert.ok(decision.reason.includes("max visits"), decision.reason);
+  // no warning when consistent
+  const okDoc = {
+    version: 2, defaults: {}, limits: { max_loops: { a: 1 } }, gates: {}, entry: {},
+    nodes: { a: { skill: "x", max_visits: 5 } }, edges: [],
+  };
+  assert.equal(lintLimits(okDoc), null);
+});
+
+test("MINOR: evalWhen disallows chained comparison", () => {
+  for (const expr of ["a == b == c", "a != b != c", "a == b != c", "x in [1] == true"]) {
+    assert.throws(() => evalWhen(expr, { a: 1, b: 1, c: 1, x: 1 }), (e) => {
+      assert.ok(e instanceof Error);
+      assert.equal(e.message, `when: chained comparison not allowed in "${expr}"`);
+      return true;
+    }, expr);
+  }
+  // single comparisons still work
+  assert.equal(evalWhen("a == b", { a: 1, b: 1 }), true);
+  assert.equal(evalWhen("a != b", { a: 1, b: 2 }), true);
+});
+
+test("MINOR: step counter uses state.steps only; messages reflect >= vs >", () => {
+  const doc = {
+    version: 2, defaults: {}, limits: {}, gates: {}, entry: {},
+    nodes: { a: { skill: "x" }, b: { skill: "x" } },
+    edges: [{ from: "a", to: "b", on: "pass" }],
+  };
+  // history step numbers derive from state.steps, not history.length
+  const s = baseState("a", { steps: 5, history: [{ step: 1, node: "x", outcome: "pass", next: "a", accepted: true, overridden: false }] });
+  const { state: ns } = nextStep(s, doc, okResult("a", "pass", { touches: [] }));
+  assert.equal(ns.history.length, 2);
+  assert.equal(ns.history[1].step, 6);
+  assert.equal(ns.steps, 6);
+  // visits message uses >= matching the >= check
+  const docV = {
+    version: 2, defaults: { max_visits: 1 }, limits: {}, gates: {}, entry: {},
+    nodes: { a: { skill: "x" }, b: { skill: "x" } },
+    edges: [{ from: "a", to: "b", on: "pass" }],
+  };
+  const sv = baseState("a", { visits: { a: 1, b: 1 }, steps: 0, history: [] });
+  const { decision } = nextStep(sv, docV, okResult("a", "pass", { touches: [] }));
+  assert.equal(decision.kind, "escalate");
+  assert.ok(decision.reason.includes(">="), decision.reason);
+  assert.ok(decision.reason.includes("(1 >= 1)"), decision.reason);
 });
