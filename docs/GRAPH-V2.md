@@ -73,6 +73,16 @@ node scripts/lib/graph.mjs lint [--repo <dir>] [--json]
 
 Prints `error:` / `warning:` lines (or JSON with `--json`). Exit 1 on errors, 0 otherwise.
 
+## Engine (pure functions)
+
+`scripts/lib/graph-engine.mjs` is pure (no file/network/process I/O) and builds on the v2 doc from `parseGraphYaml`:
+
+- `DEFAULT_LIMITS = { max_steps: 30, max_loops: { execute: 3, spec: 2 }, max_visits: 3 }`; `doc.limits` / `doc.defaults.max_visits` override it.
+- `evalWhen(expr, ctx)`: safe evaluator for `== != && || !`, parens, dotted identifiers, strings/numbers/`true/false/null`, and `in` with array literals. Unknown identifiers are `undefined`; syntax errors throw `when: <reason> in "<expr>"`.
+- `allowedTransitions(doc, node, outcome, ctx)`: matching `from === node` or `"*"` edges whose `on` includes `outcome` and whose `when` passes; array `to` is expanded; specific edges sort before `"*"` edges, then `priority` desc, then edge order; targets deduped.
+- `validateAtomicResult` / `applyFacts` / `matchGates` enforce the atomic result shape, fact overrides (`testsExitCode`, `acStatus`), and gate globs (`**`, `*`, `?`).
+- `nextStep(state, doc, rawResult, facts)` never mutates input and returns `{ state, decision }` with kinds `move | gate | ask_user | halt | end | escalate | invalid_result`; `approveGate(state, id)` marks a gate approved.
+
 ## Validation error examples
 
 ```
