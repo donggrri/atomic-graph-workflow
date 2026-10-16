@@ -93,10 +93,9 @@ function stageBucket(stage) {
 
 /**
  * @param {string} stage
- * @param {{ lastImplementRunner?: string | null }} ctx
  * @returns {HermesRoute}
  */
-export function defaultRouteForStage(stage, ctx = {}) {
+export function defaultRouteForStage(stage) {
   const s = String(stage).toLowerCase();
 
   if (s === "explore" || s === "test") {
@@ -125,10 +124,9 @@ export function defaultRouteForStage(stage, ctx = {}) {
 
 /**
  * @param {string} bucket
- * @param {{ lastImplementRunner?: string | null }} ctx
  * @returns {HermesRoute}
  */
-export function defaultRouteForBucket(bucket, ctx = {}) {
+export function defaultRouteForBucket(bucket) {
   if (bucket === "planning" || bucket === "review") {
     return { runner: "cursor-agent", model: CURSOR_AGENT_SONNET };
   }
@@ -317,19 +315,17 @@ export function isFallbackEnabledForStage(stage, routingConfig) {
 
 /**
  * @param {string} stage
- * @param {{ repoRoot?: string, lastImplementRunner?: string | null, overrides?: Record<string, HermesRoute>, routingConfig?: HermesRoutingConfig }} [options]
+ * @param {{ repoRoot?: string, overrides?: Record<string, HermesRoute>, routingConfig?: HermesRoutingConfig }} [options]
  */
 export function resolveHermesRoute(stage, options = {}) {
   const repoRoot = options.repoRoot ?? process.cwd();
   const routingConfig = options.routingConfig ?? loadHermesRoutingOverrides(repoRoot);
   const overrides = options.overrides ?? routingConfig.overrides;
   const bucket = stageBucket(stage);
-  let route = overrides[stage]
-    ? { ...overrides[stage] }
-    : defaultRouteForStage(stage, { lastImplementRunner: options.lastImplementRunner });
+  let route = overrides[stage] ? { ...overrides[stage] } : defaultRouteForStage(stage);
 
   if (!HERMES_RUNNERS.includes(route.runner)) {
-    route = defaultRouteForStage(stage, { lastImplementRunner: options.lastImplementRunner });
+    route = defaultRouteForStage(stage);
   }
 
   let warning;

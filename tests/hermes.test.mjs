@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { chmod, mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { tmpdir } from "node:os";
 import { spawn } from "node:child_process";
 import test from "node:test";
@@ -28,6 +28,8 @@ import {
   truncateStderr,
   acquireOpencodeLock,
   atomicHermesLogPath,
+  buildOpencodeRunArgs,
+  tryClearStaleOpencodeLock,
 } from "../scripts/hermes-delegate.mjs";
 import { AGENTS_SKILLS_DIR } from "../scripts/install.mjs";
 import { existsSync } from "node:fs";
@@ -148,8 +150,17 @@ test("detectDelegatedFailure treats empty stdout and permission stderr as failur
   assert.match(detectDelegatedFailure({ exitCode: 0, stdout: "x", stderr: "permission denied" }).message, /pattern/);
   assert.match(detectDelegatedFailure({ exitCode: 0, stdout: "x", stderr: "auto-denied" }).message, /pattern/);
   assert.match(detectDelegatedFailure({ exitCode: 0, stdout: "x", stderr: "no-output" }).message, /pattern/);
+  assert.match(
+    detectDelegatedFailure({ exitCode: 124, timedOut: true, timeoutMessage: "opencode timed out after 3s" }).message,
+    /timed out after 3s/,
+  );
   const tail = truncateStderr("a".repeat(5000), 100);
   assert.equal(tail.length, 100);
+});
+
+test("buildOpencodeRunArgs inserts -- before prompt", () => {
+  assert.deepEqual(buildOpencodeRunArgs("opencode/m", "hello"), ["run", "-m", "opencode/m", "--", "hello"]);
+  assert.deepEqual(buildOpencodeRunArgs("opencode/m", "-flag"), ["run", "-m", "opencode/m", "--", "-flag"]);
 });
 
 test("hermes routing defaults, overrides, fast-model rejection, fallback disable", async () => {
@@ -341,6 +352,8 @@ exit 0
     const lockPath = join(repo, ".atomic", "opencode-run.lock");
     await mkdir(join(repo, ".atomic"), { recursive: true });
     await writeFile(lockPath, "held", "utf8");
+    const prevLockWait = process.env.ATOMIC_OPENCODE_LOCK_WAIT_SEC;
+    process.env.ATOMIC_OPENCODE_LOCK_WAIT_SEC = "1";
 
     await writeFakeCli(
       binDir,
@@ -362,6 +375,8 @@ exit 0
     });
     assert.equal(locked.ok, false);
     assert.match(locked.message, /lock timeout/);
+    if (prevLockWait === undefined) delete process.env.ATOMIC_OPENCODE_LOCK_WAIT_SEC;
+    else process.env.ATOMIC_OPENCODE_LOCK_WAIT_SEC = prevLockWait;
 
     await rm(lockPath);
     const opencodeOk = await runRunnerCli({
@@ -373,8 +388,7 @@ exit 0
     });
     assert.equal(opencodeOk.ok, true);
     const ocLog = await readFile(join(repo, "opencode-args.log"), "utf8");
-    assert.match(ocLog, /run -m opencode\/glm-5\.3-flash-free/);
-    assert.ok(existsSync(join(repo, ".atomic", "hermes-opencode-run.json")));
+    assert.match(ocLog, /run -m opencode\/glm-5\.3-flash-free --/);
 
     await writeFakeCli(
       binDir,
@@ -440,6 +454,61 @@ test("acquireOpencodeLock releases file", async () => {
     await release();
     assert.equal(existsSync(lockPath), false);
   } finally {
+    await rm(repo, { recursive: true, force: true });
+  }
+});
+
+test("acquireOpencodeLock clears stale lock when PID is dead", async () => {
+  const repo = await mkdtemp(join(tmpdir(), "hermes-stale-lock-"));
+  const lockPath = join(repo, ".atomic", "opencode-run.lock");
+  try {
+    await mkdir(dirname(lockPath), { recursive: true });
+    await writeFile(lockPath, "99999999", "utf8");
+    assert.equal(await tryClearStaleOpencodeLock(lockPath), true);
+    const release = await acquireOpencodeLock(lockPath, 2000);
+    assert.ok(release);
+    await release();
+  } finally {
+    await rm(repo, { recursive: true, force: true });
+  }
+});
+
+test("opencode timeout waits for child exit, keeps partial stdout, releases lock", async () => {
+  const repo = await mkdtemp(join(tmpdir(), "hermes-opencode-timeout-"));
+  const binDir = join(repo, "bin");
+  await mkdir(binDir, { recursive: true });
+  const brief = join(repo, "brief.md");
+  await writeFile(brief, "work", "utf8");
+  const prevPath = process.env.PATH;
+  try {
+    await writeFakeCli(
+      binDir,
+      "opencode",
+      `#!/usr/bin/env node
+process.on("SIGTERM", () => {});
+console.log("partial-out");
+setInterval(() => {}, 200);
+`,
+    );
+    process.env.PATH = `${binDir}:${prevPath ?? ""}`;
+    const lockPath = join(repo, ".atomic", "opencode-run.lock");
+    const res = await runRunnerCli({
+      runner: "opencode",
+      model: OPENCODE_MODEL_GLM,
+      workspace: repo,
+      promptFile: brief,
+      timeoutSec: 1,
+    });
+    assert.equal(res.ok, false);
+    assert.equal(res.exitCode, 124);
+    assert.match(res.message, /opencode timed out after 1s/);
+    assert.match(res.stdout ?? "", /partial-out/);
+    assert.equal(existsSync(lockPath), false);
+    const release = await acquireOpencodeLock(lockPath, 2000);
+    assert.ok(release);
+    await release();
+  } finally {
+    process.env.PATH = prevPath;
     await rm(repo, { recursive: true, force: true });
   }
 });

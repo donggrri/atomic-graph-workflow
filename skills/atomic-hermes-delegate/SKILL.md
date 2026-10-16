@@ -58,7 +58,7 @@ node .atomic/scripts/hermes-delegate.mjs run <stage> --workspace . --prompt-file
 
 기본 자동 라우팅(오버라이드 없을 때): explore·test → cursor-agent haiku (폴백 opencode glm); execute·implement·fix·task·docs → composer-2.5 (폴백 opencode deepseek); plan·spec·review → sonnet (폴백 opencode glm); plan-review·spec-review·escalate → grok-4.7-high (폴백 opencode glm).
 
-`plan`·`plan-review`는 헤드리스에서 권한 차단되지 않도록 `cursor-agent`는 `--trust --force`, `opencode`는 bash/edit allow 설정으로 실행한다.
+`plan`·`plan-review`는 헤드리스에서 권한 차단되지 않도록 `cursor-agent`는 `--trust --force`, `opencode`는 임시 `OPENCODE_CONFIG`(bash/edit allow)로 실행한다. opencode 동시 실행은 `.atomic/opencode-run.lock`으로 직렬화한다(대기: `ATOMIC_OPENCODE_LOCK_WAIT_SEC`, 기본 120).
 
 ## Hermes 동작
 
