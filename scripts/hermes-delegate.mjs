@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { appendFile, mkdir, readFile } from "node:fs/promises";
+import { appendFile, mkdir, readFile, writeFile, unlink, open } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { join, resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -11,9 +11,63 @@ import {
   resolveHermesRoute,
   isHermesRunnerOnPath,
   loadHermesRoutingOverrides,
+  isFallbackEnabledForStage,
 } from "./lib/hermes-routing.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
+
+export const STDERR_TAIL_MAX = 4000;
+export const OPENCODE_LOCK_REL = join(".atomic", "opencode-run.lock");
+export const HERMES_ATOMIC_LOG_REL = join(".atomic", "hermes-delegate.log");
+
+/** @type {readonly RegExp[]} */
+export const HERMES_FAILURE_STDERR_PATTERNS = [
+  /permission[\s_-]*denied/i,
+  /auto[\s_-]*denied/i,
+  /no[\s_-]*output/i,
+];
+
+/**
+ * @param {string} stderr
+ */
+export function truncateStderr(stderr, maxLen = STDERR_TAIL_MAX) {
+  const text = String(stderr ?? "");
+  if (text.length <= maxLen) return text;
+  return text.slice(-maxLen);
+}
+
+/**
+ * @param {{ exitCode: number, stdout?: string, stderr?: string }} result
+ * @returns {{ failed: boolean, message?: string }}
+ */
+export function detectDelegatedFailure(result) {
+  const exitCode = result.exitCode ?? 1;
+  const stdout = String(result.stdout ?? "").trim();
+  const stderr = String(result.stderr ?? "");
+
+  if (exitCode !== 0) {
+    return { failed: true, message: `runner exit ${exitCode}` };
+  }
+
+  if (!stdout) {
+    return { failed: true, message: "runner exited 0 with empty stdout" };
+  }
+
+  for (const re of HERMES_FAILURE_STDERR_PATTERNS) {
+    if (re.test(stderr)) {
+      return { failed: true, message: `runner stderr matched failure pattern: ${re}` };
+    }
+  }
+
+  return { failed: false };
+}
+
+/**
+ * @param {string} repoRoot
+ */
+export function atomicHermesLogPath(repoRoot) {
+  return join(resolve(repoRoot), HERMES_ATOMIC_LOG_REL);
+}
 
 /**
  * @param {string} repoRoot
@@ -23,7 +77,7 @@ export function delegateLogPath(repoRoot) {
   if (docsRoot) {
     return join(resolve(repoRoot), docsRoot, "hermes-delegate.log");
   }
-  return join(resolve(repoRoot), ".atomic", "hermes-delegate.log");
+  return atomicHermesLogPath(repoRoot);
 }
 
 /**
@@ -55,24 +109,82 @@ export async function readLastImplementRunner(repoRoot) {
 export async function routeStage(stage, options = {}) {
   const repoRoot = resolve(options.repoRoot ?? process.cwd());
   const lastImplementRunner = await readLastImplementRunner(repoRoot);
-  const overrides = loadHermesRoutingOverrides(repoRoot);
-  const resolved = resolveHermesRoute(stage, { repoRoot, lastImplementRunner, overrides });
+  const routingConfig = loadHermesRoutingOverrides(repoRoot);
+  const resolved = resolveHermesRoute(stage, {
+    repoRoot,
+    lastImplementRunner,
+    overrides: routingConfig.overrides,
+    routingConfig,
+  });
   const out = {
     stage: resolved.stage,
     runner: resolved.runner,
     model: resolved.model,
     fallback: resolved.fallback,
+    fallbackEnabled: resolved.fallbackEnabled,
   };
   if (resolved.warning) out.warning = resolved.warning;
   return out;
 }
 
 /**
- * @param {{ runner: string, model: string, workspace: string, promptFile: string, timeoutSec?: number, spawnFn?: typeof spawn }} opts
+ * @param {string} lockPath
+ * @param {number} timeoutMs
+ */
+export async function acquireOpencodeLock(lockPath, timeoutMs = 120_000) {
+  await mkdir(dirname(lockPath), { recursive: true });
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    try {
+      const handle = await open(lockPath, "wx");
+      await handle.write(String(process.pid));
+      await handle.close();
+      return async () => {
+        try {
+          await unlink(lockPath);
+        } catch {
+          // ignore
+        }
+      };
+    } catch (err) {
+      if (err && typeof err === "object" && err.code !== "EEXIST") {
+        throw err;
+      }
+      await new Promise((r) => setTimeout(r, 200));
+    }
+  }
+  return null;
+}
+
+/**
+ * @param {string} workspace
+ */
+export async function buildOpencodeHeadlessEnv(workspace) {
+  const configPath = join(workspace, ".atomic", "hermes-opencode-run.json");
+  await mkdir(dirname(configPath), { recursive: true });
+  const config = {
+    $schema: "https://opencode.ai/config.json",
+    permission: {
+      bash: "allow",
+      edit: "allow",
+    },
+  };
+  await writeFile(configPath, `${JSON.stringify(config, null, 2)}\n`, "utf8");
+  return {
+    ...process.env,
+    OPENCODE_CONFIG: configPath,
+    OPENCODE_PERMISSION: "bash=allow,edit=allow",
+  };
+}
+
+/**
+ * @param {{ runner: string, model: string, workspace: string, promptFile: string, stage?: string, timeoutSec?: number, spawnFn?: typeof spawn }} opts
  */
 export async function runRunnerCli(opts) {
   const prompt = await readFile(opts.promptFile, "utf8");
   const timeoutSec = Math.min(opts.timeoutSec ?? 560, 590);
+  const stage = String(opts.stage ?? "").toLowerCase();
+  const needsHeadlessPermissions = stage === "plan" || stage === "plan-review";
 
   if (opts.runner === "cursor-agent") {
     const bin = resolveBin(["cursor-agent", "agent"]);
@@ -90,27 +202,70 @@ export async function runRunnerCli(opts) {
     const child = spawnCliWith(opts.spawnFn ?? spawn, bin, args, {
       cwd: opts.workspace,
       env: process.env,
-      stdio: ["ignore", "inherit", "pipe"],
+      stdio: ["ignore", "pipe", "pipe"],
     });
-    const code = await new Promise((resolve, reject) => {
-      const timer = setTimeout(() => {
-        child.kill("SIGTERM");
-        resolve(124);
-      }, timeoutSec * 1000);
-      let stderr = "";
-      child.stderr?.on("data", (c) => {
-        stderr += String(c);
+    const { code, stdout, stderr } = await collectChildOutput(child, timeoutSec, "cursor-agent");
+    if (code && typeof code === "object") {
+      return { ok: false, kind: "run", exitCode: 1, message: code.message, stderr };
+    }
+    const failure = detectDelegatedFailure({ exitCode: code, stdout, stderr });
+    if (failure.failed) {
+      return {
+        ok: false,
+        kind: "run",
+        exitCode: code === 0 ? 1 : code,
+        message: failure.message,
+        stdout,
+        stderr,
+      };
+    }
+    if (code === 0) return { ok: true, exitCode: 0, stdout, stderr };
+    if (code === 124) return { ok: false, kind: "run", exitCode: 124, message: "cursor-agent timed out", stderr };
+    return { ok: false, kind: "run", exitCode: code, message: `cursor-agent exit ${code}`, stderr };
+  }
+
+  if (opts.runner === "opencode") {
+    const bin = resolveBin(["opencode"]);
+    if (!bin) return { ok: false, kind: "startup", exitCode: 1, message: "opencode not on PATH" };
+    const lockPath = join(opts.workspace, OPENCODE_LOCK_REL);
+    const lockWaitMs = Math.min(5_000, timeoutSec * 1000);
+    const release = await acquireOpencodeLock(lockPath, lockWaitMs);
+    if (!release) {
+      return {
+        ok: false,
+        kind: "run",
+        exitCode: 1,
+        message: "opencode run lock timeout (another opencode run is in progress)",
+      };
+    }
+    try {
+      const env = needsHeadlessPermissions
+        ? await buildOpencodeHeadlessEnv(opts.workspace)
+        : process.env;
+      const args = ["run", "-m", opts.model, prompt];
+      const child = spawnCliWith(opts.spawnFn ?? spawn, bin, args, {
+        cwd: opts.workspace,
+        env,
+        stdio: ["ignore", "pipe", "pipe"],
       });
-      child.on("error", reject);
-      child.on("close", (c) => {
-        clearTimeout(timer);
-        resolve(c ?? 1);
-      });
-    }).catch((err) => ({ ok: false, message: String(err) }));
-    if (typeof code === "object") return { ok: false, kind: "run", exitCode: 1, message: code.message };
-    if (code === 0) return { ok: true, exitCode: 0 };
-    if (code === 124) return { ok: false, kind: "run", exitCode: 124, message: "cursor-agent timed out" };
-    return { ok: false, kind: "run", exitCode: code, message: `cursor-agent exit ${code}` };
+      const { code, stdout, stderr } = await collectChildOutput(child, timeoutSec, "opencode");
+      const failure = detectDelegatedFailure({ exitCode: code, stdout, stderr });
+      if (failure.failed) {
+        return {
+          ok: false,
+          kind: "run",
+          exitCode: code === 0 ? 1 : code,
+          message: failure.message,
+          stdout,
+          stderr,
+        };
+      }
+      if (code === 0) return { ok: true, exitCode: 0, stdout, stderr };
+      if (code === 124) return { ok: false, kind: "run", exitCode: 124, message: "opencode timed out", stderr };
+      return { ok: false, kind: "run", exitCode: code, message: `opencode exit ${code}`, stderr };
+    } finally {
+      await release();
+    }
   }
 
   if (opts.runner === "agy") {
@@ -120,31 +275,58 @@ export async function runRunnerCli(opts) {
     const child = spawnCliWith(opts.spawnFn ?? spawn, bin, args, {
       cwd: opts.workspace,
       env: process.env,
-      stdio: ["ignore", "inherit", "pipe"],
+      stdio: ["ignore", "pipe", "pipe"],
     });
-    const code = await new Promise((resolve, reject) => {
-      const timer = setTimeout(() => {
-        child.kill("SIGTERM");
-        resolve(124);
-      }, timeoutSec * 1000);
-      child.stderr?.on("data", () => {});
-      child.on("error", reject);
-      child.on("close", (c) => {
-        clearTimeout(timer);
-        resolve(c ?? 1);
-      });
-    }).catch((err) => ({ ok: false, message: String(err) }));
-    if (typeof code === "object") return { ok: false, kind: "run", exitCode: 1, message: code.message };
-    if (code === 0) return { ok: true, exitCode: 0 };
-    if (code === 124) return { ok: false, kind: "run", exitCode: 124, message: "agy timed out" };
-    return { ok: false, kind: "run", exitCode: code, message: `agy exit ${code}` };
+    const { code, stdout, stderr } = await collectChildOutput(child, timeoutSec, "agy");
+    const failure = detectDelegatedFailure({ exitCode: code, stdout, stderr });
+    if (failure.failed) {
+      return {
+        ok: false,
+        kind: "run",
+        exitCode: code === 0 ? 1 : code,
+        message: failure.message,
+        stdout,
+        stderr,
+      };
+    }
+    if (typeof code === "object") return { ok: false, kind: "run", exitCode: 1, message: code.message, stderr };
+    if (code === 0) return { ok: true, exitCode: 0, stdout, stderr };
+    if (code === 124) return { ok: false, kind: "run", exitCode: 124, message: "agy timed out", stderr };
+    return { ok: false, kind: "run", exitCode: code, message: `agy exit ${code}`, stderr };
   }
 
   return { ok: false, kind: "run", exitCode: 1, message: `unknown runner ${opts.runner}` };
 }
 
 /**
- * @param {{ stage: string, workspace: string, promptFile: string, dryRun?: boolean, spawnFn?: typeof spawn }} opts
+ * @param {import("node:child_process").ChildProcess} child
+ * @param {number} timeoutSec
+ * @param {string} label
+ */
+function collectChildOutput(child, timeoutSec, label) {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      child.kill("SIGTERM");
+      resolve({ code: 124, stdout: "", stderr: "" });
+    }, timeoutSec * 1000);
+    let stdout = "";
+    let stderr = "";
+    child.stdout?.on("data", (c) => {
+      stdout += String(c);
+    });
+    child.stderr?.on("data", (c) => {
+      stderr += String(c);
+    });
+    child.on("error", reject);
+    child.on("close", (c) => {
+      clearTimeout(timer);
+      resolve({ code: c ?? 1, stdout, stderr });
+    });
+  }).catch((err) => ({ code: { message: String(err) }, stdout: "", stderr: "" }));
+}
+
+/**
+ * @param {{ stage: string, workspace: string, promptFile: string, dryRun?: boolean, spawnFn?: typeof spawn, timeoutSec?: number }} opts
  */
 export async function runDelegatedStage(opts) {
   const workspace = resolve(opts.workspace);
@@ -152,12 +334,12 @@ export async function runDelegatedStage(opts) {
   let runner = routed.runner;
   let model = routed.model;
   let fallbackUsed = false;
+  let lastStderr = "";
 
   if (opts.dryRun) {
     return { ...routed, exitCode: 0, fallbackUsed: false, dryRun: true };
   }
 
-  // Whole stage (primary + fallback) must stay under Hermes' 600s foreground limit.
   const budgetSec = Math.min(opts.timeoutSec ?? 560, 590);
   const startedAt = Date.now();
   let result = await runRunnerCli({
@@ -166,13 +348,26 @@ export async function runDelegatedStage(opts) {
     model,
     workspace,
     promptFile: opts.promptFile,
+    stage: opts.stage,
     spawnFn: opts.spawnFn,
   });
+  lastStderr = result.stderr ?? "";
 
-  if (!result.ok) {
+  const routingConfig = loadHermesRoutingOverrides(workspace);
+  const fallbackAllowed =
+    routed.fallbackEnabled &&
+    routed.fallback &&
+    isFallbackEnabledForStage(opts.stage, routingConfig);
+
+  if (!result.ok && fallbackAllowed) {
     const fb = routed.fallback;
     const remainingSec = Math.floor(budgetSec - (Date.now() - startedAt) / 1000);
-    if (remainingSec >= 30 && isHermesRunnerOnPath(fb.runner) && (fb.runner !== runner || fb.model !== model)) {
+    if (
+      remainingSec >= 30 &&
+      fb &&
+      isHermesRunnerOnPath(fb.runner) &&
+      (fb.runner !== runner || fb.model !== model)
+    ) {
       fallbackUsed = true;
       runner = fb.runner;
       model = fb.model;
@@ -182,13 +377,19 @@ export async function runDelegatedStage(opts) {
         model,
         workspace,
         promptFile: opts.promptFile,
+        stage: opts.stage,
         spawnFn: opts.spawnFn,
       });
+      lastStderr = result.stderr ?? lastStderr;
     }
   }
 
+  const stderrTail = truncateStderr(lastStderr);
   const logPath = delegateLogPath(workspace);
+  const atomicLogPath = atomicHermesLogPath(workspace);
   await mkdir(dirname(logPath), { recursive: true });
+  await mkdir(dirname(atomicLogPath), { recursive: true });
+
   const row = {
     ts: new Date().toISOString(),
     stage: opts.stage,
@@ -196,10 +397,33 @@ export async function runDelegatedStage(opts) {
     model,
     exit: result.exitCode ?? (result.ok ? 0 : 1),
     fallbackUsed,
+    ok: result.ok,
+    message: result.ok ? undefined : result.message,
+    stderrTail: stderrTail || undefined,
   };
-  await appendFile(logPath, `${JSON.stringify(row)}\n`, "utf8");
+  const line = `${JSON.stringify(row)}\n`;
+  await appendFile(logPath, line, "utf8");
+  if (logPath !== atomicLogPath) {
+    await appendFile(atomicLogPath, line, "utf8");
+  }
+  if (stderrTail) {
+    await appendFile(
+      atomicLogPath,
+      `# stderr ${row.ts} stage=${opts.stage}\n${stderrTail}\n`,
+      "utf8",
+    );
+  }
 
-  return { ...routed, runner, model, exitCode: row.exit, fallbackUsed, ok: result.ok };
+  return {
+    ...routed,
+    runner,
+    model,
+    exitCode: row.exit,
+    fallbackUsed,
+    ok: result.ok,
+    message: result.message,
+    stderrTail,
+  };
 }
 
 function parseArgs(argv) {

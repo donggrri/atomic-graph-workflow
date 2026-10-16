@@ -5,6 +5,7 @@
 ### Added
 
 - **Hermes Agent harness** (`--harness hermes`): installs skills under `.hermes/skills/` (command + role skills), `atomic-hermes-delegate` skill, `hermes-delegate.mjs` stage router, `hermes` pipeline executor, and doctor checks (`hermes --version`, `hermes status`, `.hermes.md` warning, `hermes skills trust` reminder).
+- **Hermes delegation routing**: default stages use `cursor-agent` only (`agy` via explicit graph/env overrides); opencode runner with single-run lock for fallbacks; `hermes.fallback: false` / per-stage fallback disable; failure detection for empty stdout and permission-denied stderr; orchestrator docs recommend `grok-4.7-medium`.
 
 ### Breaking / migration
 
