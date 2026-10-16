@@ -12,7 +12,7 @@ const HERMES_ONLY_SKILL = "atomic-hermes-delegate";
 
 /** Printed after install; installer must not write ~/.hermes/config.yaml. */
 export const HERMES_ORCHESTRATOR_CONFIG_HINT =
-  "Hermes orchestrator: bridge via hermes-cursor-provider and set model.default: grok-4.7-high in ~/.hermes/config.yaml (never *fast* models).";
+  "Hermes orchestrator: bridge via hermes-cursor-provider and set model.default: grok-4.7-medium in ~/.hermes/config.yaml (never *fast* models).";
 
 /**
  * @param {string} skillMd
